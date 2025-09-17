@@ -3,6 +3,7 @@
 #include "AnmLoaded.h"
 #include "Timer.h"
 #include "Interp.h"
+#include "Chain.h"
 
 struct Float3
 {
@@ -36,81 +37,105 @@ struct AnmRawInstruction
     uint32_t args[10];
 };
 
+struct TimeData
+{
+    uint16_t time;
+    uint16_t padding;
+    int32_t counter;
+};
+ASSERT_SIZE(TimeData, 0x8);
+
 class AnmVm
 {
 public:
-    int id;
-    AnmVmList nodeInGlobalList;
-    AnmVmList nodeAsFamilyMember;
-    AnmVm* nextInLayerList;
-    int layer;
-    D3DXVECTOR3 rotation;
-    D3DXVECTOR3 angularVelocity;
-    D3DXVECTOR2 scale;
-    D3DXVECTOR2 scaleGrowth;
-    D3DXVECTOR2 spriteSize;
-    D3DXVECTOR2 uvScrollPos;
-    Timer timeInScript; // <0x5c>
-    D3DXVECTOR2 spriteUvQuad[4];
-    Interp<Float3> posInterp;
-    Interp<Int3> rgbInterp;
-    Interp<int> alphaInterp;
-    Interp<Float3> rotationInterp;
-    Interp<Float2> scaleInterp;
-    Interp<Int3> rgb2Interp;
-    Interp<int> alpha2Interp;
-    Interp<float> uVelInterp;
-    Interp<float> vVelInterp;
-    D3DXVECTOR2 uvScrollVel;
-    D3DXMATRIX matrix2fc;
-    D3DXMATRIX matrix33c;
-    D3DXMATRIX matrix37c;
-    D3DCOLOR color1;
-    D3DCOLOR color2;
-    uint16_t pendingInterrupt;
-    uint16_t unused;
-    Timer interruptReturnTime;
-    AnmRawInstruction* interruptReturnInstr;
-    int timeOfLastSpriteSet;
-    uint16_t spriteNumber;
-    uint16_t anmFileIndex;
-    uint16_t anotherSpriteNumber;
-    uint16_t scriptNumber;
-    AnmRawInstruction* beginningOfScript;
-    AnmRawInstruction* currentInstruction;
-    AnmLoadedSprite* sprite;
-    AnmLoaded* anmLoaded;
-    int intVars[4]; // Script variables
-    float floatVars[4]; // Script variables
-    int intVar8;
-    int intVar9;
-    D3DXVECTOR3 pos;
-    D3DXVECTOR3 entityPos;
-    D3DXVECTOR3 pos2;
-    void* specialRenderData;
-    uint32_t flagsLow;
-    uint32_t flagsHigh;
-    uint32_t unknown;
-    void* onTick; // Function pointers to chainCallback
-    void* onDraw; // Function pointers to chainCallback
-    uint32_t unknown1;
-    uint8_t fontDimensions[2];
-    uint16_t probablyPadding;
-    uint32_t j5;
-    uint32_t j6;
-    void* unknownFunc;
-    void* spriteMappingFunc;
-    void* dataForSpriteMappingFunc;
+    int m_id;
+    AnmVmList m_nodeInGlobalList;
+    AnmVmList m_nodeAsFamilyMember;
+    AnmVm* m_nextInLayerList;
+    int m_layer;
+    D3DXVECTOR3 m_rotation;
+    D3DXVECTOR3 m_angularVelocity;
+    D3DXVECTOR2 m_scale;
+    D3DXVECTOR2 m_scaleGrowth;
+    D3DXVECTOR2 m_spriteSize;
+    D3DXVECTOR2 m_uvScrollPos;
+    Timer m_timeInScript; // <0x5c>
+    D3DXVECTOR2 m_spriteUvQuad[4];
+    Interp<Float3> m_posInterp;
+    Interp<Int3> m_rgbInterp;
+    Interp<int> m_alphaInterp;
+    Interp<Float3> m_rotationInterp;
+    Interp<Float2> m_scaleInterp;
+    Interp<Int3> m_rgb2Interp;
+    Interp<int> m_alpha2Interp;
+    Interp<float> m_uVelInterp;
+    Interp<float> m_vVelInterp;
+    D3DXVECTOR2 m_uvScrollVel;
+    D3DXMATRIX m_matrix2fc;
+    D3DXMATRIX m_matrix33c;
+    D3DXMATRIX m_matrix37c;
+    D3DCOLOR m_color1;
+    D3DCOLOR m_color2;
+    uint16_t m_pendingInterrupt;
+    uint16_t m_unused;
+    Timer m_interruptReturnTime;
+    AnmRawInstruction* m_interruptReturnInstr;
+    int m_timeOfLastSpriteSet;
+    uint16_t m_spriteNumber;
+    uint16_t m_anmFileIndex;
+    uint16_t m_anotherSpriteNumber;
+    uint16_t m_scriptNumber;
+    AnmRawInstruction* m_beginningOfScript;
+    AnmRawInstruction* m_currentInstruction;
+    AnmLoadedSprite* m_sprite;
+    AnmLoaded* m_anmLoaded;
+    int m_intVars[4]; // Script variables
+    float m_floatVars[4]; // Script variables
+    int m_intVar8;
+    int m_intVar9;
+    D3DXVECTOR3 m_pos;
+    D3DXVECTOR3 m_entityPos;
+    D3DXVECTOR3 m_pos2;
+    void* m_specialRenderData;
+    uint32_t m_flagsLow;
+    uint32_t m_flagsHigh;
+    uint32_t m_unknown;
+    ChainCallback* m_onTick; // Function pointers to chainCallback
+    ChainCallback* m_onDraw; // Function pointers to chainCallback
+    uint32_t m_unknown1;
+    uint8_t m_fontDimensions[2];
+    uint16_t m_probablyPadding;
+    uint32_t m_j5;
+    uint32_t m_j6;
+    void* m_unknownFunc;
+    void* (*m_spriteMappingFunc)(AnmVm* This, uint32_t param);
+    void* m_dataForSpriteMappingFunc;
 
+    AnmVm();
     void initialize();
     void run();
+    void ApplyZRotationToQuadCorners(D3DXVECTOR3* bottomLeft, D3DXVECTOR3* bottomRight, D3DXVECTOR3* topRight, D3DXVECTOR3* topLeft);
+    void writeSpriteCharacters(D3DXVECTOR3* topLeft, D3DXVECTOR3* bottomLeft, D3DXVECTOR3* topRight, D3DXVECTOR3* bottomRight);
+    void writeSpriteCharactersWithoutRot(D3DXVECTOR3* bottomLeft, D3DXVECTOR3* bottomRight, D3DXVECTOR3* topRight, D3DXVECTOR3* topLeft);
+    int setupTextureQuadAndMatrices(uint32_t spriteNumber, AnmLoaded* anmLoaded);
+    static uint32_t updateTimeValue(TimeData* data);
 
     // Placeholder functions
-    int getIntVar(int index) { return 0; }
-    float getFloatVar(int index) { return 0.0f; }
-    int* getIntVarPtr(int index) { return nullptr; }
-    float* getFloatVarPtr(int index) { return nullptr; }
+    int getIntVar(int time);
+    int* getIntVarPtr(int* time);
+    float getFloatVar(float time);
+    float* getFloatVarPtr(float* time);
+
     int randInt(int min, int max) { return min; } // Placeholder
     float randFloat(float min, float max) { return min; } // Placeholder
 };
 ASSERT_SIZE(AnmVm, 0x434);
+
+/* Globals */
+
+extern TimeData g_timeData;
+extern TimeData g_timeDataCopy;
+extern D3DXVECTOR3 g_bottomLeftDrawCorner;
+extern D3DXVECTOR3 g_bottomRightDrawCorner;
+extern D3DXVECTOR3 g_topLeftDrawCorner;
+extern D3DXVECTOR3 g_topRightDrawCorner;

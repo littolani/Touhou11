@@ -4,33 +4,6 @@
 
 #define MAX_PATH_LEN 260
 
-int fileExists(LPCSTR filePath)
-{
-    HANDLE fileHandle;
-
-    g_supervisor.enterCriticalSection(2);
-
-    fileHandle = CreateFileA(
-        filePath,
-        GENERIC_READ,
-        FILE_SHARE_READ,
-        NULL,
-        OPEN_EXISTING,
-        FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED,
-        NULL
-    );
-
-    if (fileHandle != INVALID_HANDLE_VALUE)
-    {
-        CloseHandle(fileHandle);
-        g_supervisor.leaveCriticalSection(2);
-        return true;
-    }
-
-    g_supervisor.leaveCriticalSection(2);
-    return false;
-}
-
 void resolveLnkShortcut(LPCSTR shortcutPath, LPSTR targetPath)
 {
     if (targetPath == NULL)

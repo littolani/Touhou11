@@ -8,6 +8,7 @@ CMakeCache.txt
 cmake_install.cmake
 Makefile
 
+/sdk/
 
 # IDE / Editor files
 *.swp

@@ -1,7 +1,6 @@
 #include "Globals.h"
 
 Supervisor g_supervisor{};
-Chain* g_chain{};
 HANDLE g_app{};
 DWORD g_unusualLaunchFlag{};
 HINSTANCE g_hInstance{};
@@ -42,4 +41,31 @@ double getDeltaTime()
     }
     g_supervisor.leaveCriticalSection(5);
     return elapsedTime;
+}
+
+int fileExists(LPCSTR filePath)
+{
+    HANDLE fileHandle;
+
+    g_supervisor.enterCriticalSection(2);
+
+    fileHandle = CreateFileA(
+        filePath,
+        GENERIC_READ,
+        FILE_SHARE_READ,
+        NULL,
+        OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED,
+        NULL
+    );
+
+    if (fileHandle != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle(fileHandle);
+        g_supervisor.leaveCriticalSection(2);
+        return true;
+    }
+
+    g_supervisor.leaveCriticalSection(2);
+    return false;
 }

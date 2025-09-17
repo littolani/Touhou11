@@ -1,5 +1,6 @@
 #pragma once
 #include "Chireiden.h"
+#include "Camera.h"
 
 struct Supervisor
 {
@@ -27,6 +28,13 @@ struct Supervisor
     uint8_t criticalSectionCounters[12]; // <0x930>
     size_t th11DatSize; // <0x9a0>
     byte* th11DatBytes; // <0x9a4>
+
+    Camera cam0;
+    Camera cam1;
+    Camera stageCam;
+    Camera* currentCam;
+    int camIndex;
+    int gameMode;
 
     int initializeDevices();
     void releaseDinputIface();

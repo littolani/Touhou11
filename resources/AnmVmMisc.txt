@@ -1,3 +1,46 @@
+; getVarRelated_458c30(uint16_t *time)
+  458c30:	f7 05 10 38 4c 00 00 	testl  $0x8000,0x4c3810
+  458c37:	80 00 00 
+  458c3a:	74 11                	je     0x458c4d
+  458c3c:	68 80 3b 4c 00       	push   $0x4c3b80
+  458c41:	ff 15 84 b0 48 00    	call   *0x48b084
+  458c47:	fe 05 ba 3b 4c 00    	incb   0x4c3bba
+  458c4d:	b8 30 96 00 00       	mov    $0x9630,%eax
+  458c52:	66 33 06             	xor    (%esi),%ax
+  458c55:	83 46 04 02          	addl   $0x2,0x4(%esi)
+  458c59:	b9 53 65 00 00       	mov    $0x6553,%ecx
+  458c5e:	66 2b c1             	sub    %cx,%ax
+  458c61:	53                   	push   %ebx
+  458c62:	57                   	push   %edi
+  458c63:	0f b7 f8             	movzwl %ax,%edi
+  458c66:	66 8b d7             	mov    %di,%dx
+  458c69:	66 c1 ea 0e          	shr    $0xe,%dx
+  458c6d:	8d 04 bd 00 00 00 00 	lea    0x0(,%edi,4),%eax
+  458c74:	66 03 d0             	add    %ax,%dx
+  458c77:	b9 30 96 00 00       	mov    $0x9630,%ecx
+  458c7c:	66 33 d1             	xor    %cx,%dx
+  458c7f:	b8 53 65 00 00       	mov    $0x6553,%eax
+  458c84:	66 2b d0             	sub    %ax,%dx
+  458c87:	0f b7 da             	movzwl %dx,%ebx
+  458c8a:	66 8b cb             	mov    %bx,%cx
+  458c8d:	66 c1 e9 0e          	shr    $0xe,%cx
+  458c91:	8d 14 9d 00 00 00 00 	lea    0x0(,%ebx,4),%edx
+  458c98:	66 03 ca             	add    %dx,%cx
+  458c9b:	66 89 0e             	mov    %cx,(%esi)
+  458c9e:	f7 05 10 38 4c 00 00 	testl  $0x8000,0x4c3810
+  458ca5:	80 00 00 
+  458ca8:	74 11                	je     0x458cbb
+  458caa:	68 80 3b 4c 00       	push   $0x4c3b80
+  458caf:	ff 15 88 b0 48 00    	call   *0x48b088
+  458cb5:	fe 0d ba 3b 4c 00    	decb   0x4c3bba
+  458cbb:	0f b7 c7             	movzwl %di,%eax
+  458cbe:	0f b7 cb             	movzwl %bx,%ecx
+  458cc1:	c1 e0 10             	shl    $0x10,%eax
+  458cc4:	5f                   	pop    %edi
+  458cc5:	0b c1                	or     %ecx,%eax
+  458cc7:	5b                   	pop    %ebx
+  458cc8:	c3                   	ret
+
 ; AnmVm::getNextInstruction
   44b2a0:	8d 90 f0 d8 ff ff    	lea    -0x2710(%eax),%edx
   44b2a6:	83 fa 16             	cmp    $0x16,%edx

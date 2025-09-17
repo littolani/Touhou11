@@ -1,5 +1,7 @@
 #include "AnmLoaded.h"
 
+AnmManager* g_anmManager;
+
 // 0x4540f0
 int AnmLoadedD3D::createTextureFromAtR()
 {
@@ -109,7 +111,7 @@ void AnmLoaded::setupTextures()
     int anm;
     bool success;
     
-    printf("::postloadAnim : %d, %d\n",this->anmSlotIndex, this->anmsLoaded);
+    printf("::postloadAnim : %d, %d\n",this->anmSlotIndex, this->anmsLoading);
     anmHeader = this->header;
     spritesLoaded = 0;
     anm = 0;
@@ -118,12 +120,12 @@ void AnmLoaded::setupTextures()
     success = false;
     while (true)
     {
-        if (anm == this->anmsLoaded - 1)
+        if (anm == this->anmsLoading - 1)
         {
             status = createTextureForEntry(i, spritesLoaded, scriptsLoaded, anmHeader);
             if (status < 0)
             {
-                this->anmsLoaded = 0;
+                this->anmsLoading = 0;
                 return;
             }
             success = true;
@@ -135,12 +137,12 @@ void AnmLoaded::setupTextures()
             break;
         anm = anm + 1;
         anmHeader = (AnmHeader *)((int)&anmHeader->version + anmHeader->nextOffset);
-        if ((anm == this->anmsLoaded) || (success)) {
-        ++this->anmsLoaded;
+        if ((anm == this->anmsLoading) || (success)) {
+        ++this->anmsLoading;
         return;
         }
     }
-    this->anmsLoaded = 0;
+    this->anmsLoading = 0;
     return;
 }
 

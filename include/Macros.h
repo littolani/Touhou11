@@ -1,6 +1,5 @@
 #pragma once
 #include <stdint.h>
-
 #include <cstddef> // For size_t
 
 // Template struct to check size

@@ -1,5 +1,6 @@
 #include "Chireiden.h"
 #include "Globals.h"
+#include <Macros.h>
 
 // Structure for an ANM file chunk (based on Touhou Toolkit's anm_header11_t)
 struct AnmHeader
@@ -41,18 +42,36 @@ struct AnmLoadedD3D
 };
 ASSERT_SIZE(AnmLoadedD3D, 0x14);
 
+struct AnmLoadedSprite
+{
+    int anmSlot;
+    int spriteNumber;
+    AnmLoadedD3D* anmLoadedD3D; // <0x8>
+    D3DXVECTOR2 startPixelInclusive;
+    D3DXVECTOR2 endPixelExclusive;
+    float bitmapHeight;
+    float bitmapWidth;
+    D3DXVECTOR2 uvStart;
+    D3DXVECTOR2 uvEnd;
+    float spriteHeight;
+    float spriteWidth;
+    D3DXVECTOR2 maybeScale;
+    uint32_t idk;
+};
+ASSERT_SIZE(AnmLoadedSprite, 0x48);
+
 struct AnmLoaded
 {
-    int anmSlotIndex;           // Offset 0x00
-    char filePath[260];         // Offset 0x04  (assuming typical MAX_PATH size)
-    AnmHeader* header;          // Offset 0x108
-    int numAnmLoadedD3Ds;       // Offset 0x10c (numHeaders)
-    int numScripts;             // Offset 0x110 (numScripts)
-    int numSprites;             // Offset 0x114 (numSprites)
-    void* keyframeData;         // Offset 0x118 (keyframeData)
-    void* spriteData;           // Offset 0x11c (spriteData)
-    AnmLoadedD3D* anmLoadedD3D; // Offset 0x120 (AnmLoadedD3DBuffer)
-    int anmsLoaded;             // Offset 0x124
+    int anmSlotIndex;               // Offset 0x00
+    char filePath[260];             // Offset 0x04  (assuming typical MAX_PATH size)
+    AnmHeader* header;              // Offset 0x108
+    int numAnmLoadedD3Ds;           // Offset 0x10c (numHeaders)
+    int numScripts;                 // Offset 0x110 (numScripts)
+    int numSprites;                 // Offset 0x114 (numSprites)
+    AnmLoadedSprite* keyframeData;  // Offset 0x118 (keyframeData) originally void*
+    void* spriteData;               // Offset 0x11c (spriteData)
+    AnmLoadedD3D* anmLoadedD3D;     // Offset 0x120 (AnmLoadedD3DBuffer)
+    int anmsLoading;                // Offset 0x124
     int unknown;
     int texturesCreated;
     void* unknownHeapAllocated;
@@ -62,18 +81,3 @@ struct AnmLoaded
     int createTextureForEntry(int i, int numSprites, int numScripts, AnmHeader* anmHeader);
 };
 ASSERT_SIZE(AnmLoaded, 0x134);
-
-struct AnmLoadedSprite
-{
-    int sourceFileIndex;
-    D3DXVECTOR2 startPixel;
-    D3DXVECTOR2 endPixel;
-    float textureHeight;
-    float textureWidth;
-    D3DXVECTOR2 uvStart;
-    D3DXVECTOR2 uvEnd;
-    float height;
-    float width;
-    int spriteId;
-};
-

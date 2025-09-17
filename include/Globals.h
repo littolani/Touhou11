@@ -6,7 +6,6 @@
 #include "AnmManager.h"
 
 
-extern Chain* g_chain;
 extern HANDLE g_app;
 extern DWORD g_unusualLaunchFlag;
 extern HINSTANCE g_hInstance;
@@ -17,7 +16,6 @@ extern LARGE_INTEGER g_performanceFrequency;
 extern LARGE_INTEGER g_performanceCount;
 extern PbgArchive g_pbgArchive; 
 extern float g_gameSpeed;
-extern AnmManager* g_anmManager;
 extern D3DFORMAT g_d3dFormats[];
 extern uint32_t g_bytesPerPixelLookupTable[];
 extern double g_time;

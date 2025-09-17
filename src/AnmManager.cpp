@@ -3,28 +3,27 @@
 
 AnmManager* g_anmManager;
 
-void AnmManager::preloadAnm(int anmIdx, char* anmFileName)
+// 0x454360
+AnmLoaded* AnmManager::preloadAnm(int anmIdx, const char* anmFileName)
 {
-    // Skip if already loaded
-    if (g_anmManager->loadedAnms[anmIdx]) 
+    // Return existing animation if already loaded
+    if (g_anmManager->loadedAnms[anmIdx] != nullptr)
     {
-        printf("::preloadAnim already : %s\n",anmFileName);
-        return;
+        printf("::preloadAnm already loaded: %s\n", anmFileName);
+        return g_anmManager->loadedAnms[anmIdx];
     }
-    g_anmManager->preloadAnmFromMemory(anmFileName,anmIdx);
 
-    if (!g_anmManager)
-        return;
+    // Load animation from memory
+    AnmLoaded* anmLoaded = preloadAnmFromMemory(anmFileName, anmIdx);
+    if (anmLoaded == nullptr)
+        return nullptr;
 
-    // Reused as a loading flag
-    g_anmManager->bulkVms[0].timeInScript.gameSpeed = (float*)1;
-    do {
-        if ((g_supervisor.criticalSectionFlag & 0x180) != 0) break;
+    anmLoaded->anmsLoading = 1;
+    while (anmLoaded->anmsLoading != 0 && (g_supervisor.criticalSectionFlag & 0x180) == 0) // Wait until animation loading is complete
         Sleep(1);
-    } while (g_anmManager->bulkVms[0].timeInScript.gameSpeed != (float*)0);
 
-    printf("::preloadAnimEnd : %s\n",anmFileName);
-    return;
+    printf("::preloadAnmEnd: %s\n", anmFileName);
+    return anmLoaded;
 }
 
 // Function to process a single ANM chunk
@@ -62,8 +61,9 @@ int openAnmLoaded(AnmLoaded* anmLoaded, AnmHeader* chunk, int chunkIndex)
     return 1;
 }
 
+// 0x454190
 // Function to preload an ANM file into memory
-void AnmManager::preloadAnmFromMemory(char* anmFilePath, int anmSlotIndex)
+AnmLoaded* AnmManager::preloadAnmFromMemory(const char* anmFilePath, int anmSlotIndex)
 {
     // Log the preload action
     printf("::preloadAnim : %s\n", anmFilePath);
@@ -72,7 +72,7 @@ void AnmManager::preloadAnmFromMemory(char* anmFilePath, int anmSlotIndex)
     if (anmSlotIndex >= 32)
     {
         printf("テクスチャ格納先が足りません\n");
-        return;
+        return nullptr;
     }
 
     // Resolve the file path
@@ -84,7 +84,7 @@ void AnmManager::preloadAnmFromMemory(char* anmFilePath, int anmSlotIndex)
     if (!header)
     {
         printf("アニメが読み込めません。データが失われてるか壊れています\n");
-        return;
+        return nullptr;
     }
 
     // Allocate and initialize the AnmLoaded structure
@@ -138,13 +138,14 @@ void AnmManager::preloadAnmFromMemory(char* anmFilePath, int anmSlotIndex)
             free(anmLoaded->spriteData);
             free(anmLoaded);
             loadedAnms[anmSlotIndex] = nullptr;
-            return;
+            return nullptr;
         }
         chunkIndex++;
         if (currentChunk->nextOffset == 0) 
             break;
         currentChunk = (AnmHeader*)((byte*)currentChunk + currentChunk->nextOffset);
     }
+    return anmLoaded;
 }
 
 void AnmManager::markAnmLoadedAsReleasedInVmList(AnmLoaded* anmLoaded)
@@ -155,8 +156,8 @@ void AnmManager::markAnmLoadedAsReleasedInVmList(AnmLoaded* anmLoaded)
         AnmVmList* next = temp->next;
         AnmVm* entry = temp->entry;
         temp = next;
-        if (entry->anmLoaded == anmLoaded)
-        entry->flagsLow |= 0x4000000;
+        if (entry->m_anmLoaded == anmLoaded)
+        entry->m_flagsLow |= 0x4000000;
     }
     temp = this->secondaryGlobalNext;
     while (temp)
@@ -164,8 +165,8 @@ void AnmManager::markAnmLoadedAsReleasedInVmList(AnmLoaded* anmLoaded)
         AnmVmList* next = temp->next;
         AnmVm* entry = temp->entry;
         temp = next;
-        if (entry->anmLoaded == anmLoaded)
-            entry->flagsLow |= 0x4000000;
+        if (entry->m_anmLoaded == anmLoaded)
+            entry->m_flagsLow |= 0x4000000;
     }
 }
 
@@ -307,7 +308,42 @@ void AnmManager::blitTextureToSurface(BlitParams* blitParams)
     backBuffer->Release();
 }
 
-/* Globals */
+// 0x4453b0
+void AnmManager::createD3DTextures()
+{
+    for (int i = 0; i < 32; ++i)
+    {
+        AnmLoaded* loadedAnm = g_anmManager->loadedAnms[i];
+        if (!loadedAnm)
+            continue;
+
+        if (loadedAnm->numAnmLoadedD3Ds <= 0)
+            continue;
+
+        for (int j = 0; j < loadedAnm->numAnmLoadedD3Ds; ++j)
+        {
+            AnmLoadedD3D *anmLoadedD3D = &loadedAnm->anmLoadedD3D[j];
+            if (anmLoadedD3D->m_flags & 1)
+            {
+                anmLoadedD3D->m_flags |= 1;
+                g_supervisor.d3dDevice->CreateTexture(
+                    g_supervisor.d3dPresetParameters.BackBufferWidth,
+                    g_supervisor.d3dPresetParameters.BackBufferHeight,
+                    1,
+                    1,
+                    g_supervisor.d3dPresetParameters.BackBufferFormat,
+                    D3DPOOL_DEFAULT,
+                    &anmLoadedD3D->m_texture,
+                    NULL
+                );
+                
+                anmLoadedD3D->m_bytesPerPixel = (g_supervisor.d3dPresetParameters.BackBufferFormat == D3DFMT_X8R8G8B8) * 2 + 2;
+            }
+        }
+    }
+}
+
+/* Global Functions */
 
 void blitTextures()
 {

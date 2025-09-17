@@ -379,7 +379,9 @@
   44b99b:	03 53 10             	add    0x10(%ebx),%edx
   44b99e:	89 97 a8 03 00 00    	mov    %edx,0x3a8(%edi)
   44b9a4:	e9 60 fb ff ff       	jmp    0x44b509
+; case 1
   44b9a9:	83 a7 04 04 00 00 fe 	andl   $0xfffffffe,0x404(%edi)
+; case 2:
   44b9b0:	d9 44 24 74          	flds   0x74(%esp)
   44b9b4:	c7 87 a8 03 00 00 00 	movl   $0x0,0x3a8(%edi)
   44b9bb:	00 00 00 
@@ -587,6 +589,7 @@
   44bca8:	03 cb                	add    %ebx,%ecx
   44bcaa:	89 8f a8 03 00 00    	mov    %ecx,0x3a8(%edi)
   44bcb0:	e9 54 f8 ff ff       	jmp    0x44b509
+; case 3:
   44bcb5:	b8 01 00 00 00       	mov    $0x1,%eax
   44bcba:	09 87 04 04 00 00    	or     %eax,0x404(%edi)
   44bcc0:	83 bf 2c 04 00 00 00 	cmpl   $0x0,0x42c(%edi)
@@ -599,7 +602,7 @@
   44bcd8:	8b d0                	mov    %eax,%edx
   44bcda:	8b 87 2c 04 00 00    	mov    0x42c(%edi),%eax
   44bce0:	8b cf                	mov    %edi,%ecx
-  44bce2:	ff d0                	call   *%eax
+  44bce2:	ff d0                	call   *%eax ; This->spriteMappingFunc
   44bce4:	eb 0f                	jmp    0x44bcf5
   44bce6:	84 43 06             	test   %al,0x6(%ebx)
   44bce9:	8b 43 08             	mov    0x8(%ebx),%eax
@@ -2082,11 +2085,12 @@
   44d221:	03 cb                	add    %ebx,%ecx
   44d223:	89 8f a8 03 00 00    	mov    %ecx,0x3a8(%edi)
   44d229:	e9 db e2 ff ff       	jmp    0x44b509
+; case 0xb
   44d22e:	f6 43 06 02          	testb  $0x2,0x6(%ebx)
   44d232:	74 0e                	je     0x44d242
   44d234:	8b 43 0c             	mov    0xc(%ebx),%eax
   44d237:	8b cf                	mov    %edi,%ecx
-  44d239:	e8 62 e0 ff ff       	call   0x44b2a0
+  44d239:	e8 62 e0 ff ff       	call   0x44b2a0 ; getIntVar
   44d23e:	8b f0                	mov    %eax,%esi
   44d240:	eb 03                	jmp    0x44d245
   44d242:	8b 73 0c             	mov    0xc(%ebx),%esi
@@ -2094,12 +2098,13 @@
   44d249:	8d 43 08             	lea    0x8(%ebx),%eax
   44d24c:	74 07                	je     0x44d255
   44d24e:	8b d7                	mov    %edi,%edx
-  44d250:	e8 ab e1 ff ff       	call   0x44b400
+  44d250:	e8 ab e1 ff ff       	call   0x44b400 ; getIntVarPtr
   44d255:	29 30                	sub    %esi,(%eax)
   44d257:	0f b7 4b 02          	movzwl 0x2(%ebx),%ecx
   44d25b:	03 cb                	add    %ebx,%ecx
   44d25d:	89 8f a8 03 00 00    	mov    %ecx,0x3a8(%edi)
-  44d263:	e9 a1 e2 ff ff       	jmp    0x44b509
+  44d263:	e9 a1 e2 ff ff       	jmp    0x44b509 ; loopAgain
+
   44d268:	f6 43 06 02          	testb  $0x2,0x6(%ebx)
   44d26c:	d9 43 0c             	flds   0xc(%ebx)
   44d26f:	74 0b                	je     0x44d27c

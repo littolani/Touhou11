@@ -1,6 +1,5 @@
 #include "FileAbstrction.h"
 #include "Globals.h"
-#include <winbase.h>
 
 int g_numEntriesInDatFile = 0;
 PbgArchive g_pbgArchives[20];

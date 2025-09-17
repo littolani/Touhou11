@@ -71,12 +71,13 @@ public:
     AnmVm vmLayers[31];
     uint32_t q[3];
 
-    void preloadAnm(int anmIdx, char *anmFileName);
-    void preloadAnmFromMemory(char* anmFilePath, int anmSlotIndex);
+    void createD3DTextures();
     void markAnmLoadedAsReleasedInVmList(AnmLoaded* anmLoaded);
     void releaseTextures();
     void flushSprites();
     void blitTextureToSurface(BlitParams* blitParams);
+    AnmLoaded* preloadAnm(int anmIdx, const char* anmFileName);
+    AnmLoaded* preloadAnmFromMemory(const char* anmFilePath, int anmSlotIndex);
     AnmVm* allocateVm();
 private:
     static constexpr int NUM_BULK_VMS = 4096;
@@ -87,4 +88,7 @@ private:
 ASSERT_SIZE(AnmManager, 0x7bd894);
 
 /* Globals */
+
+extern AnmManager* g_anmManager;
+
 void blitTextures();

@@ -1,67 +1,552 @@
 #include "AnmVm.h"
 
-void AnmVm::initialize()
-{
-    D3DXVECTOR3 entityPos = this->entityPos;
-    int layer = this->layer;
-    memset(this,0,0x434);
+/* Global Variables */
 
-    this->scale.x = 1.0;
-    this->scale.y = 1.0;
-    this->entityPos = entityPos;
-    this->layer = layer;
-    this->color1 = 0xffffffff;
-    D3DXMatrixIdentity(&this->matrix2fc);
-    this->flagsLow = 7;
-    this->timeInScript.m_current = 0;
-    this->timeInScript.m_currentF = 0.0;
-    this->timeInScript.m_previous = -999999;
-    this->posInterp.endTime = 0;
-    this->rgbInterp.endTime = 0;
-    this->alphaInterp.endTime = 0;
-    this->rotationInterp.endTime = 0;
-    this->scaleInterp.endTime = 0;
-    this->rgb2Interp.endTime = 0;
-    this->alpha2Interp.endTime = 0;
-    this->uVelInterp.endTime = 0;
-    this->vVelInterp.endTime = 0;
-    this->nodeInGlobalList.next = nullptr;
-    this->nodeInGlobalList.prev = nullptr;
-    this->nodeInGlobalList.entry = this;
-    this->nodeAsFamilyMember.next = nullptr;
-    this->nodeAsFamilyMember.prev = nullptr;
-    this->nodeAsFamilyMember.entry = this;
+TimeData g_timeData;
+TimeData g_timeDataCopy;
+D3DXVECTOR3 g_bottomLeftDrawCorner;
+D3DXVECTOR3 g_bottomRightDrawCorner;
+D3DXVECTOR3 g_topLeftDrawCorner;
+D3DXVECTOR3 g_topRightDrawCorner;
+
+AnmVm::AnmVm()
+{
+    m_spriteNumber = -1;
 }
 
-void AnmVm::run() {
-    while (currentInstruction != nullptr)
-    {
-        if (flagsLow & 0x20000)
-            return; // Early exit based on flag
+void AnmVm::initialize()
+{
+    D3DXVECTOR3 entityPos = m_entityPos;
+    int layer = m_layer;
+    memset(this,0,0x434);
 
-        if (pendingInterrupt != 0)
-        {
-            // Interrupt handling: search for opcode 64 with matching label
-            AnmRawInstruction* instr = beginningOfScript;
-            while (instr->opcode != 0xFFFF)
-            {
-                if (instr->opcode == 64 && instr->args[0] == pendingInterrupt) {
-                    interruptReturnInstr = currentInstruction;
-                    interruptReturnTime = timeInScript;
-                    timeInScript.setCurrent(instr->time);
-                    currentInstruction = instr;
-                    pendingInterrupt = 0;
-                    flagsLow |= 1; // Set visibility
-                    break;
-                }
-                instr = (AnmRawInstruction*)((char*)instr + instr->offsetToNextInstr);
-            }
-        } 
+    m_scale.x = 1.0;
+    m_scale.y = 1.0;
+    m_entityPos = entityPos;
+    m_layer = layer;
+    m_color1 = 0xffffffff;
+    D3DXMatrixIdentity(&m_matrix2fc);
+    m_flagsLow = 7;
+    m_timeInScript.m_current = 0;
+    m_timeInScript.m_currentF = 0.0;
+    m_timeInScript.m_previous = -999999;
+    m_posInterp.endTime = 0;
+    m_rgbInterp.endTime = 0;
+    m_alphaInterp.endTime = 0;
+    m_rotationInterp.endTime = 0;
+    m_scaleInterp.endTime = 0;
+    m_rgb2Interp.endTime = 0;
+    m_alpha2Interp.endTime = 0;
+    m_uVelInterp.endTime = 0;
+    m_vVelInterp.endTime = 0;
+    m_nodeInGlobalList.next = nullptr;
+    m_nodeInGlobalList.prev = nullptr;
+    m_nodeInGlobalList.entry = this;
+    m_nodeAsFamilyMember.next = nullptr;
+    m_nodeAsFamilyMember.prev = nullptr;
+    m_nodeAsFamilyMember.entry = this;
+}
+
+int AnmVm::setupTextureQuadAndMatrices(uint32_t spriteNumber, AnmLoaded* anmLoaded)
+{
+    if (anmLoaded->header == nullptr || anmLoaded->anmsLoading != 0)
+        return -1;
+
+    m_spriteNumber = static_cast<uint16_t>(spriteNumber);
+    m_anmLoaded = anmLoaded;
+
+    AnmLoadedSprite* sprite = &anmLoaded->keyframeData[spriteNumber];
+    m_sprite = sprite;
+
+    m_spriteUvQuad[0].x = sprite->uvStart.x;
+    m_spriteUvQuad[0].y = sprite->uvStart.y;
+    m_spriteUvQuad[1].x = sprite->uvEnd.x;
+    m_spriteUvQuad[1].y = sprite->uvStart.y;
+    m_spriteUvQuad[2].x = sprite->uvEnd.x;
+    m_spriteUvQuad[2].y = sprite->uvEnd.y;
+    m_spriteUvQuad[3].x = sprite->uvStart.x;
+    m_spriteUvQuad[3].y = sprite->uvEnd.y;
+
+    m_spriteSize.x = sprite->spriteWidth;
+    m_spriteSize.y = sprite->spriteHeight;
+
+    D3DXMatrixIdentity(&m_matrix2fc);
+    D3DXMatrixIdentity(&m_matrix37c);
+
+    m_matrix2fc._11 = m_spriteSize.x * (1.f / 256.f);
+    m_matrix2fc._22 = m_spriteSize.y * (1.f / 256.f);
+
+    m_matrix33c = m_matrix2fc;
+
+    m_matrix37c._11 = (m_spriteSize.x / sprite->bitmapWidth) * sprite->maybeScale.x;
+    m_matrix37c._22 = (m_spriteSize.y / sprite->bitmapHeight) * sprite->maybeScale.y;
+
+    return 0;
+}
+
+uint32_t AnmVm::updateTimeValue(TimeData* timeData)
+{
+    g_supervisor.enterCriticalSection(10);
+    timeData->counter += 2;
+    uint16_t x = (timeData->time ^ 0x9630) + 0x9aad;
+    uint16_t y = ((x >> 0xe) + x * 4 ^ 0x9630) + 0x9aad;
+    timeData->time = (y >> 0xe) + y * 4;
+    g_supervisor.leaveCriticalSection(10);
+    return ((uint32_t)x << 16) | y;
+}
+
+// 0x44b2a0 (formerly labelled getNextInstruction)
+int AnmVm::getIntVar(int time)
+{  
+    switch(time)
+    {
+    case 10000:
+        return m_intVars[0];
+    case 10001: // 0x2711
+        return m_intVars[1];
+    case 10002: // 0x2712
+        return m_intVars[2];
+    case 10003: // 0x2713
+        return m_intVars[3];
+    case 10004: // 0x2714
+        return static_cast<float>(m_floatVars[0]);
+    case 10005: // 0x2715
+        return static_cast<float>(m_floatVars[1]);
+    case 10006: // 0x2716
+        return static_cast<float>(m_floatVars[2]);
+    case 10007: // 0x2717
+        return static_cast<float>(m_floatVars[3]);
+    case 10008: // 0x2718
+        return m_intVar8;
+    case 10009: // 0x2719
+        return m_intVar9;
+    case 10022: // 0x2726
+    TimeData* timeData = &g_timeData;
+    if ((m_flagsLow & 0x40000000) == 0)
+      timeData = &g_timeDataCopy;
+    time = updateTimeValue(timeData);
+  }
+  return time;
+}
+
+// 0x44b400
+int* AnmVm::getIntVarPtr(int* time)
+{
+    switch(*time)
+    {
+    case 10000:
+        return &m_intVars[0];
+    case 10001:
+        return &m_intVars[1];
+    case 10002:
+        return &m_intVars[2];
+    case 10003:
+        return &m_intVars[3];
+    case 10008:
+        return &m_intVar8;
+    case 10009:
+        time = &m_intVar9;
+    }
+    return time;
+}
+
+// 0x44b380
+float* AnmVm::getFloatVarPtr(float* time)
+{
+    int intTime = static_cast<float>(*time); 
+    switch(intTime)
+    {
+    case 10004: // 0x2714
+        return &m_floatVars[0];
+    case 10005: // 0x2715
+        return &m_floatVars[1];
+    case 10006: // 0x2716
+        return &m_floatVars[2];
+    case 10007: // 0x2717
+        return &m_floatVars[3];
+    case 10013: // 0x271d
+        return &m_pos.x;
+    case 10014: // 0x271e
+        return &m_pos.y;
+    case 10015: // 0x271f
+        return &m_pos.z;
+    default:
+        return time;
+    }
+}
+
+/* 0x4070a0
+ * Converts a signed int timestamp to float.
+ * Handles wraparound by adding 2^32.
+ * Normalizes to [-1, 1] via x * (1.0 / 2^32) - 1.0.
+ * Scales result by angle.
+ */
+float normalizeTimeToAngle(float angle, TimeData* timeData)
+{
+    int time = AnmVm::updateTimeValue(timeData);
+    float fTime = time;
+
+    // Check for overflow
+    if (time < 0)
+        fTime += (1ULL << 32);
+
+    return (fTime * (1.0 / (1ULL << 32)) - 1.0) * angle;
+}
+
+/* 0x458da0
+ * Converts signed int timestamp to float.
+ * If negative, adds 2^32.
+ * Multiplies by 1 / 2^32.
+ * Returns float in [0.0, 1.0).
+ */
+float normalizeTimeUnsigned(TimeData* timeData)
+{
+    int time = AnmVm::updateTimeValue(timeData);
+    float fTime = (float)time;
+
+    // Check for overflow
+    if (time < 0)
+        fTime += (1ULL << 32);
+
+    return fTime * (1.0 / (1ULL << 32));
+}
+
+/* 0x458dd0
+ * Converts signed int timestamp to float.
+ * Adds 2^32 if negative.
+ * Multiplies by 1 / 2^31.
+ * Subtracts 1.0.
+ * Returns float in [-1.0, 1.0).
+ */
+float normalizeTimeSigned(TimeData* timeData)
+{
+    int time = AnmVm::updateTimeValue(timeData);
+    float fTime = (float)time;
+
+    // Check for overflow
+    if (time < 0)
+        fTime += (1ULL << 32);
+
+    return fTime * (1.0 / (1ULL << 31)) - 1.0;
+}
+
+// 0x44b080
+float AnmVm::getFloatVar(float time)
+{
+    TimeData* currentTime;
+    uint32_t newTime;
+    int roundedTime = static_cast<float>(time);
+    int index = roundedTime - 10000;
+    float fTime;
+
+    switch(index)
+    {
+    case 0:
+        return m_intVars[0];
+    case 1:
+        return m_intVars[1];
+    case 2:
+        return m_intVars[2];
+    case 3:
+        return m_intVars[3];
+    case 4:
+        return m_floatVars[0];
+    case 5:
+        return m_floatVars[1];
+    case 6:
+        return m_floatVars[2];
+    case 7:
+        return m_floatVars[3];
+    case 8:
+        return m_intVar8;
+    case 9:
+        return m_intVar9;
+    case 10:
+        currentTime = (m_flagsLow & 0x40000000) ? &g_timeData : &g_timeDataCopy;
+        return normalizeTimeToAngle(3.1415927f, currentTime);
+    case 11:
+        currentTime = (m_flagsLow & 0x40000000) ? &g_timeData : &g_timeDataCopy;
+        return normalizeTimeUnsigned(currentTime);
+    case 12:
+        currentTime = (m_flagsLow & 0x40000000) ? &g_timeData : &g_timeDataCopy;
+        return normalizeTimeSigned(currentTime);
+    case 13:
+        return m_pos.x;
+    case 14:
+        return m_pos.y;
+    case 15:
+        return m_pos.z;
+    case 16:
+        return g_supervisor.stageCam.offset.x;
+    case 17:
+        return g_supervisor.stageCam.offset.y;
+    case 18:
+        return g_supervisor.stageCam.offset.z;
+    case 19:
+        return g_supervisor.stageCam.v3.x;
+    case 20:
+        return g_supervisor.stageCam.v3.y;
+    case 21:
+        return g_supervisor.stageCam.v3.z;
+    case 22:
+        currentTime = (m_flagsLow & 0x40000000) ? &g_timeData : &g_timeDataCopy;
+        newTime = updateTimeValue(currentTime);
+        fTime = static_cast<float>(newTime);
+
+        // Check for overflow
+        if (newTime < 0)
+            fTime += (1ULL << 32); // 2^32
+        return fTime;
+
+    // Should never be reached
+    default:
+        return 0.0f;
+    }
+}
+
+// 0x4500f0
+void AnmVm::writeSpriteCharacters(D3DXVECTOR3* topLeft, D3DXVECTOR3* bottomLeft, D3DXVECTOR3* topRight, D3DXVECTOR3* bottomRight)
+{
+    D3DXVECTOR3 effectivePos = m_entityPos + m_pos + m_pos2;
+    float width = m_spriteSize.x * m_scale.x;
+    float height = m_spriteSize.y * m_scale.y;
+
+    uint32_t hAlign = (m_flagsLow >> 0x12) & 3;
+    if (hAlign == 0)
+    {
+        float leftX = effectivePos.x - width * 0.5f;
+        topRight->x = leftX;
+        bottomLeft->x = leftX;
+        float rightX = leftX + width;
+        topLeft->x = rightX;
+        bottomRight->x = rightX;
+    }
+    else if (hAlign == 1)
+    {
+        float leftX = effectivePos.x;
+        topRight->x = leftX;
+        bottomLeft->x = leftX;
+        float rightX = effectivePos.x + width;
+        topLeft->x = rightX;
+        bottomRight->x = rightX;
+    }
+    else if (hAlign == 2)
+    {
+        float leftX = effectivePos.x - width;
+        topRight->x = leftX;
+        bottomLeft->x = leftX;
+        float rightX = effectivePos.x;
+        topLeft->x = rightX;
+        bottomRight->x = rightX;
+    }
+    // Note: If hAlign == 3, x-coordinates are not set (matching original behavior)
+
+    uint32_t vAlign = (m_flagsLow >> 0x14) & 3;
+    if (vAlign == 0)
+    {
+        float bottomY = effectivePos.y - height * 0.5f;
+        bottomRight->y = bottomY;
+        bottomLeft->y = bottomY;
+        float topY = bottomY + height;
+        topLeft->y = topY;
+        topRight->y = topY;
+    }
+    else if (vAlign == 1)
+    {
+        float bottomY = effectivePos.y;
+        bottomRight->y = bottomY;
+        bottomLeft->y = bottomY;
+        float topY = effectivePos.y + height;
+        topLeft->y = topY;
+        topRight->y = topY;
+    }
+    else if (vAlign == 2)
+    {
+        float bottomY = effectivePos.y - height;
+        bottomRight->y = bottomY;
+        bottomLeft->y = bottomY;
+        float topY = effectivePos.y;
+        topLeft->y = topY;
+        topRight->y = topY;
+    }
+    // Note: If vAlign == 3, y-coordinates are not set (matching original behavior)
+
+    float effectiveZ = effectivePos.z;
+    topLeft->z = effectiveZ;
+    topRight->z = effectiveZ;
+    bottomRight->z = effectiveZ;
+    bottomLeft->z = effectiveZ;
+}
+
+// 0x44fe30
+void AnmVm::writeSpriteCharactersWithoutRot(D3DXVECTOR3* bottomLeft, D3DXVECTOR3* bottomRight, D3DXVECTOR3* topRight, D3DXVECTOR3* topLeft)
+{
+    D3DXVECTOR3 effectivePos = m_entityPos + m_pos + m_pos2;
+    float width = m_spriteSize.x * m_scale.x;
+    float height = m_spriteSize.y * m_scale.y;
+
+    uint32_t hAlign = (m_flagsLow >> 0x12) & 3;
+    float leftX, rightX;
+    if (hAlign == 0)
+    {
+        leftX = floor(effectivePos.x - width * 0.5f);
+        rightX = leftX + width;
+    }
+    else if (hAlign == 1)
+    {
+        leftX = effectivePos.x;
+        rightX = effectivePos.x + width;
+    }
+    else if (hAlign == 2)
+    {
+        leftX = effectivePos.x - width;
+        rightX = effectivePos.x;
+    }
+    else
+        return;  // x not set for mode 3
+
+    // Assign based on param order: left to topRight/bottomLeft, right to topLeft/bottomRight
+    topRight->x = leftX;
+    bottomLeft->x = leftX;
+    topLeft->x = rightX;
+    bottomRight->x = rightX;
+
+    uint32_t vAlign = (m_flagsLow >> 0x14) & 3;
+    float bottomY, topY;
+    if (vAlign == 0)
+    {
+        bottomY = floor(effectivePos.y - height * 0.5f);
+        topY = bottomY + height;
+    }
+    else if (vAlign == 1)
+    {
+        bottomY = effectivePos.y;
+        topY = effectivePos.y + height;
+    }
+    else if (vAlign == 2)
+    {
+        bottomY = effectivePos.y - height;
+        topY = effectivePos.y;
+    } else
+        return;  // y not set for mode 3
+
+    bottomRight->y = bottomY;
+    bottomLeft->y = bottomY;
+    topLeft->y = topY;
+    topRight->y = topY;
+
+    float effectiveZ = effectivePos.z;
+    topLeft->z = effectiveZ;
+    topRight->z = effectiveZ;
+    bottomRight->z = effectiveZ;
+    bottomLeft->z = effectiveZ;
+}
+
+// 0x4503d0
+void AnmVm::ApplyZRotationToQuadCorners(D3DXVECTOR3* bottomLeft, D3DXVECTOR3* bottomRight, D3DXVECTOR3* topRight, D3DXVECTOR3* topLeft)
+{
+    D3DXVECTOR3 effectivePos = m_entityPos + m_pos + m_pos2;
+    float width = m_spriteSize.x * m_scale.x;
+    float height = m_spriteSize.y * m_scale.y;
+
+    uint32_t hAlign = (m_flagsLow >> 0x12) & 3;
+    float leftX;
+    float rightX;
+
+    if (hAlign == 0)
+    {
+        leftX = -width * 0.5f;
+        rightX = width * 0.5f;
+    }
+
+    else if (hAlign == 1)
+    {
+        leftX = 0.0f;
+        rightX = width;
+    }
+
+    else if (hAlign == 2)
+    {
+        leftX = -width;
+        rightX = 0.0f;
+    }
+    else
+        return; // x not set for mode 3
+
+    uint32_t vAlign = (m_flagsLow >> 0x14) & 3;
+    float bottomY;
+    float topY;
+
+    if (vAlign == 0)
+    {
+        bottomY = -height * 0.5f;
+        topY = height * 0.5f;
+    }
+    
+    else if (vAlign == 1)
+    {
+        bottomY = 0.0f;
+        topY = height;
+    }
+
+    else if (vAlign == 2)
+    {
+        bottomY = -height;
+        topY = 0.0f;
+    }
+    else
+        return; // y not set for mode 3
+
+    float rotZ = m_rotation.z;
+    float cosZ = cosf(rotZ);
+    float sinZ = sinf(rotZ);
+
+    // Bottom-Left corner
+    bottomLeft->x = effectivePos.x + (cosZ * leftX - sinZ * bottomY);
+    bottomLeft->y = effectivePos.y + (cosZ * bottomY + sinZ * leftX);
+
+    // Bottom-Right corner
+    bottomRight->x = effectivePos.x + (cosZ * rightX - sinZ * bottomY);
+    bottomRight->y = effectivePos.y + (cosZ * bottomY + sinZ * rightX);
+
+    // Top-Left corner
+    topLeft->x = effectivePos.x + (cosZ * leftX - sinZ * topY);
+    topLeft->y = effectivePos.y + (cosZ * topY + sinZ * leftX);
+
+    // Top-Right corner
+    topRight->x = effectivePos.x + (cosZ * rightX - sinZ * topY);
+    topRight->y = effectivePos.y + (cosZ * topY + sinZ * rightX);
+
+    float effectiveZ = effectivePos.z;
+    topRight->z = effectiveZ;
+    topLeft->z = effectiveZ;
+    bottomRight->z = effectiveZ;
+    bottomLeft->z = effectiveZ;
+}
+
+// 0x44b4b0
+void AnmVm::run()
+{
+    while (m_currentInstruction != nullptr)
+    {
+        if (m_flagsLow & 0x20000)
+            return;
         
-        else if (currentInstruction->time <= timeInScript.m_current)
+        float gameSpeed = g_gameSpeed;
+        g_gameSpeed = 1.0;
+
+        AnmRawInstruction* cur_instr = m_currentInstruction;
+        AnmRawInstruction* instr_interrupt = nullptr;
+        uint16_t opcode;
+
+        if (m_pendingInterrupt != 0)
+            goto Interrupt;
+
+        if (m_currentInstruction->time <= m_timeInScript.m_current)
         {
-            AnmRawInstruction* instr = currentInstruction;
-            uint16_t opcode = instr->opcode;
+            // Opcode is adjusted in the actual binary for the jump table, where each case is 1 higher than the actual opcode.
+            // This reconstruction will be following the correct values.
+            opcode = cur_instr->opcode; // + 1;
             switch (opcode)
             {
                 // Does nothing.
@@ -69,183 +554,199 @@ void AnmVm::run() {
                     break;
 
                 // Destroys the graphic.
-                // EoSD: this instruction and static may only appear as the final instruction of a script, and one of these must appear. thstd and trustd will implicitly insert a delete at the closing brace if there isn't one.
-                // PCB–: this instruction may appear anywhere. Additionally, a VM that reaches the end of the script will be automatically deleted as if it encountered this instruction.
                 case 1: // delete
-                    flagsLow &= ~1; // Clear visibility
-                    currentInstruction = nullptr; // Terminate script
+                    m_flagsLow &= ~1; // Clear visibility
+                    m_currentInstruction = nullptr; // Terminate script
+                    g_gameSpeed = gameSpeed;
                     break;
 
                 // Freezes the graphic until it is destroyed externally.
                 // Any interpolation instructions like posTime will no longer advance, and interrupts are disabled.
-                // In EoSD only, this instruction and delete may only appear as the final instruction of a script.
                 case 2: // static
-                    flagsLow |= 0x10000; // Set static flag (placeholder)
+                    m_currentInstruction = nullptr; // Terminate script
+                    g_gameSpeed = gameSpeed;
                     break;
 
-                // Sets the image used by this VM to one of the sprites defined in the ANM file. A value of -1 means to not use an image (this is frequently used with special drawing instructions). thanm also lets you use the sprite's name instead of an index.
+                // Sets the image used by this VM to one of the sprites defined in the ANM file.
+                // A value of -1 means to not use an image (this is frequently used with special drawing instructions).
+                // Thanm also lets you use the sprite's name instead of an index.
                 // Under some unknown conditions, these sprite indices are transformed by a "sprite-mapping" function; e.g. many bullet scripts use false indices, presumably to avoid repeating the same script for 16 different colors. The precise mechanism of this is not yet fully understood.
                 case 3: // sprite(int id)
-                    spriteId = getIntArg(this, instr, 0); // Set sprite ID
+                    m_flagsLow |= 1; // Set visibility
+                    
+                    uint32_t spriteNumber;
+                    uint32_t arg0_1;
+                    if (m_spriteMappingFunc == nullptr)
+                    {
+                        spriteNumber = m_currentInstruction->args[0];
+                        if ((m_currentInstruction->varMask & 1) != 0)
+                            spriteNumber = getIntVar(spriteNumber);
+                    }
+
+                    else
+                    {
+                        arg0_1 = m_currentInstruction->args[0];
+                        if ((m_currentInstruction->varMask & 1) != 0)
+                            arg0_1 = getIntVar(arg0_1);
+                        spriteNumber = (uint32_t) m_spriteMappingFunc(this, arg0_1);
+                    }
+                    setupTextureQuadAndMatrices(spriteNumber,m_anmLoaded);
                     break;
 
                 // Jumps to byte offset dest from the script's beginning and sets the time to t. thanm accepts a label name for dest.
                 // Chinese wiki says some confusing recommendation about setting a=0, can someone explain to me?
                 case 4: // jmp(int dest, int t)
-                    currentInstruction = (AnmRawInstruction*)((char*)beginningOfScript + getIntArg(this, instr, 0));
-                    timeInScript.setCurrent(getIntArg(this, instr, 1));
+                    m_timeInScript.setCurrent(cur_instr->args[1]);
+                    m_timeInScript.setCurrent(getIntArg(this, cur_instr, 1));
                     break;
 
                 // Decrement x and then jump if x > 0. You can use this to repeat a loop a fixed number of times.
                 case 5: // jmpDec(int& x, int dest, int t)
                 {
-                    int* x = getIntVarPtr(this, instr->args[0]);
+                    int* x = getIntVarPtr(cur_instr->args[0]);
                     if (*x > 0)
                     {
                         *x -= 1;
-                        currentInstruction = (AnmRawInstruction*)((char*)beginningOfScript + getIntArg(this, instr, 1));
-                        timeInScript.setCurrent(getIntArg(this, instr, 2));
+                        currentInstruction = (AnmRawInstruction*)((char*)beginningOfScript + getIntArg(this, cur_instr, 1));
+                        timeInScript.setCurrent(getIntArg(this, cur_instr, 2));
                     }
                 }
                 break;
 
                 // Does a = b.
                 case 6: // iset(int& a, int b)
-                    *getIntVarPtr(this, instr->args[0]) = getIntArg(this, instr, 1);
+                    *getIntVarPtr(this, cur_instr->args[0]) = getIntArg(this, cur_instr, 1);
                     break;
 
                 // Does a = b.
                 case 7: // fset(float& a, float b)
-                    *getFloatVarPtr(this, instr->args[0]) = getFloatArg(this, instr, 1);
+                    *getFloatVarPtr(this, cur_instr->args[0]) = getFloatArg(this, cur_instr, 1);
                     break;
 
                 // Does a += b.
                 case 8: // iadd(int& a, int b)
-                    *getIntVarPtr(this, instr->args[0]) += getIntArg(this, instr, 1);
+                    *getIntVarPtr(this, cur_instr->args[0]) += getIntArg(this, cur_instr, 1);
                     break;
 
                 // Does a += b.
                 case 9: // fadd(float& a, float b)
-                    *getFloatVarPtr(this, instr->args[0]) += getFloatArg(this, instr, 1);
+                    *getFloatVarPtr(this, cur_instr->args[0]) += getFloatArg(this, cur_instr, 1);
                     break;
 
                 // Does a -= b.
                 case 10: // isub(int& a, int b)
-                    *getIntVarPtr(this, instr->args[0]) -= getIntArg(this, instr, 1);
+                    *getIntVarPtr(this, cur_instr->args[0]) -= getIntArg(this, cur_instr, 1);
                     break;
 
                 // Does a -= b.
                 case 11: // fsub(float& a, float b)
-                    *getFloatVarPtr(this, instr->args[0]) -= getFloatArg(this, instr, 1);
+                    *getFloatVarPtr(this, cur_instr->args[0]) -= getFloatArg(this, cur_instr, 1);
                     break;
 
                 // Does a *= b.
                 case 12: // imul(int& a, int b)
-                    *getIntVarPtr(this, instr->args[0]) *= getIntArg(this, instr, 1);
+                    *getIntVarPtr(this, cur_instr->args[0]) *= getIntArg(this, cur_instr, 1);
                     break;
 
                 // Does a *= b.
                 case 13: // fmul(float& a, float b)
-                    *getFloatVarPtr(this, instr->args[0]) *= getFloatArg(this, instr, 1);
+                    *getFloatVarPtr(this, cur_instr->args[0]) *= getFloatArg(this, cur_instr, 1);
                     break;
 
                 // Does a /= b.
                 case 14: // idiv(int& a, int b)
                     {
-                        int b = getIntArg(this, instr, 1);
-                        if (b != 0) *getIntVarPtr(this, instr->args[0]) /= b;
+                        int b = getIntArg(this, cur_instr, 1);
+                        if (b != 0) *getIntVarPtr(this, cur_instr->args[0]) /= b;
                     }
                     break;
 
                 // Does a /= b.
                 case 15: // fdiv(float& a, float b)
                     {
-                        float b = getFloatArg(this, instr, 1);
-                        if (b != 0.0f) *getFloatVarPtr(this, instr->args[0]) /= b;
+                        float b = getFloatArg(this, cur_instr, 1);
+                        if (b != 0.0f) *getFloatVarPtr(this, cur_instr->args[0]) /= b;
                     }
                     break;
 
                 // Does a %= b.
                 case 16: // imod(int& a, int b)
                     {
-                        int b = getIntArg(this, instr, 1);
-                        if (b != 0) *getIntVarPtr(this, instr->args[0]) %= b;
+                        int b = getIntArg(this, cur_instr, 1);
+                        if (b != 0) *getIntVarPtr(this, cur_instr->args[0]) %= b;
                     }
                     break;
 
                 // Does a %= b.
                 case 17: // fmod(float& a, float b)
                     {
-                        float b = getFloatArg(this, instr, 1);
-                        if (b != 0.0f) *getFloatVarPtr(this, instr->args[0]) = fmodf(*getFloatVarPtr(this, instr->args[0]), b);
+                        float b = getFloatArg(this, cur_instr, 1);
+                        if (b != 0.0f) *getFloatVarPtr(this, cur_instr->args[0]) = fmodf(*getFloatVarPtr(this, cur_instr->args[0]), b);
                     }
                     break;
 
                 // Does a = b + c.
                 case 18: // isetAdd(int& x, int a, int b)
-                    *getIntVarPtr(this, instr->args[0]) = getIntArg(this, instr, 1) + getIntArg(this, instr, 2);
+                    *getIntVarPtr(this, cur_instr->args[0]) = getIntArg(this, cur_instr, 1) + getIntArg(this, cur_instr, 2);
                     break;
 
                 // Does a = b + c.
                 case 19: // fsetAdd(float& x, float a, float b)
-                    *getFloatVarPtr(this, instr->args[0]) = getFloatArg(this, instr, 1) + getFloatArg(this, instr, 2);
+                    *getFloatVarPtr(this, cur_instr->args[0]) = getFloatArg(this, cur_instr, 1) + getFloatArg(this, cur_instr, 2);
                     break;
 
                 // Does a = b - c.
                 case 20: // isetSub(int& x, int a, int b)
-                    *getIntVarPtr(this, instr->args[0]) = getIntArg(this, instr, 1) - getIntArg(this, instr, 2);
+                    *getIntVarPtr(this, cur_instr->args[0]) = getIntArg(this, cur_instr, 1) - getIntArg(this, cur_instr, 2);
                     break;
 
                 // Does a = b - c.
                 case 21: // fsetSub(float& x, float a, float b)
-                    *getFloatVarPtr(this, instr->args[0]) = getFloatArg(this, instr, 1) - getFloatArg(this, instr, 2);
+                    *getFloatVarPtr(this, cur_instr->args[0]) = getFloatArg(this, cur_instr, 1) - getFloatArg(this, cur_instr, 2);
                     break;
 
                 // Does a = b * c.
                 case 22: // isetMul(int& x, int a, int b)
-                    *getIntVarPtr(this, instr->args[0]) = getIntArg(this, instr, 1) * getIntArg(this, instr, 2);
+                    *getIntVarPtr(this, cur_instr->args[0]) = getIntArg(this, cur_instr, 1) * getIntArg(this, cur_instr, 2);
                     break;
 
                 // Does a = b * c.
                 case 23: // fsetMul(float& x, float a, float b)
-                    *getFloatVarPtr(this, instr->args[0]) = getFloatArg(this, instr, 1) * getFloatArg(this, instr, 2);
+                    *getFloatVarPtr(this, cur_instr->args[0]) = getFloatArg(this, cur_instr, 1) * getFloatArg(this, cur_instr, 2);
                     break;
 
                 // Does a = b / c.
                 case 24: // isetDiv(int& x, int a, int b)
-                    {
-                        int b = getIntArg(this, instr, 2);
-                        if (b != 0) *getIntVarPtr(this, instr->args[0]) = getIntArg(this, instr, 1) / b;
-                    }
+                    int b = getIntArg(this, cur_instr, 2);
+                    if (b != 0) 
+                        *getIntVarPtr(this, cur_instr->args[0]) = getIntArg(this, cur_instr, 1) / b;
                     break;
 
                 // Does a = b / c.
                 case 25: // fsetDiv(float& x, float a, float b)
-                    {
-                        float b = getFloatArg(this, instr, 2);
-                        if (b != 0.0f) *getFloatVarPtr(this, instr->args[0]) = getFloatArg(this, instr, 1) / b;
-                    }
+                    float b = getFloatArg(this, cur_instr, 2);
+                    if (b != 0.0f)
+                        *getFloatVarPtr(this, cur_instr->args[0]) = getFloatArg(this, cur_instr, 1) / b;
                     break;
 
                 // Does a = b % c.
                 case 26: // isetMod(int& x, int a, int b)
-                    {
-                        int b = getIntArg(this, instr, 2);
-                        if (b != 0) *getIntVarPtr(this, instr->args[0]) = getIntArg(this, instr, 1) % b;
-                    }
+                    int b = getIntArg(this, cur_instr, 2);
+                    if (b != 0)
+                        *getIntVarPtr(this, cur_instr->args[0]) = getIntArg(this, cur_instr, 1) % b;
                     break;
 
                 // Does a = b % c.
                 case 27: // fsetMod(float& x, float a, float b)
-                    {
-                        float b = getFloatArg(this, instr, 2);
-                        if (b != 0.0f) *getFloatVarPtr(this, instr->args[0]) = fmodf(getFloatArg(this, instr, 1), b);
-                    }
+                    float b = getFloatArg(this, cur_instr, 2);
+                    if (b != 0.0f)
+                        *getFloatVarPtr(this, cur_instr->args[0]) = fmodf(getFloatArg(this, cur_instr, 1), b);
                     break;
 
                 // Jumps if a == b.
                 case 28: // ije(int a, int b, int dest, int t)
-                    if (getIntArg(this, instr, 0) == getIntArg(this, instr, 1)) {
+                    if (getIntArg(this, cur_instr, 0) == getIntArg(this, cur_instr, 1))
+                    {
                         currentInstruction = (AnmRawInstruction*)((char*)beginningOfScript + getIntArg(this, instr, 2));
                         timeInScript.setCurrent(getIntArg(this, instr, 3));
                     }
@@ -253,7 +754,7 @@ void AnmVm::run() {
 
                 // Jumps if a == b.
                 case 29: // fje(float a, float b, int dest, int t)
-                    if (getFloatArg(this, instr, 0) == getFloatArg(this, instr, 1)) {
+                    if (getFloatArg(this, cur_instr, 0) == getFloatArg(this, cur_instr, 1)) {
                         currentInstruction = (AnmRawInstruction*)((char*)beginningOfScript + getIntArg(this, instr, 2));
                         timeInScript.setCurrent(getIntArg(this, instr, 3));
                     }
@@ -261,7 +762,7 @@ void AnmVm::run() {
 
                 // Jumps if a != b.
                 case 30: // ijne(int a, int b, int dest, int t)
-                    if (getIntArg(this, instr, 0) != getIntArg(this, instr, 1)) {
+                    if (getIntArg(this, cur_instr, 0) != getIntArg(this, cur_instr, 1)) {
                         currentInstruction = (AnmRawInstruction*)((char*)beginningOfScript + getIntArg(this, instr, 2));
                         timeInScript.setCurrent(getIntArg(this, instr, 3));
                     }
@@ -269,7 +770,7 @@ void AnmVm::run() {
 
                 // Jumps if a != b.
                 case 31: // fjne(float a, float b, int dest, int t)
-                    if (getFloatArg(this, instr, 0) != getFloatArg(this, instr, 1)) {
+                    if (getFloatArg(this, cur_instr, 0) != getFloatArg(this, cur_instr, 1)) {
                         currentInstruction = (AnmRawInstruction*)((char*)beginningOfScript + getIntArg(this, instr, 2));
                         timeInScript.setCurrent(getIntArg(this, instr, 3));
                     }
@@ -277,7 +778,7 @@ void AnmVm::run() {
 
                 // Jumps if a < b.
                 case 32: // ijl(int a, int b, int dest, int t)
-                    if (getIntArg(this, instr, 0) < getIntArg(this, instr, 1)) {
+                    if (getIntArg(this, cur_instr, 0) < getIntArg(this, cur_instr, 1)) {
                         currentInstruction = (AnmRawInstruction*)((char*)beginningOfScript + getIntArg(this, instr, 2));
                         timeInScript.setCurrent(getIntArg(this, instr, 3));
                     }
@@ -285,7 +786,7 @@ void AnmVm::run() {
 
                 // Jumps if a < b.
                 case 33: // fjl(float a, float b, int dest, int t)
-                    if (getFloatArg(this, instr, 0) < getFloatArg(this, instr, 1)) {
+                    if (getFloatArg(this, cur_instr, 0) < getFloatArg(this, cur_instr, 1)) {
                         currentInstruction = (AnmRawInstruction*)((char*)beginningOfScript + getIntArg(this, instr, 2));
                         timeInScript.setCurrent(getIntArg(this, instr, 3));
                     }
@@ -293,7 +794,7 @@ void AnmVm::run() {
 
                 // Jumps if a <= b.
                 case 34: // ijle(int a, int b, int dest, int t)
-                    if (getIntArg(this, instr, 0) <= getIntArg(this, instr, 1)) {
+                    if (getIntArg(this, cur_instr, 0) <= getIntArg(this, cur_instr, 1)) {
                         currentInstruction = (AnmRawInstruction*)((char*)beginningOfScript + getIntArg(this, instr, 2));
                         timeInScript.setCurrent(getIntArg(this, instr, 3));
                     }
@@ -301,7 +802,7 @@ void AnmVm::run() {
 
                 // Jumps if a <= b.
                 case 35: // fjle(float a, float b, int dest, int t)
-                    if (getFloatArg(this, instr, 0) <= getFloatArg(this, instr, 1)) {
+                    if (getFloatArg(this, cur_instr, 0) <= getFloatArg(this, cur_instr, 1)) {
                         currentInstruction = (AnmRawInstruction*)((char*)beginningOfScript + getIntArg(this, instr, 2));
                         timeInScript.setCurrent(getIntArg(this, instr, 3));
                     }
@@ -309,7 +810,7 @@ void AnmVm::run() {
 
                 // Jumps if a > b.
                 case 36: // ijg(int a, int b, int dest, int t)
-                    if (getIntArg(this, instr, 0) > getIntArg(this, instr, 1)) {
+                    if (getIntArg(this, cur_instr, 0) > getIntArg(this, cur_instr, 1)) {
                         currentInstruction = (AnmRawInstruction*)((char*)beginningOfScript + getIntArg(this, instr, 2));
                         timeInScript.setCurrent(getIntArg(this, instr, 3));
                     }
@@ -317,7 +818,7 @@ void AnmVm::run() {
 
                 // Jumps if a > b.
                 case 37: // fjg(float a, float b, int dest, int t)
-                    if (getFloatArg(this, instr, 0) > getFloatArg(this, instr, 1)) {
+                    if (getFloatArg(this, cur_instr, 0) > getFloatArg(this, cur_instr, 1)) {
                         currentInstruction = (AnmRawInstruction*)((char*)beginningOfScript + getIntArg(this, instr, 2));
                         timeInScript.setCurrent(getIntArg(this, instr, 3));
                     }
@@ -325,7 +826,7 @@ void AnmVm::run() {
 
                 // Jumps if a >= b.
                 case 38: // ijge(int a, int b, int dest, int t)
-                    if (getIntArg(this, instr, 0) >= getIntArg(this, instr, 1)) {
+                    if (getIntArg(this, cur_instr, 0) >= getIntArg(this, cur_instr, 1)) {
                         currentInstruction = (AnmRawInstruction*)((char*)beginningOfScript + getIntArg(this, instr, 2));
                         timeInScript.setCurrent(getIntArg(this, instr, 3));
                     }
@@ -333,7 +834,7 @@ void AnmVm::run() {
 
                 // Jumps if a >= b.
                 case 39: // fjge(float a, float b, int dest, int t)
-                    if (getFloatArg(this, instr, 0) >= getFloatArg(this, instr, 1)) {
+                    if (getFloatArg(this, cur_instr, 0) >= getFloatArg(this, cur_instr, 1)) {
                         currentInstruction = (AnmRawInstruction*)((char*)beginningOfScript + getIntArg(this, instr, 2));
                         timeInScript.setCurrent(getIntArg(this, instr, 3));
                     }
@@ -341,43 +842,43 @@ void AnmVm::run() {
 
                 // Draw a random integer 0 <= x < n using the animation RNG.
                 case 40: // isetRand(int& x, int n)
-                    *getIntVarPtr(this, instr->args[0]) = randInt(0, getIntArg(this, instr, 1)); // Placeholder randInt
+                    *getIntVarPtr(this, cur_instr->args[0]) = randInt(0, getIntArg(this, cur_instr, 1)); // Placeholder randInt
                     break;
 
                 // Draw a random float 0 <= x <= r using the animation RNG.
                 case 41: // fsetRand(float& x, float r)
-                    *getFloatVarPtr(this, instr->args[0]) = randFloat(0.0f, getFloatArg(this, instr, 1)); // Placeholder randFloat
+                    *getFloatVarPtr(this, cur_instr->args[0]) = randFloat(0.0f, getFloatArg(this, cur_instr, 1)); // Placeholder randFloat
                     break;
 
                 // Compute sin(θ) (θ in radians).
                 case 42: // fsin(float& dest, float θ)
-                    *getFloatVarPtr(this, instr->args[0]) = sinf(getFloatArg(this, instr, 1));
+                    *getFloatVarPtr(this, cur_instr->args[0]) = sinf(getFloatArg(this, cur_instr, 1));
                     break;
 
                 // Compute cos(θ) (θ in radians).
                 case 43: // fcos(float& dest, float θ)
-                    *getFloatVarPtr(this, instr->args[0]) = cosf(getFloatArg(this, instr, 1));
+                    *getFloatVarPtr(this, cur_instr->args[0]) = cosf(getFloatArg(this, cur_instr, 1));
                     break;
 
                 // Compute tan(θ) (θ in radians).
                 case 44: // ftan(float& dest, float θ)
-                    *getFloatVarPtr(this, instr->args[0]) = tanf(getFloatArg(this, instr, 1));
+                    *getFloatVarPtr(this, cur_instr->args[0]) = tanf(getFloatArg(this, cur_instr, 1));
                     break;
 
                 // Compute acos(x) (output in radians).
                 case 45: // facos(float& dest, float x)
-                    *getFloatVarPtr(this, instr->args[0]) = acosf(getFloatArg(this, instr, 1));
+                    *getFloatVarPtr(this, cur_instr->args[0]) = acosf(getFloatArg(this, cur_instr, 1));
                     break;
 
                 // Compute atan(m) (output in radians).
                 case 46: // fatan(float& dest, float m)
-                    *getFloatVarPtr(this, instr->args[0]) = atanf(getFloatArg(this, instr, 1));
+                    *getFloatVarPtr(this, cur_instr->args[0]) = atanf(getFloatArg(this, cur_instr, 1));
                     break;
 
                 // Reduce an angle modulo 2*PI into the range [-PI, +PI].
                 case 47: // validRad(float& θ)
                     {
-                        float* theta = getFloatVarPtr(this, instr->args[0]);
+                        float* theta = getFloatVarPtr(this, cur_instr->args[0]);
                         *theta = fmodf(*theta + M_PI, 2.0f * M_PI) - M_PI;
                     }
                     break;
@@ -515,8 +1016,7 @@ void AnmVm::run() {
                 // Stops executing the script (at least for now), but keeps the graphic alive.
                 // Interpolation instructions like posTime will continue to advance, and interrupts can be triggered at any time. You could say this essentially behaves like an infinitely long wait.
                 case 63: // stop
-                    flagsLow |= 0x8000; // Set stopped flag (placeholder)
-                    break;
+                    goto switchD_0044b52d_caseD_3f;
 
                 // A label for an interrupt. When executed, it is a no-op.
                 case 64: // interruptLabel(int n)
@@ -558,9 +1058,49 @@ void AnmVm::run() {
                 // This is like stop except that it also hides the graphic by clearing the visibility flag (see visible).
                 // Interpolation instructions like posTime will continue to advance, and interrupts can be triggered at any time. Successful interrupts will automatically re-enable the visibility flag.
                 case 69: // stopHide
-                    flagsLow |= 0x8000; // Set stopped flag
-                    visible = 0;
-                    break;
+                    m_flagsLow &= 0xfffffffe;
+
+switchD_0044b52d_caseD_3f:
+
+                    if (m_pendingInterrupt == 0)
+                        m_flagsLow |= 0x1000;
+                    else
+                    {
+Interrupt:
+                        cur_instr = m_beginningOfScript;
+                        instr_interrupt = nullptr;
+                        while (1)
+                        {
+                            uint16_t cur_instr_opcode = cur_instr->opcode;
+                            opcode = 0; // Nop
+
+                            if ((cur_instr_opcode == 64 && m_pendingInterrupt == cur_instr->args[0]) || cur_instr_opcode == -1)
+                                break;
+
+                            if (cur_instr_opcode == 64 && cur_instr->args[0] == -1)
+                                instr_interrupt = cur_instr;
+                        
+                            cur_instr = (AnmRawInstruction*)((char*)m_currentInstruction + cur_instr->offsetToNextInstr);
+                        }
+                    
+                        if (cur_instr->opcode == 64 || (cur_instr = instr_interrupt, instr_interrupt != nullptr)
+                        {
+                            m_interruptReturnTime.previous = m_timeInScript.previous;
+                            m_interruptReturnTime.current = m_timeInScript.current;
+                            m_interruptReturnTime.currentF = m_timeInScript.currentF;
+                            m_interruptReturnTime.gameSpeed = m_timeInScript.gameSpeed;
+                            instr_interrupt = m_currentInstruction;
+                            m_interruptReturnTime.isInitialized = m_timeInScript.isInitialized;
+                            This->interruptReturnInstr = instr_interrupt;
+                            Timer::setCurrent(&This->timeInScript,(int)cur_instr->time);
+                            pendingInterrupt = cur_instr->offsetToNextInstr;
+                            This->flagsLow = This->flagsLow | 1;
+                            This->currentInstruction = (AnmRawInstruction*)((char*)m_currentInstruction + cur_instr->offsetToNextInstr);
+                            break;
+                        }
+                    }
+                    Timer::add(&This->timeInScript,-1.0);
+                    goto Idk_Why_I_Must_Jump_0044c2ae;
 
                 // Add vel to the texture u coordinate every frame (in units of 1 / total_image_width), causing the displayed sprite to scroll horizontally through the image file.
                 case 70: // scrollX(float vel)
@@ -761,7 +1301,6 @@ void AnmVm::run() {
                     // Unknown opcode
                     break;
             }
-            currentInstruction = (AnmRawInstruction*)((char*)beginningOfScript + instr->offsetToNextInstr);
         }
         // TODO: Update timers and interpolation
     }
