@@ -95,9 +95,129 @@ void AnmLoaded::release()
 }
 
 // 0x4545a0
-int AnmLoaded::createTextureForEntry(int i, int numSprites, int numScripts, AnmHeader* anmHeader)
+int AnmLoaded::createTextureForEntry(int i, int globalSpriteOffset, int globalScriptOffset, AnmHeader* anmHeader)
 {
-    
+    if (anmHeader == nullptr)
+    {
+        printf("アニメが読み込めません。データが失われてるか壊れています\n");
+        return -1;
+    }
+
+    if (anmHeader->version != 7)
+    {
+        printf("アニメのバージョンが違います\n");
+        return -1;
+    }
+
+    char* name = (char*)anmHeader + anmHeader->nameOffset;
+    int result;
+
+    if (anmHeader->hasData == 0)
+    {
+        if (name[0] == '@')
+        {
+            if (name[1] == 'R')
+                anmLoadedD3D[i].createTextureFromAtR();
+            else
+            {
+                result = anmLoadedD3D[i].createTextureFromAt(
+                    anmHeader->w,
+                    anmHeader->h,
+                    anmHeader->formatIndex
+                );
+                texturesCreated += result;
+            }
+        }
+        else
+        {
+            result = anmLoadedD3D[i].createTextureFromImage(
+                anmHeader->x,
+                anmHeader->w,
+                anmHeader->h,
+                anmHeader->formatIndex
+            );
+
+            if (result < 0)
+            {
+                printf("テクスチャ %s が作成できません。データが失われてるか壊れています\n", name);
+                return -1;
+            }
+            texturesCreated += result;
+        }
+    }
+    else
+    {
+        result = anmLoadedD3D[i].createTextureFromThtx(
+            anmHeader->w,
+            anmHeader->h,
+            anmHeader->formatIndex,
+            (char*)anmHeader + anmHeader->thtxOffset
+        );
+
+        if (result < 0)
+        {
+            printf("テクスチャが作成できません。データが失われてるか壊れています\n");
+            return -1;
+        }
+        texturesCreated += result;
+    }
+
+    D3DSURFACE_DESC desc;
+    anmLoadedD3D[i].m_texture->GetLevelDesc(0, &desc);
+
+    float xScale = static_cast<float>(desc.Width) / static_cast<float>(anmHeader->w);
+    float yScale = static_cast<float>(desc.Height) / static_cast<float>(anmHeader->h);
+
+    // The AnmHeader is only the first part of the ANM file loaded
+    // After the header (first 64 bytes), we have the rest of the ANM data
+    uint32_t* spriteOffsets = (uint32_t*)((char*)anmHeader + sizeof(AnmHeader));
+
+    for (int s = 0; s < anmHeader->numSprites; ++s)
+    {
+        uint32_t txIdx = spriteOffsets[s];
+        SpriteData* spriteData = (SpriteData*)((char*)anmHeader + txIdx);
+
+        float rawStartX = spriteData->x;
+        float rawStartY = spriteData->y;
+        float rawWidth  = spriteData->w;
+        float rawHeight = spriteData->h;
+
+        float uvStartX = rawStartX * xScale;
+        float uvStartY = rawStartY * yScale;
+        float uvEndX  = (rawStartX + rawWidth) * xScale;
+        float uvEndY  = (rawStartY + rawHeight) * yScale;
+
+        AnmLoadedSprite* sprite = &keyframeData[globalSpriteOffset + s];
+        sprite->anmSlot = anmSlotIndex;
+        sprite->spriteNumber = globalSpriteOffset + s;
+        sprite->anmLoadedD3D = &anmLoadedD3D[i];
+        sprite->startPixelInclusive.x = rawStartX;
+        sprite->startPixelInclusive.y = rawStartY;
+        sprite->endPixelExclusive.x = rawStartX + rawWidth;
+        sprite->endPixelExclusive.y = rawStartY + rawHeight;
+        sprite->bitmapWidth = static_cast<float>(desc.Width);
+        sprite->bitmapHeight = static_cast<float>(desc.Height);
+        sprite->uvStart.x = uvStartX;
+        sprite->uvStart.y = uvStartY;
+        sprite->uvEnd.x = uvEndX;
+        sprite->uvEnd.y = uvEndY;
+        sprite->spriteWidth = rawWidth;
+        sprite->spriteHeight = rawHeight;
+        sprite->maybeScale.x = 1.0f;
+        sprite->maybeScale.y = 1.0f;
+        sprite->idk = 0;
+    }
+
+    uint32_t* scriptOffsets = (uint32_t*)((char*)anmHeader + sizeof(AnmHeader) + anmHeader->numSprites * 4);
+
+    for (int s = 0; s < anmHeader->numScripts; ++s)
+    {
+        uint32_t txIdx = scriptOffsets[s];
+        char* scriptData = (char*)anmHeader + txIdx;
+        ((char**)spriteData)[globalScriptOffset + s] = scriptData;
+    }
+
+    return 1;
 }
 
 // 0x4544c0

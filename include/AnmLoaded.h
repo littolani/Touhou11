@@ -1,30 +1,54 @@
 #include "Chireiden.h"
 #include "Globals.h"
-#include <Macros.h>
+#include "Macros.h"
 
-// Structure for an ANM file chunk (based on Touhou Toolkit's anm_header11_t)
+
+// INCORRECT STRUCTURE
+// // Structure for an ANM file chunk (based on Touhou Toolkit's anm_header11_t)
+// struct AnmHeader
+// {
+//     uint32_t version;        // Offset 0x00
+//     uint16_t numSprites;     // Offset 0x04
+//     uint16_t numScripts;     // Offset 0x06
+//     uint16_t zero1;          // Offset 0x08
+//     uint16_t w;              // Offset 0x0A
+//     uint16_t h;              // Offset 0x0C
+//     uint16_t formatIndex;    // Offset 0x0E
+//     uint32_t nameOffset;     // Offset 0x10
+//     uint16_t x;              // Offset 0x14
+//     uint16_t y;              // Offset 0x16
+//     uint32_t memoryPriority; // Offset 0x18
+//     uint32_t thtxOffset;     // Offset 0x1C
+//     uint16_t hasData;        // Offset 0x20
+//     uint16_t lowresScale;    // Offset 0x22
+//     // uint16_t jpeg_quality;   // Offset 0x24 (Note: nextoffset is at 0x24 in assembly, adjusting here)
+//     uint32_t nextOffset;     // Offset 0x24
+//     uint16_t wMax;          // Offset 0x28
+//     uint16_t hMax;          // Offset 0x2A
+// };
+
+
 struct AnmHeader
 {
-    uint32_t version;        // Offset 0x00
-    uint16_t numSprites;     // Offset 0x04
-    uint16_t numScripts;     // Offset 0x06
-    uint16_t zero1;          // Offset 0x08
-    uint16_t w;              // Offset 0x0A
-    uint16_t h;              // Offset 0x0C
-    uint16_t format;         // Offset 0x0E
-    uint32_t nameOffset;     // Offset 0x10
-    uint16_t x;              // Offset 0x14
-    uint16_t y;              // Offset 0x16
-    uint32_t memoryPriority; // Offset 0x18
-    uint32_t thtxOffset;     // Offset 0x1C
-    uint16_t hasData;        // Offset 0x20
-    uint16_t lowresScale;    // Offset 0x22
-    // uint16_t jpeg_quality;   // Offset 0x24 (Note: nextoffset is at 0x24 in assembly, adjusting here)
-    uint32_t nextOffset;     // Offset 0x24
-    uint16_t wMax;          // Offset 0x28
-    uint16_t hMax;          // Offset 0x2A
+    uint32_t version;
+    uint16_t numSprites;
+    uint16_t numScripts;
+    uint16_t zero1;	/* Actually zero. */
+    uint16_t w;
+    uint16_t h;
+    uint16_t formatIndex;
+    uint32_t nameOffset;
+    uint16_t x;
+    uint16_t y;
+    /* As of TH16.5, unused in every game that uses this stucture, but still present in the files. */
+    uint32_t memoryPriority;
+    uint32_t thtxOffset;
+    uint16_t hasData;
+    uint16_t lowresscale;
+    uint32_t nextOffset;
+    uint32_t zero2[6];
 };
-ASSERT_SIZE(AnmHeader, 0x2c);
+ASSERT_SIZE(AnmHeader, 0x40);
 
 // Structure for chunk data stored in AnmLoaded offset 0x120 (20 bytes per entry)
 struct AnmLoadedD3D
@@ -44,7 +68,7 @@ ASSERT_SIZE(AnmLoadedD3D, 0x14);
 
 struct AnmLoadedSprite
 {
-    int anmSlot;
+    int anmSlot; // or multisample type??
     int spriteNumber;
     AnmLoadedD3D* anmLoadedD3D; // <0x8>
     D3DXVECTOR2 startPixelInclusive;
@@ -81,3 +105,8 @@ struct AnmLoaded
     int createTextureForEntry(int i, int numSprites, int numScripts, AnmHeader* anmHeader);
 };
 ASSERT_SIZE(AnmLoaded, 0x134);
+
+struct SpriteData
+{
+    float x, y, w, h;
+};
