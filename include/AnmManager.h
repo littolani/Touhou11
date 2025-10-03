@@ -46,7 +46,7 @@ public:
     uint8_t bulkVmsIsAlive[4096]; // <0x4340bc>
     int nextBulkVmIndex;
     AnmLoaded* loadedAnms[32]; // <0x4350c0>
-    D3DXMATRIX matrix0;
+    D3DXMATRIX m_currentWorldMatrix;
     AnmVm primaryVm;
     uint32_t u0;
     uint32_t u1;
@@ -76,6 +76,7 @@ public:
     void releaseTextures();
     void flushSprites();
     void blitTextureToSurface(BlitParams* blitParams);
+    int updateWorldMatrixAndProjectQuadCorners(AnmVm* vm);
     AnmLoaded* preloadAnm(int anmIdx, const char* anmFileName);
     AnmLoaded* preloadAnmFromMemory(const char* anmFilePath, int anmSlotIndex);
     AnmVm* allocateVm();
