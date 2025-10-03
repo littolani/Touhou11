@@ -2,8 +2,8 @@
 
 /* Global Variables */
 
-TimeData g_timeData;
-TimeData g_timeDataCopy;
+RngContext g_anmRngContext;
+RngContext g_replayRngContext;
 D3DXVECTOR3 g_bottomLeftDrawCorner;
 D3DXVECTOR3 g_bottomRightDrawCorner;
 D3DXVECTOR3 g_topLeftDrawCorner;
@@ -25,7 +25,7 @@ void AnmVm::initialize()
     m_entityPos = entityPos;
     m_layer = layer;
     m_color1 = 0xffffffff;
-    D3DXMatrixIdentity(&m_matrix2fc);
+    D3DXMatrixIdentity(&m_baseScaleMatrix);
     m_flagsLow = 7;
     m_timeInScript.m_current = 0;
     m_timeInScript.m_currentF = 0.0;
@@ -70,13 +70,13 @@ int AnmVm::setupTextureQuadAndMatrices(uint32_t spriteNumber, AnmLoaded* anmLoad
     m_spriteSize.x = sprite->spriteWidth;
     m_spriteSize.y = sprite->spriteHeight;
 
-    D3DXMatrixIdentity(&m_matrix2fc);
+    D3DXMatrixIdentity(&m_baseScaleMatrix);
     D3DXMatrixIdentity(&m_matrix37c);
 
-    m_matrix2fc._11 = m_spriteSize.x * (1.f / 256.f);
-    m_matrix2fc._22 = m_spriteSize.y * (1.f / 256.f);
+    m_baseScaleMatrix._11 = m_spriteSize.x * (1.f / 256.f);
+    m_baseScaleMatrix._22 = m_spriteSize.y * (1.f / 256.f);
 
-    m_matrix33c = m_matrix2fc;
+    m_localTransformMatrix = m_baseScaleMatrix;
 
     m_matrix37c._11 = (m_spriteSize.x / sprite->bitmapWidth) * sprite->maybeScale.x;
     m_matrix37c._22 = (m_spriteSize.y / sprite->bitmapHeight) * sprite->maybeScale.y;
@@ -84,55 +84,55 @@ int AnmVm::setupTextureQuadAndMatrices(uint32_t spriteNumber, AnmLoaded* anmLoad
     return 0;
 }
 
-uint32_t AnmVm::updateTimeValue(TimeData* timeData)
+uint32_t AnmVm::rng(RngContext* RngContext)
 {
     g_supervisor.enterCriticalSection(10);
-    timeData->counter += 2;
-    uint16_t x = (timeData->time ^ 0x9630) + 0x9aad;
+    RngContext->counter += 2;
+    uint16_t x = (RngContext->time ^ 0x9630) + 0x9aad;
     uint16_t y = ((x >> 0xe) + x * 4 ^ 0x9630) + 0x9aad;
-    timeData->time = (y >> 0xe) + y * 4;
+    RngContext->time = (y >> 0xe) + y * 4;
     g_supervisor.leaveCriticalSection(10);
     return ((uint32_t)x << 16) | y;
 }
 
-// 0x44b2a0 (formerly labelled getNextInstruction)
-int AnmVm::getIntVar(int time)
+// 0x44b2a0
+int AnmVm::getIntVar(int id)
 {  
-    switch(time)
+    switch(id)
     {
     case 10000:
         return m_intVars[0];
-    case 10001: // 0x2711
+    case 10001:
         return m_intVars[1];
-    case 10002: // 0x2712
+    case 10002:
         return m_intVars[2];
-    case 10003: // 0x2713
+    case 10003:
         return m_intVars[3];
-    case 10004: // 0x2714
+    case 10004:
         return static_cast<float>(m_floatVars[0]);
-    case 10005: // 0x2715
+    case 10005:
         return static_cast<float>(m_floatVars[1]);
-    case 10006: // 0x2716
+    case 10006:
         return static_cast<float>(m_floatVars[2]);
-    case 10007: // 0x2717
+    case 10007:
         return static_cast<float>(m_floatVars[3]);
-    case 10008: // 0x2718
+    case 10008:
         return m_intVar8;
-    case 10009: // 0x2719
+    case 10009:
         return m_intVar9;
-    case 10022: // 0x2726
-    TimeData* timeData = &g_timeData;
+    case 10022:
+    RngContext* ctx = &g_anmRngContext;
     if ((m_flagsLow & 0x40000000) == 0)
-      timeData = &g_timeDataCopy;
-    time = updateTimeValue(timeData);
+      ctx = &g_replayRngContext; // One of these is ANM RNG, while the other is replay RNG
+    return rng(ctx);
   }
-  return time;
+  return id;
 }
 
 // 0x44b400
-int* AnmVm::getIntVarPtr(int* time)
+int* AnmVm::getIntVarPtr(int* id)
 {
-    switch(*time)
+    switch(*id)
     {
     case 10000:
         return &m_intVars[0];
@@ -145,15 +145,15 @@ int* AnmVm::getIntVarPtr(int* time)
     case 10008:
         return &m_intVar8;
     case 10009:
-        time = &m_intVar9;
+        return &m_intVar9;
     }
-    return time;
+    return id;
 }
 
 // 0x44b380
-float* AnmVm::getFloatVarPtr(float* time)
+float* AnmVm::getFloatVarPtr(float* id)
 {
-    int intTime = static_cast<float>(*time); 
+    int intTime = static_cast<float>(*id); 
     switch(intTime)
     {
     case 10004: // 0x2714
@@ -171,7 +171,7 @@ float* AnmVm::getFloatVarPtr(float* time)
     case 10015: // 0x271f
         return &m_pos.z;
     default:
-        return time;
+        return id;
     }
 }
 
@@ -181,9 +181,9 @@ float* AnmVm::getFloatVarPtr(float* time)
  * Normalizes to [-1, 1] via x * (1.0 / 2^32) - 1.0.
  * Scales result by angle.
  */
-float normalizeTimeToAngle(float angle, TimeData* timeData)
+float normalizeToAngle(float angle, RngContext* rngContext)
 {
-    int time = AnmVm::updateTimeValue(timeData);
+    int time = AnmVm::rng(rngContext);
     float fTime = time;
 
     // Check for overflow
@@ -199,16 +199,16 @@ float normalizeTimeToAngle(float angle, TimeData* timeData)
  * Multiplies by 1 / 2^32.
  * Returns float in [0.0, 1.0).
  */
-float normalizeTimeUnsigned(TimeData* timeData)
+float normalizeUnsigned(RngContext* rngContext)
 {
-    int time = AnmVm::updateTimeValue(timeData);
-    float fTime = (float)time;
+    int rng = AnmVm::rng(rngContext);
+    float fRng = (float)rng;
 
     // Check for overflow
-    if (time < 0)
-        fTime += (1ULL << 32);
+    if (rng < 0)
+        fRng += (1ULL << 32);
 
-    return fTime * (1.0 / (1ULL << 32));
+    return fRng * (1.0 / (1ULL << 32));
 }
 
 /* 0x458dd0
@@ -218,26 +218,26 @@ float normalizeTimeUnsigned(TimeData* timeData)
  * Subtracts 1.0.
  * Returns float in [-1.0, 1.0).
  */
-float normalizeTimeSigned(TimeData* timeData)
+float normalizeSigned(RngContext* rngContext)
 {
-    int time = AnmVm::updateTimeValue(timeData);
-    float fTime = (float)time;
+    int rng = AnmVm::rng(rngContext);
+    float fRng = (float)rng;
 
     // Check for overflow
-    if (time < 0)
-        fTime += (1ULL << 32);
+    if (rng < 0)
+        fRng += (1ULL << 32);
 
-    return fTime * (1.0 / (1ULL << 31)) - 1.0;
+    return fRng * (1.0 / (1ULL << 31)) - 1.0;
 }
 
 // 0x44b080
-float AnmVm::getFloatVar(float time)
+float AnmVm::getFloatVar(float id)
 {
-    TimeData* currentTime;
-    uint32_t newTime;
-    int roundedTime = static_cast<float>(time);
-    int index = roundedTime - 10000;
-    float fTime;
+    RngContext* rngContext;
+    uint32_t rngValue;
+    int roundedId = static_cast<float>(id);
+    int index = roundedId - 10000;
+    float fRng;
 
     switch(index)
     {
@@ -262,14 +262,14 @@ float AnmVm::getFloatVar(float time)
     case 9:
         return m_intVar9;
     case 10:
-        currentTime = (m_flagsLow & 0x40000000) ? &g_timeData : &g_timeDataCopy;
-        return normalizeTimeToAngle(3.1415927f, currentTime);
+        rngContext = (m_flagsLow & 0x40000000) ? &g_anmRngContext : &g_replayRngContext;
+        return normalizeToAngle(3.1415927f, rngContext);
     case 11:
-        currentTime = (m_flagsLow & 0x40000000) ? &g_timeData : &g_timeDataCopy;
-        return normalizeTimeUnsigned(currentTime);
+        rngContext = (m_flagsLow & 0x40000000) ? &g_anmRngContext : &g_replayRngContext;
+        return normalizeUnsigned(rngContext);
     case 12:
-        currentTime = (m_flagsLow & 0x40000000) ? &g_timeData : &g_timeDataCopy;
-        return normalizeTimeSigned(currentTime);
+        rngContext = (m_flagsLow & 0x40000000) ? &g_anmRngContext : &g_replayRngContext;
+        return normalizeSigned(rngContext);
     case 13:
         return m_pos.x;
     case 14:
@@ -289,14 +289,14 @@ float AnmVm::getFloatVar(float time)
     case 21:
         return g_supervisor.stageCam.v3.z;
     case 22:
-        currentTime = (m_flagsLow & 0x40000000) ? &g_timeData : &g_timeDataCopy;
-        newTime = updateTimeValue(currentTime);
-        fTime = static_cast<float>(newTime);
+        rngContext = (m_flagsLow & 0x40000000) ? &g_anmRngContext : &g_replayRngContext;
+        rngValue = rng(rngContext);
+        fRng = static_cast<float>(rngValue);
 
         // Check for overflow
-        if (newTime < 0)
-            fTime += (1ULL << 32); // 2^32
-        return fTime;
+        if (rngValue < 0)
+            fRng += (1ULL << 32); // 2^32
+        return fRng;
 
     // Should never be reached
     default:
@@ -537,7 +537,12 @@ void AnmVm::run()
 
         AnmRawInstruction* cur_instr = m_currentInstruction;
         AnmRawInstruction* instr_interrupt = nullptr;
-        uint16_t opcode;
+
+        //TODO: Move local variables into inner scopes if possible
+        uint32_t spriteNumber;
+        uint32_t arg0_1;
+        int* intVarPtr;
+        int* interruptInstrVar;
 
         if (m_pendingInterrupt != 0)
             goto Interrupt;
@@ -546,7 +551,7 @@ void AnmVm::run()
         {
             // Opcode is adjusted in the actual binary for the jump table, where each case is 1 higher than the actual opcode.
             // This reconstruction will be following the correct values.
-            opcode = cur_instr->opcode; // + 1;
+            uint32_t opcode  = cur_instr->opcode; // + 1;
             switch (opcode)
             {
                 // Does nothing.
@@ -573,9 +578,7 @@ void AnmVm::run()
                 // Under some unknown conditions, these sprite indices are transformed by a "sprite-mapping" function; e.g. many bullet scripts use false indices, presumably to avoid repeating the same script for 16 different colors. The precise mechanism of this is not yet fully understood.
                 case 3: // sprite(int id)
                     m_flagsLow |= 1; // Set visibility
-                    
-                    uint32_t spriteNumber;
-                    uint32_t arg0_1;
+
                     if (m_spriteMappingFunc == nullptr)
                     {
                         spriteNumber = m_currentInstruction->args[0];
@@ -597,25 +600,44 @@ void AnmVm::run()
                 // Chinese wiki says some confusing recommendation about setting a=0, can someone explain to me?
                 case 4: // jmp(int dest, int t)
                     m_timeInScript.setCurrent(cur_instr->args[1]);
-                    m_timeInScript.setCurrent(getIntArg(this, cur_instr, 1));
+                    m_currentInstruction = (AnmRawInstruction*)((char*)m_beginningOfScript + cur_instr->args[0]);
                     break;
 
                 // Decrement x and then jump if x > 0. You can use this to repeat a loop a fixed number of times.
                 case 5: // jmpDec(int& x, int dest, int t)
-                {
-                    int* x = getIntVarPtr(cur_instr->args[0]);
-                    if (*x > 0)
+                    intVarPtr = cur_instr->args; // Iterator
+                    if (cur_instr->varMask & 1)
+                        intVarPtr = getIntVarPtr(cur_instr->args);
+                    *intVarPtr -= 1;
+                    opcode = *cur_instr->args;
+
+                    if (cur_instr->varMask & 1)
+                        opcode = getIntVar(opcode);
+
+                    if (opcode > 0)
                     {
-                        *x -= 1;
-                        currentInstruction = (AnmRawInstruction*)((char*)beginningOfScript + getIntArg(this, cur_instr, 1));
-                        timeInScript.setCurrent(getIntArg(this, cur_instr, 2));
+                        m_timeInScript.setCurrent(cur_instr->args[2]);
+                        m_currentInstruction = (AnmRawInstruction*)((char*)cur_instr->args + cur_instr->offsetToNextInstr);
                     }
-                }
-                break;
+                    break;
 
                 // Does a = b.
                 case 6: // iset(int& a, int b)
-                    *getIntVarPtr(this, cur_instr->args[0]) = getIntArg(this, cur_instr, 1);
+                    if ((cur_instr->varMask & 2) == 0)
+                        instr_interrupt = (AnmRawInstruction*)cur_instr->args[1];
+                    else
+                        instr_interrupt = (AnmRawInstruction*)getIntVar(cur_instr->args[1]);
+
+                    // goto HelpMe inlined
+                    if ((cur_instr->varMask & 1) == 0)
+                    {
+                        *cur_instr->args = (int)instr_interrupt;
+                        m_currentInstruction = (AnmRawInstruction*)((char*)cur_instr->args + cur_instr->offsetToNextInstr);
+                        break;
+                    }
+
+                    interruptInstrVar = getIntVarPtr(cur_instr->args);
+                    m_currentInstruction = (AnmRawInstruction*)((char*)cur_instr->args + cur_instr->offsetToNextInstr);
                     break;
 
                 // Does a = b.

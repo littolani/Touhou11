@@ -34,16 +34,16 @@ struct AnmRawInstruction
     uint16_t offsetToNextInstr;
     short time;
     uint16_t varMask;
-    uint32_t args[10];
+    int args[10];
 };
 
-struct TimeData
+struct RngContext
 {
     uint16_t time;
     uint16_t padding;
     int32_t counter;
 };
-ASSERT_SIZE(TimeData, 0x8);
+ASSERT_SIZE(RngContext, 0x8);
 
 class AnmVm
 {
@@ -71,8 +71,8 @@ public:
     Interp<float> m_uVelInterp;
     Interp<float> m_vVelInterp;
     D3DXVECTOR2 m_uvScrollVel;
-    D3DXMATRIX m_matrix2fc;
-    D3DXMATRIX m_matrix33c;
+    D3DXMATRIX m_baseScaleMatrix;
+    D3DXMATRIX m_localTransformMatrix;
     D3DXMATRIX m_matrix37c;
     D3DCOLOR m_color1;
     D3DCOLOR m_color2;
@@ -118,23 +118,18 @@ public:
     void writeSpriteCharacters(D3DXVECTOR3* topLeft, D3DXVECTOR3* bottomLeft, D3DXVECTOR3* topRight, D3DXVECTOR3* bottomRight);
     void writeSpriteCharactersWithoutRot(D3DXVECTOR3* bottomLeft, D3DXVECTOR3* bottomRight, D3DXVECTOR3* topRight, D3DXVECTOR3* topLeft);
     int setupTextureQuadAndMatrices(uint32_t spriteNumber, AnmLoaded* anmLoaded);
-    static uint32_t updateTimeValue(TimeData* data);
-
-    // Placeholder functions
-    int getIntVar(int time);
-    int* getIntVarPtr(int* time);
-    float getFloatVar(float time);
-    float* getFloatVarPtr(float* time);
-
-    int randInt(int min, int max) { return min; } // Placeholder
-    float randFloat(float min, float max) { return min; } // Placeholder
+    static uint32_t rng(RngContext* data);
+    int getIntVar(int id);
+    int* getIntVarPtr(int* id);
+    float getFloatVar(float id);
+    float* getFloatVarPtr(float* id);
 };
 ASSERT_SIZE(AnmVm, 0x434);
 
 /* Globals */
 
-extern TimeData g_timeData;
-extern TimeData g_timeDataCopy;
+extern RngContext g_anmRngContext;
+extern RngContext g_replayRngContext;
 extern D3DXVECTOR3 g_bottomLeftDrawCorner;
 extern D3DXVECTOR3 g_bottomRightDrawCorner;
 extern D3DXVECTOR3 g_topLeftDrawCorner;
