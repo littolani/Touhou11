@@ -10,8 +10,8 @@ struct Camera
     D3DXVECTOR3 v4;
     D3DXVECTOR3 eye;
     float fovY;
-    D3DMATRIX viewMatrix;
-    D3DMATRIX projectionMatrix;
+    D3DXMATRIX viewMatrix;
+    D3DXMATRIX projectionMatrix;
     D3DVIEWPORT9 viewport;
     uint32_t mystery[6];
     float f0;
