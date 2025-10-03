@@ -1,9 +1,9 @@
 #pragma once
-
 #include "Chireiden.h"
+#include "CSound.h"
 #include "Macros.h"
 
-class ItemManager
+class CStreamingSound : public CSound
 {
 
 };

@@ -114,6 +114,7 @@ void retrieveSystemStats()
   QueryPerformanceCounter(&g_performanceCount);
 }
 
+// 0x445510
 int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow)
 {
     HINSTANCE thisHInstance = hInstance;

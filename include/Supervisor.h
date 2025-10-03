@@ -2,8 +2,9 @@
 #include "Chireiden.h"
 #include "Camera.h"
 
-struct Supervisor
+class Supervisor
 {
+public:
     HINSTANCE hInstance;            // <0x0>
     IDirect3D9* d3dInterface0;      // <0x4>
     IDirect3DDevice9* d3dDevice;    // <0x8>
