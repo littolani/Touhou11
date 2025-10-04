@@ -48,7 +48,7 @@ struct Chain
     ChainElem drawChain;      // <0x24> Sentinel node for drawing chain
     uint32_t timeToRemove;    // <0x48> Time-to-remove flag
 
-    Chain() = default;
+    Chain();
     void release();
     int runCalcChain();
     int runDrawChain();

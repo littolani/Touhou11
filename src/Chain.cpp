@@ -1,7 +1,26 @@
 #include "Chain.h"
 #include "Supervisor.h"
 
-Chain* g_chain{};
+Chain* g_chain;
+
+Chain::Chain()
+{
+    calcChain.trackerPrevNode = nullptr;
+    calcChain.registerChainCallback = nullptr;
+    calcChain.jobPriority = 0;
+    calcChain.nextNode = (ChainElem*)((uintptr_t)&calcChain & ~1);
+    calcChain.embeddedTracker.trackerNextNode = nullptr;
+    calcChain.embeddedTracker.trackerPrevNode = nullptr;
+    calcChain.embeddedTracker.trackerJobNode = &calcChain;
+    drawChain.trackerPrevNode = nullptr;
+    drawChain.registerChainCallback = nullptr;
+    drawChain.jobPriority = 0;
+    drawChain.nextNode = (ChainElem*)((uintptr_t)&drawChain & ~1);
+    drawChain.embeddedTracker.trackerNextNode = nullptr;
+    drawChain.embeddedTracker.trackerPrevNode = nullptr;
+    drawChain.embeddedTracker.trackerJobNode = &drawChain;
+    timeToRemove = 0;
+}
 
 void Chain::release()
 {
