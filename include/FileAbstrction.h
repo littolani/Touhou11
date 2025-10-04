@@ -194,11 +194,3 @@ struct PbgArchive
     char* m_filename;
     CPbgFile* m_fileAbstraction;
 };
-
-/* Globals */
-int createDirectory(LPCSTR pathName);
-int doesFileExist(LPCSTR filePath);
-int writeToFile(LPCSTR fileName, DWORD numBytes,LPCVOID bytes);
-int writeToFile(LPCSTR fileName, DWORD numBytes,LPVOID bytes);
-byte* openFile(char* filename, size_t* outSize, BOOL isExternalResource);
-PbgArchive* findMatchingArchive(const char* filename);

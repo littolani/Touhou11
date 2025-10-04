@@ -23,3 +23,7 @@ extern PbgArchive g_pbgArchives[20];
 
 double getDeltaTime();
 int fileExists(LPCSTR filePath);
+int createDirectory(LPCSTR pathName);
+int writeToFile(LPCSTR fileName, DWORD numBytes,LPCVOID bytes);
+byte* openFile(char* filename, size_t* outSize, BOOL isExternalResource);
+PbgArchive* findMatchingArchive(const char* filename);
