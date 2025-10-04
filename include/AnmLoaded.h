@@ -110,3 +110,8 @@ struct SpriteData
 {
     float x, y, w, h;
 };
+
+/* Globals */
+
+extern D3DFORMAT g_d3dFormats[];
+extern uint32_t g_bytesPerPixelLookupTable[];
