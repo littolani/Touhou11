@@ -7,6 +7,7 @@
 
 
 extern HANDLE g_app;
+extern HWND g_window;
 extern DWORD g_unusualLaunchFlag;
 extern HINSTANCE g_hInstance;
 extern DWORD g_primaryScreenWorkingArea;
@@ -16,8 +17,9 @@ extern LARGE_INTEGER g_performanceFrequency;
 extern LARGE_INTEGER g_performanceCount;
 extern PbgArchive g_pbgArchive; 
 extern float g_gameSpeed;
-extern D3DFORMAT g_d3dFormats[];
-extern uint32_t g_bytesPerPixelLookupTable[];
 extern double g_time;
 extern int g_numEntriesInDatFile;
 extern PbgArchive g_pbgArchives[20];
+
+double getDeltaTime();
+int fileExists(LPCSTR filePath);
