@@ -620,7 +620,8 @@ int AnmManager::writeSprite(RenderVertex144* someVertices)
     return 0;
 }
 
-int AnmManager::drawVmSprite2D(uint32_t layer, AnmVm* anmVm)
+// 0x44f880
+void AnmManager::drawVmSprite2D(uint32_t layer, AnmVm* anmVm)
 {
     // Store original layer for later use
     uint32_t originalLayer = layer;
@@ -688,9 +689,8 @@ int AnmManager::drawVmSprite2D(uint32_t layer, AnmVm* anmVm)
     float viewportBottom = viewportTop + static_cast<float>(viewport.Height);
 
     // Cull if outside viewport
-    if (viewportLeft > maxX || viewportTop > maxY || viewportRight < minX || viewportBottom < minY) {
-        return 0;
-    }
+    if (viewportLeft > maxX || viewportTop > maxY || viewportRight < minX || viewportBottom < minY)
+        return;
 
     // Handle texture change
     IDirect3DTexture9** newTex = &anmVm->m_sprite->anmLoadedD3D->m_texture;
@@ -752,9 +752,9 @@ int AnmManager::drawVmSprite2D(uint32_t layer, AnmVm* anmVm)
 
     setupRenderStateForVm(anmVm);
     writeSprite(g_renderQuad144);
-    return 0;
 }
 
+// 0x44f490
 uint32_t AnmManager::modulateColorComponent(uint16_t base, uint16_t factor)
 {
     uint32_t i = (base & 0xff) * (factor & 0xff) >> 7;
@@ -802,9 +802,8 @@ int AnmManager::drawVmWithFog(AnmVm* vm)
         float denominator = fogStart - fogEnd;
         float factor = (cullDistance - dist) / denominator;
 
-        if (factor >= 1.0f) {
+        if (factor >= 1.0f)
             return -1;
-        }
 
         int fogR = static_cast<int>(g_supervisor.cam0.fogR);
         int fogG = static_cast<int>(g_supervisor.cam0.fogG);
@@ -833,7 +832,94 @@ int AnmManager::drawVmWithFog(AnmVm* vm)
     g_renderQuad144[2].diffuseColor = g_renderQuad144[0].diffuseColor;
     g_renderQuad144[3].diffuseColor = g_renderQuad144[0].diffuseColor;
 
-    return drawVmSprite2D(2, vm);
+    drawVmSprite2D(2, vm);
+    return 0;
+}
+
+// 0x44f4b0
+void AnmManager::applyRenderStateForVm(AnmVm* vm)
+{
+    IDirect3DDevice9* device = g_supervisor.d3dDevice;
+
+    uint8_t blendMode = (vm->m_flagsLow >> 4) & 0x7;
+    if (blendMode != renderStateMode) {
+        flushSprites();
+        renderStateMode = blendMode;
+
+        D3DBLEND srcBlend, destBlend;
+        switch (blendMode) {
+            case 0:
+                srcBlend = D3DBLEND_SRCALPHA;
+                destBlend = D3DBLEND_INVSRCALPHA;
+                break;
+            case 1:
+                srcBlend = D3DBLEND_SRCALPHA;
+                destBlend = D3DBLEND_ONE;
+                break;
+            case 2:
+                srcBlend = D3DBLEND_ZERO;
+                destBlend = D3DBLEND_INVSRCCOLOR;
+                break;
+            case 3:
+                srcBlend = D3DBLEND_ONE;
+                destBlend = D3DBLEND_ZERO;
+                break;
+            case 4:
+                srcBlend = D3DBLEND_INVDESTCOLOR;
+                destBlend = D3DBLEND_INVSRCALPHA;
+                break;
+            case 5:
+                srcBlend = D3DBLEND_DESTCOLOR;
+                destBlend = D3DBLEND_ZERO;
+                break;
+            case 6:
+                srcBlend = D3DBLEND_INVSRCCOLOR;
+                destBlend = D3DBLEND_INVSRCALPHA;
+                break;
+            default:
+                return;
+        }
+        device->SetRenderState(D3DRS_SRCBLEND, srcBlend);
+        device->SetRenderState(D3DRS_DESTBLEND, destBlend);
+    }
+
+    D3DCOLOR color = (vm->m_flagsLow & 0x8000) ? vm->m_color1 : vm->m_color0;
+
+    if (m_rebuildColorFlag)
+    {
+        uint32_t r = ((color >> 16) & 0xFF) * scaleR >> 7;
+        r = (r > 255) ? 255 : r;
+
+        uint32_t g = ((color >> 8) & 0xFF) * scaleG >> 7;
+        g = (g > 255) ? 255 : g;
+
+        uint32_t b = (color & 0xff) * scaleB >> 7;
+        b = (b > 255) ? 255 : b;
+
+        uint32_t a = (color >> 24) * scaleA >> 7;
+        a = (a > 255) ? 255 : a;
+
+        color = (a << 24) | (r << 16) | (g << 8) | b;
+    }
+
+    if (color != this->color)
+    {
+        flushSprites();
+        this->color = color;
+        device->SetRenderState(D3DRS_TEXTUREFACTOR, color);
+    }
+
+    bool usePointFilterNew = (vm->m_flagsLow & 0x80000000) != 0;
+    if (usePointFilterNew != usePointFilter)
+    {
+        flushSprites();
+        usePointFilter = usePointFilterNew;
+
+        DWORD filter = usePointFilterNew ? D3DTEXF_POINT : D3DTEXF_LINEAR;
+        device->SetSamplerState(0, D3DSAMP_MAGFILTER, filter);
+        device->SetSamplerState(0, D3DSAMP_MINFILTER, filter);
+    }
+    someCounter++;
 }
 
 /* Global Functions */

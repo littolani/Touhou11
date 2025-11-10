@@ -51,7 +51,7 @@ public:
     D3DXMATRIX m_currentWorldMatrix;       // <0x435140>
     AnmVm primaryVm;                       // <0x435180>
     uint32_t u0;                           // <0x4355bc>
-    uint32_t u1;                           // <0x4355b8>
+    uint32_t color;                        // <0x4355b8>
     IDirect3DTexture9** m_tex;             // <0x4355bc>
     uint8_t renderStateMode;               // <0x4355c0>
     uint8_t l;                             // <0x4355c1>
@@ -87,10 +87,11 @@ public:
     void flushSprites();
     void blitTextureToSurface(BlitParams* blitParams);
     void setupRenderStateForVm(AnmVm* vm);
+    void applyRenderStateForVm(AnmVm* vm);
     void drawPrimitiveImmediate(AnmVm* vm, void* specialRenderData, uint32_t vertexCount);
     int updateWorldMatrixAndProjectQuadCorners(AnmVm* vm);
     int writeSprite(RenderVertex144* someVertices);
-    int drawVmSprite2D(uint32_t layer, AnmVm* anmVm);
+    void drawVmSprite2D(uint32_t layer, AnmVm* anmVm);
     int drawVmWithFog(AnmVm* vm);
     AnmLoaded* preloadAnm(int anmIdx, const char* anmFileName);
     AnmLoaded* preloadAnmFromMemory(const char* anmFilePath, int anmSlotIndex);
