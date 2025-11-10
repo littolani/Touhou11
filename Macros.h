@@ -1,5 +1,6 @@
 #pragma once
 #include <cstddef>
+#include <cstring>
 
 template <size_t Actual, size_t Expected>
 struct CheckSize {
@@ -13,3 +14,11 @@ struct CheckSize {
 #define GENERATE_PADDING(size) uint8_t CONCAT(unknown_, __LINE__)[size]
 #define CONCAT(a, b) CONCAT_INNER(a, b)
 #define CONCAT_INNER(a, b) a##b
+
+template <typename To, typename From>
+inline To bit_cast(const From& src)
+{
+    To dst;
+    std::memcpy(&dst, &src, sizeof(To));
+    return dst;
+}
