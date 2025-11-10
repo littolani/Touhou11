@@ -100,8 +100,8 @@ public:
     uint32_t m_flagsLow;
     uint32_t m_flagsHigh;
     uint32_t m_unknown;
-    ChainCallback* m_onTick; // Function pointers to chainCallback
-    ChainCallback* m_onDraw; // Function pointers to chainCallback
+    ChainCallback* m_onTick;
+    ChainCallback* m_onDraw;
     uint32_t m_unknown1;
     uint8_t m_fontDimensions[2];
     uint16_t m_probablyPadding;
@@ -127,6 +127,21 @@ public:
     static float normalizeSigned(RngContext* rngContext);
     static float normalizeUnsigned(RngContext* rngContext);
     static float normalizeToAngle(float angle, RngContext* rngContext);
+
+    inline void loadNextInstruction()
+    {
+        m_currentInstruction = reinterpret_cast<AnmRawInstruction*>(
+            reinterpret_cast<char*>(m_currentInstruction) + m_currentInstruction->offsetToNextInstr
+        );
+    }
+
+    inline void jumpToInstruction(int address)
+    {
+        m_currentInstruction = reinterpret_cast<AnmRawInstruction*>(
+            reinterpret_cast<char*>(m_beginningOfScript) + address
+        );
+    }
+
 };
 ASSERT_SIZE(AnmVm, 0x434);
 
