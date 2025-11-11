@@ -122,84 +122,85 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>$(ProjectDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClCompile Include="AnmLoaded.cpp" />
-    <ClCompile Include="AnmManager.cpp" />
-    <ClCompile Include="AnmVm.cpp" />
-    <ClCompile Include="AsciiManager.cpp" />
-    <ClCompile Include="Bomb.cpp" />
-    <ClCompile Include="Bullet.cpp" />
-    <ClCompile Include="BulletManager.cpp" />
-    <ClCompile Include="Chain.cpp" />
-    <ClCompile Include="Chireiden.cpp" />
-    <ClCompile Include="EclVm.cpp" />
-    <ClCompile Include="EffectManager.cpp" />
-    <ClCompile Include="Enemy.cpp" />
-    <ClCompile Include="EnemyManager.cpp" />
-    <ClCompile Include="FileAbstraction.cpp" />
-    <ClCompile Include="GameConfig.cpp" />
-    <ClCompile Include="Globals.cpp" />
-    <ClCompile Include="Interp.cpp" />
-    <ClCompile Include="LaserManager.cpp" />
-    <ClCompile Include="Player.cpp" />
-    <ClCompile Include="RenderMesh.cpp" />
-    <ClCompile Include="Supervisor.cpp" />
-    <ClCompile Include="Timer.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="AnmLoaded.h" />
-    <ClInclude Include="AnmManager.h" />
-    <ClInclude Include="AnmVm.h" />
-    <ClInclude Include="AsciiManager.h" />
-    <ClInclude Include="Bomb.h" />
-    <ClInclude Include="Bullet.h" />
-    <ClInclude Include="BulletManager.h" />
-    <ClInclude Include="Camera.h" />
-    <ClInclude Include="Chain.h" />
-    <ClInclude Include="Chireiden.h" />
-    <ClInclude Include="CSound.h" />
-    <ClInclude Include="CStreamingSound.h" />
-    <ClInclude Include="CWaveFile.h" />
-    <ClInclude Include="EclVm.h" />
-    <ClInclude Include="EffectManager.h" />
-    <ClInclude Include="Ending.h" />
-    <ClInclude Include="Enemy.h" />
-    <ClInclude Include="EnemyManager.h" />
-    <ClInclude Include="FileAbstrction.h" />
-    <ClInclude Include="FpsCounter.h" />
-    <ClInclude Include="GameConfig.h" />
-    <ClInclude Include="GameThread.h" />
-    <ClInclude Include="Globals.h" />
-    <ClInclude Include="Gui.h" />
-    <ClInclude Include="HintManager.h" />
-    <ClInclude Include="Interp.h" />
-    <ClInclude Include="Item.h" />
-    <ClInclude Include="ItemManager.h" />
-    <ClInclude Include="LaserData.h" />
-    <ClInclude Include="LaserInfinite.h" />
-    <ClInclude Include="LaserLine.h" />
-    <ClInclude Include="LaserManager.h" />
-    <ClInclude Include="LaserSegment.h" />
-    <ClInclude Include="LoadingThread.h" />
-    <ClInclude Include="Macros.h" />
-    <ClInclude Include="MainMenu.h" />
-    <ClInclude Include="PauseMenu.h" />
-    <ClInclude Include="Player.h" />
-    <ClInclude Include="RenderMesh.h" />
-    <ClInclude Include="ReplayManager.h" />
-    <ClInclude Include="SoundManager.h" />
-    <ClInclude Include="Spellcard.h" />
-    <ClInclude Include="Stage.h" />
-    <ClInclude Include="Supervisor.h" />
-    <ClInclude Include="Timer.h" />
-    <ClInclude Include="Window.h" />
-    <ClInclude Include="ZunResult.h" />
+<ItemGroup>
+  <ClCompile Include="src\AnmLoaded.cpp" />
+  <ClCompile Include="src\AnmManager.cpp" />
+  <ClCompile Include="src\AnmVm.cpp" />
+  <ClCompile Include="src\AsciiManager.cpp" />
+  <ClCompile Include="src\Bomb.cpp" />
+  <ClCompile Include="src\Bullet.cpp" />
+  <ClCompile Include="src\BulletManager.cpp" />
+  <ClCompile Include="src\Chain.cpp" />
+  <ClCompile Include="src\Chireiden.cpp" />
+  <ClCompile Include="src\EclVm.cpp" />
+  <ClCompile Include="src\EffectManager.cpp" />
+  <ClCompile Include="src\Enemy.cpp" />
+  <ClCompile Include="src\EnemyManager.cpp" />
+  <ClCompile Include="src\FileAbstraction.cpp" />
+  <ClCompile Include="src\GameConfig.cpp" />
+  <ClCompile Include="src\Globals.cpp" />
+  <ClCompile Include="src\Interp.cpp" />
+  <ClCompile Include="src\LaserManager.cpp" />
+  <ClCompile Include="src\Player.cpp" />
+  <ClCompile Include="src\RenderMesh.cpp" />
+  <ClCompile Include="src\Supervisor.cpp" />
+  <ClCompile Include="src\Timer.cpp" />
+</ItemGroup>
+<ItemGroup>
+  <ClInclude Include="include\AnmLoaded.h" />
+  <ClInclude Include="include\AnmManager.h" />
+  <ClInclude Include="include\AnmVm.h" />
+  <ClInclude Include="include\AsciiManager.h" />
+  <ClInclude Include="include\Bomb.h" />
+  <ClInclude Include="include\Bullet.h" />
+  <ClInclude Include="include\BulletManager.h" />
+  <ClInclude Include="include\Camera.h" />
+  <ClInclude Include="include\Chain.h" />
+  <ClInclude Include="include\Chireiden.h" />
+  <ClInclude Include="include\CSound.h" />
+  <ClInclude Include="include\CStreamingSound.h" />
+  <ClInclude Include="include\CWaveFile.h" />
+  <ClInclude Include="include\EclVm.h" />
+  <ClInclude Include="include\EffectManager.h" />
+  <ClInclude Include="include\Ending.h" />
+  <ClInclude Include="include\Enemy.h" />
+  <ClInclude Include="include\EnemyManager.h" />
+  <ClInclude Include="include\FileAbstrction.h" />
+  <ClInclude Include="include\FpsCounter.h" />
+  <ClInclude Include="include\GameConfig.h" />
+  <ClInclude Include="include\GameThread.h" />
+  <ClInclude Include="include\Globals.h" />
+  <ClInclude Include="include\Gui.h" />
+  <ClInclude Include="include\HintManager.h" />
+  <ClInclude Include="include\Interp.h" />
+  <ClInclude Include="include\Item.h" />
+  <ClInclude Include="include\ItemManager.h" />
+  <ClInclude Include="include\LaserData.h" />
+  <ClInclude Include="include\LaserInfinite.h" />
+  <ClInclude Include="include\LaserLine.h" />
+  <ClInclude Include="include\LaserManager.h" />
+  <ClInclude Include="include\LaserSegment.h" />
+  <ClInclude Include="include\LoadingThread.h" />
+  <ClInclude Include="include\Macros.h" />
+  <ClInclude Include="include\MainMenu.h" />
+  <ClInclude Include="include\PauseMenu.h" />
+  <ClInclude Include="include\Player.h" />
+  <ClInclude Include="include\RenderMesh.h" />
+  <ClInclude Include="include\ReplayManager.h" />
+  <ClInclude Include="include\SoundManager.h" />
+  <ClInclude Include="include\Spellcard.h" />
+  <ClInclude Include="include\Stage.h" />
+  <ClInclude Include="include\Supervisor.h" />
+  <ClInclude Include="include\Timer.h" />
+  <ClInclude Include="include\Window.h" />
+  <ClInclude Include="include\ZunResult.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
