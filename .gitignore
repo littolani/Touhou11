@@ -9,7 +9,7 @@
 CMakeCache.txt
 cmake_install.cmake
 Makefile
-
+/resources/
 /sdk/
 
 # IDE / Editor files
