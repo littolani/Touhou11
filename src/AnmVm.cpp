@@ -1,7 +1,6 @@
 #include "AnmVm.h"
 
 /* Global Variables */
-
 RngContext g_anmRngContext;
 RngContext g_replayRngContext;
 D3DXVECTOR3 g_bottomLeftDrawCorner;
@@ -9,11 +8,21 @@ D3DXVECTOR3 g_bottomRightDrawCorner;
 D3DXVECTOR3 g_topLeftDrawCorner;
 D3DXVECTOR3 g_topRightDrawCorner;
 
+// 0x402270
 AnmVm::AnmVm()
 {
     m_spriteNumber = -1;
 }
 
+// 0x402170
+AnmVm::~AnmVm()
+{
+    if (m_specialRenderData)
+        free(m_specialRenderData); //TODO: Figure out real type
+    m_specialRenderData = nullptr;
+}
+
+// 0x401fd0
 void AnmVm::initialize()
 {
     D3DXVECTOR3 entityPos = m_entityPos;
@@ -142,8 +151,7 @@ int* AnmVm::getIntVarPtr(int* id)
 // 0x44b380
 float* AnmVm::getFloatVarPtr(float* id)
 {
-    int intTime = static_cast<float>(*id); 
-    switch(intTime)
+    switch(static_cast<int>(*id))
     {
     case 10004: // 0x2714
         return &m_floatVars[0];
@@ -666,7 +674,6 @@ void AnmVm::run()
         float gameSpeed = g_gameSpeed;
         g_gameSpeed = 1.0;
 
-        AnmRawInstruction* cur_instr = m_currentInstruction;
         AnmRawInstruction* instr_interrupt = nullptr;
 
         //TODO: Move local variables into inner scopes if possible
@@ -695,9 +702,10 @@ void AnmVm::run()
             // TODO: Update timers and interpolation
             return;
         }
+        
         // Opcode is adjusted in the actual binary for the jump table, where each case is 1 higher than the actual opcode.
         // This reconstruction will be following the correct values.
-        uint32_t opcode  = cur_instr->opcode; // + 1;
+        uint32_t opcode = m_currentInstruction->opcode;
         switch (opcode)
         {
         // Does nothing.
@@ -746,49 +754,52 @@ void AnmVm::run()
         // Jumps to byte offset dest from the script's beginning and sets the time to t. thanm accepts a label name for dest.
         // Chinese wiki says some confusing recommendation about setting a=0, can someone explain to me?
         case 4: // jmp(int dest, int t)
-            m_timeInScript.setCurrent(cur_instr->args[1]);
-            m_currentInstruction = (AnmRawInstruction*)((char*)m_beginningOfScript + cur_instr->args[0]);
+            m_timeInScript.setCurrent(m_currentInstruction->args[1]);
+            m_currentInstruction = (AnmRawInstruction*)((char*)m_beginningOfScript + m_currentInstruction->args[0]);
             break;
 
-        // Decrement x and then jump if x > 0. You can use this to repeat a loop a fixed number of times.
-        case 5: // jmpDec(int& x, int dest, int t)
-            intVarPtr = cur_instr->args; // Iterator
-            if (cur_instr->varMask & 1)
-                intVarPtr = getIntVarPtr(cur_instr->args);
-            *intVarPtr -= 1;
-            opcode = *cur_instr->args;
+        // Decrement count and then jump if count > 0. You can use this to repeat a loop a fixed number of times.
+        case 5: // jmpDec(int& count, int dest, int t)
+        {
+            static int* count;
+            count = &m_currentInstruction->args[0];
+            int dest = m_currentInstruction->args[1];
+            int t = m_currentInstruction->args[2];
+            int originalCount = *count;
 
-            if (cur_instr->varMask & 1)
-                opcode = getIntVar(opcode);
+            if (m_currentInstruction->varMask & 1)
+                count = getIntVarPtr(m_currentInstruction->args);
+            *count -= 1;
 
-            if (opcode > 0)
+            if (m_currentInstruction->varMask & 1)
+                originalCount = getIntVar(originalCount);
+
+            if (originalCount > 0)
             {
-                m_timeInScript.setCurrent(cur_instr->args[2]);
-                loadNextInstruction();
+                m_timeInScript.setCurrent(t);
+                jumpToInstruction(dest);
             }
             break;
+        }
 
         // Does a = b.
-        case 6: // iset(int& a, int b)
-            if ((cur_instr->varMask & 2) == 0)
-                instr_interrupt = (AnmRawInstruction*)cur_instr->args[1];
-            else
-                instr_interrupt = (AnmRawInstruction*)getIntVar(cur_instr->args[1]);
+        case 6: // iset(int& dest, int val)
+        {
+            int* dest = reinterpret_cast<int*>(&m_currentInstruction->args[0]);
+            int num = m_currentInstruction->args[1];
 
-            // goto HelpMe inlined
-            if ((cur_instr->varMask & 1) == 0)
-            {
-                *cur_instr->args = (int)instr_interrupt;
-                loadNextInstruction();
-                break;
-            }
+            if ((m_currentInstruction->varMask & 2) == 0)
+                num = getIntVar(m_currentInstruction->args[1]);
 
-            interruptInstrVar = getIntVarPtr(cur_instr->args);
+            if ((m_currentInstruction->varMask & 1) == 0) 
+                dest = getIntVarPtr(dest);
+        
+            *dest = num;
             loadNextInstruction();
             break;
-
+        }
         // Does a = b.
-        case 7: // fset(float& a, float b)
+        case 7: // fset(float& dest, float val)
 
             break;
 
@@ -958,22 +969,22 @@ void AnmVm::run()
         case 41: // fsetRand(float& x, float r)
         {
             RngContext* rngCtx;
-            float r = bit_cast<float>(cur_instr->args[1]);
+            float r = bit_cast<float>(m_currentInstruction->args[1]);
             if ((m_flagsLow & 0x40000000) == 0)
             {
-                if ((cur_instr->varMask & 2) != 0)
+                if ((m_currentInstruction->varMask & 2) != 0)
                     posX = getFloatVar(posX);
                 rngCtx = &g_replayRngContext;
             }
             else
             {
-                if ((cur_instr->varMask & 2) != 0)
+                if ((m_currentInstruction->varMask & 2) != 0)
                     posX = getFloatVar(posX);
                 rngCtx = &g_anmRngContext;
             }
 
-            float* dest = reinterpret_cast<float*>(&cur_instr->args[0]);
-            if ((cur_instr->varMask & 1) != 0)
+            float* dest = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
+            if ((m_currentInstruction->varMask & 1) != 0)
                 dest = getFloatVarPtr(dest);
 
             *dest = randScale(posX, rngCtx);
@@ -983,12 +994,12 @@ void AnmVm::run()
         // Compute sin(θ) (θ in radians).
         case 42: // fsin(float& dest, float θ)
         {
-            float* dest = reinterpret_cast<float*>(&cur_instr->args[0]);
-            float theta = bit_cast<float>(cur_instr->args[1]);
-            if ((cur_instr->varMask & 2) != 0)
+            float* dest = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
+            float theta = bit_cast<float>(m_currentInstruction->args[1]);
+            if ((m_currentInstruction->varMask & 2) != 0)
                 theta = getFloatVar(posX);
     
-            if ((cur_instr->varMask & 1) != 0)
+            if ((m_currentInstruction->varMask & 1) != 0)
                 dest = getFloatVarPtr(dest);
 
             *dest = std::sinf(posX);
@@ -999,12 +1010,12 @@ void AnmVm::run()
         // Compute cos(θ) (θ in radians).
         case 43: // fcos(float& dest, float θ)
         {
-            float* dest = reinterpret_cast<float*>(&cur_instr->args[0]);
-            float theta = bit_cast<float>(cur_instr->args[1]);
-            if ((cur_instr->varMask & 2) != 0)
+            float* dest = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
+            float theta = bit_cast<float>(m_currentInstruction->args[1]);
+            if ((m_currentInstruction->varMask & 2) != 0)
                 theta = getFloatVar(theta);
 
-            if ((cur_instr->varMask & 1) != 0)
+            if ((m_currentInstruction->varMask & 1) != 0)
                 dest = getFloatVarPtr(dest);
 
             *dest = std::cosf(theta);
@@ -1015,12 +1026,12 @@ void AnmVm::run()
         // Compute tan(θ) (θ in radians).
         case 44: // ftan(float& dest, float θ)
         {
-            float* dest = reinterpret_cast<float*>(&cur_instr->args[0]);
-            float theta = bit_cast<float>(cur_instr->args[1]);
-            if ((cur_instr->varMask & 2) != 0)
+            float* dest = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
+            float theta = bit_cast<float>(m_currentInstruction->args[1]);
+            if ((m_currentInstruction->varMask & 2) != 0)
                 theta = getFloatVar(theta);
 
-            if ((cur_instr->varMask & 1) != 0)
+            if ((m_currentInstruction->varMask & 1) != 0)
                 dest = getFloatVarPtr(dest);
 
             *dest = std::tanf(theta);
@@ -1030,12 +1041,12 @@ void AnmVm::run()
         // Compute acos(x) (output in radians).
         case 45: // facos(float& dest, float x)
         {
-            float* dest = reinterpret_cast<float*>(&cur_instr->args[0]);
-            float theta = bit_cast<float>(cur_instr->args[1]);
-            if ((cur_instr->varMask & 2) != 0)
+            float* dest = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
+            float theta = bit_cast<float>(m_currentInstruction->args[1]);
+            if ((m_currentInstruction->varMask & 2) != 0)
                 theta = getFloatVar(theta);
 
-            if ((cur_instr->varMask & 1) != 0)
+            if ((m_currentInstruction->varMask & 1) != 0)
                 dest = getFloatVarPtr(dest);
 
             *dest = std::acosf(theta);
@@ -1046,12 +1057,12 @@ void AnmVm::run()
         // Compute atan(f) (output in radians).
         case 46: // fatan(float& dest, float f)
         {
-            float* dest = reinterpret_cast<float*>(&cur_instr->args[0]);
-            float theta = bit_cast<float>(cur_instr->args[1]);
-            if ((cur_instr->varMask & 2) != 0)
+            float* dest = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
+            float theta = bit_cast<float>(m_currentInstruction->args[1]);
+            if ((m_currentInstruction->varMask & 2) != 0)
                 theta = getFloatVar(theta);
 
-            if ((cur_instr->varMask & 1) != 0)
+            if ((m_currentInstruction->varMask & 1) != 0)
                 dest = getFloatVarPtr(dest);
 
             *dest = std::atanf(theta);
@@ -1068,19 +1079,19 @@ void AnmVm::run()
         // This is part of the implementation of th09:posMode in earlier games, and is, to my knowledge,
         // entirely dead code in every game since StB.
         case 48: // pos(float x, float y, float z)
-            posX = bit_cast<float>(cur_instr->args[0]);
-            posY = bit_cast<float>(cur_instr->args[1]);
-            posZ = bit_cast<float>(cur_instr->args[2]);
+            posX = bit_cast<float>(m_currentInstruction->args[0]);
+            posY = bit_cast<float>(m_currentInstruction->args[1]);
+            posZ = bit_cast<float>(m_currentInstruction->args[2]);
             
             if ((m_flagsLow & 0x100) == 0)
             {
-                if ((cur_instr->varMask & 4) != 0)
+                if ((m_currentInstruction->varMask & 4) != 0)
                     posZ = getFloatVar(posZ);
 
-                if ((cur_instr->varMask & 2) != 0)
+                if ((m_currentInstruction->varMask & 2) != 0)
                     posY = getFloatVar(posY);
 
-                if ((cur_instr->varMask & 1) != 0)
+                if ((m_currentInstruction->varMask & 1) != 0)
                     posX = getFloatVar(posX);
 
                 m_pos.x = posX;
@@ -1092,13 +1103,13 @@ void AnmVm::run()
             }
             else
             {
-                if ((cur_instr->varMask & 4) != 0)
+                if ((m_currentInstruction->varMask & 4) != 0)
                     posZ = getFloatVar(posZ);
 
-                if ((cur_instr->varMask & 2) != 0)
+                if ((m_currentInstruction->varMask & 2) != 0)
                     posY = getFloatVar(posY);
 
-                if ((cur_instr->varMask & 1) != 0)
+                if ((m_currentInstruction->varMask & 1) != 0)
                     posX = getFloatVar(posX);
 
                 m_offsetPos.x = posX;
@@ -1121,17 +1132,18 @@ void AnmVm::run()
         // (TD–) You can choose the rotation system with th185:rotationMode. (what's the default? probably the same?)
         // If nothing seems to be happening when you call this, check your type setting!
         case 49: // rotate(float rx, float ry, float rz)
-            rX = bit_cast<float>(cur_instr->args[0]);
-            rY = bit_cast<float>(cur_instr->args[1]);
-            rZ = bit_cast<float>(cur_instr->args[2]);
+        {
+            rX = bit_cast<float>(m_currentInstruction->args[0]);
+            rY = bit_cast<float>(m_currentInstruction->args[1]);
+            rZ = bit_cast<float>(m_currentInstruction->args[2]);
 
-            if ((cur_instr->varMask & 1) != 0)
+            if ((m_currentInstruction->varMask & 1) != 0)
                 rX = getFloatVar(rX);
             
-            if ((cur_instr->varMask & 2) != 0)
+            if ((m_currentInstruction->varMask & 2) != 0)
                 rY = getFloatVar(rY);
             
-            if ((cur_instr->varMask & 4) != 0)
+            if ((m_currentInstruction->varMask & 4) != 0)
                 rZ = getFloatVar(rZ);
 
             m_flagsLow |= 4;
@@ -1140,7 +1152,7 @@ void AnmVm::run()
             m_rotation.z = rZ;
             loadNextInstruction();
             break;
-
+        }
         // Scales the ANM independently along the x and y axis. Graphics grow around their anchor point (see anchor). Some special drawing instructions give the x and y scales special meaning.
         case 50: // scale(float sx, float sy)
 
@@ -1264,23 +1276,23 @@ switchD_0044b52d_caseD_3f:
             else
             {
 Interrupt:
-                cur_instr = m_beginningOfScript;
+                m_currentInstruction = m_beginningOfScript;
                 instr_interrupt = nullptr;
                 while (1)
                 {
-                    uint16_t cur_instr_opcode = cur_instr->opcode;
+                    uint16_t m_currentInstruction_opcode = m_currentInstruction->opcode;
                     opcode = 0; // Nop
 
-                    if ((cur_instr_opcode == 64 && m_pendingInterrupt == cur_instr->args[0]) || cur_instr_opcode == -1)
+                    if ((m_currentInstruction_opcode == 64 && m_pendingInterrupt == m_currentInstruction->args[0]) || m_currentInstruction_opcode == -1)
                         break;
 
-                    if (cur_instr_opcode == 64 && cur_instr->args[0] == -1)
-                        instr_interrupt = cur_instr;
+                    if (m_currentInstruction_opcode == 64 && m_currentInstruction->args[0] == -1)
+                        instr_interrupt = m_currentInstruction;
                 
-                    cur_instr = (AnmRawInstruction*)((char*)m_currentInstruction + cur_instr->offsetToNextInstr);
+                    m_currentInstruction = (AnmRawInstruction*)((char*)m_currentInstruction + m_currentInstruction->offsetToNextInstr);
                 }
             
-                if (cur_instr->opcode == 64 || (cur_instr = instr_interrupt, instr_interrupt != nullptr))
+                if (m_currentInstruction->opcode == 64 || (m_currentInstruction = instr_interrupt, instr_interrupt != nullptr))
                 {
                     m_interruptReturnTime.m_previous = m_timeInScript.m_previous;
                     m_interruptReturnTime.m_current = m_timeInScript.m_current;
@@ -1289,12 +1301,12 @@ Interrupt:
                     instr_interrupt = m_currentInstruction;
                     m_interruptReturnTime.m_isInitialized = m_timeInScript.m_isInitialized;
                     m_interruptReturnInstr = instr_interrupt;
-                    m_timeInScript.setCurrent(cur_instr->time);
+                    m_timeInScript.setCurrent(m_currentInstruction->time);
 
-                    m_pendingInterrupt = cur_instr->offsetToNextInstr; //TODO: verify???
+                    m_pendingInterrupt = m_currentInstruction->offsetToNextInstr; //TODO: verify???
 
                     m_flagsLow |= 1;
-                    m_currentInstruction = (AnmRawInstruction*)((char*)m_currentInstruction + cur_instr->offsetToNextInstr);
+                    m_currentInstruction = (AnmRawInstruction*)((char*)m_currentInstruction + m_currentInstruction->offsetToNextInstr);
                     break;
                 }
             }
