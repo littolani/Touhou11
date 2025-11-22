@@ -185,21 +185,23 @@ int Chain::registerDrawChain(ChainElem* chainElem, int priority)
 int Chain::runCalcChain()
 {
     g_supervisor.enterCriticalSection(0);
-
     ChainElem* trackerChain = this->calcChain.embeddedTracker.trackerNextNode;
     int processedCount = 0;
-
-    while (trackerChain)
+    bool breakLoop = false;
+    
+    while (trackerChain && !breakLoop)
     {
         ChainElem* elem = trackerChain->trackerJobNode;
         trackerChain = trackerChain->nextNode;
 
-        if (elem->jobRunDrawChainCallback == nullptr) {
+        if (elem->jobRunDrawChainCallback == nullptr)
+        {
             processedCount += 1;
             continue;
         }
 
-        if ((reinterpret_cast<uintptr_t>(elem->nextNode) & 2) == 0) {
+        if ((reinterpret_cast<uintptr_t>(elem->nextNode) & 2) == 0)
+        {
             processedCount += 1;
             continue;
         }
@@ -208,7 +210,6 @@ int Chain::runCalcChain()
         {
             if (elem->runCalcChainCallback)
                 (*elem->runCalcChainCallback)(elem->args);
-        
             processedCount += 1;
             continue;
         }
@@ -219,48 +220,49 @@ int Chain::runCalcChain()
 
         switch (callbackResult)
         {
-            case CHAIN_CALLBACK_RESULT_CONTINUE_AND_REMOVE_JOB:
-                cut(elem);
+        case CHAIN_CALLBACK_RESULT_CONTINUE_AND_REMOVE_JOB:
+            cut(elem);
+            processedCount += 1;
+            break;
+        case CHAIN_CALLBACK_RESULT_EXECUTE_AGAIN:
+            if ((reinterpret_cast<uintptr_t>(elem->nextNode) & 2) == 0)
+            {
                 processedCount += 1;
-                continue;
-            case CHAIN_CALLBACK_RESULT_EXECUTE_AGAIN:
-                if ((reinterpret_cast<uintptr_t>(elem->nextNode) & 2) == 0) {
-                    processedCount += 1;
-                }
-                continue;
-            case CHAIN_CALLBACK_RESULT_BREAK:
-                processedCount = 1;
-                goto Exit;
-            case CHAIN_CALLBACK_RESULT_EXIT_GAME_SUCCESS:
-                processedCount = 0;
-                goto Exit;
-            case CHAIN_CALLBACK_RESULT_EXIT_GAME_ERROR:
-                processedCount = -1;
-                goto Exit;
-            case CHAIN_CALLBACK_RESULT_RESTART_FROM_FIRST_JOB: // Previously UNKNOWN_7
-                trackerChain = this->calcChain.embeddedTracker.trackerNextNode;
-                processedCount = 0;
-                continue;
-            default: // Includes UNKNOWN_8, treated as EXIT_GAME_SUCCESS
-                processedCount += 1;
-                continue;
+            }
+            break;
+        case CHAIN_CALLBACK_RESULT_BREAK:
+            processedCount = 1;
+            breakLoop = true;
+            break;
+        case CHAIN_CALLBACK_RESULT_EXIT_GAME_SUCCESS:
+            processedCount = 0;
+            breakLoop = true;
+            break;
+        case CHAIN_CALLBACK_RESULT_EXIT_GAME_ERROR:
+            processedCount = -1;
+            breakLoop = true;
+            break;
+        case CHAIN_CALLBACK_RESULT_RESTART_FROM_FIRST_JOB:
+            trackerChain = this->calcChain.embeddedTracker.trackerNextNode;
+            processedCount = 0;
+            break;
+        default:
+            processedCount += 1;
+            break;
         }
     }
-
-Exit:
     g_supervisor.leaveCriticalSection(0);
     return processedCount;
 }
 
 int Chain::runDrawChain()
 {
-    // Chain* This = g_chain;
     g_supervisor.enterCriticalSection(0);
-
     ChainElem* element = this->drawChain.embeddedTracker.trackerNextNode;
     int processedCount = 0;
+    bool breakLoop = false;
 
-    while (element)
+    while (element && !breakLoop)
     {
         ChainElem* startingElem = element->trackerJobNode;
         element = element->nextNode;
@@ -283,30 +285,31 @@ int Chain::runDrawChain()
 
         switch (callbackResult)
         {
-            case CHAIN_CALLBACK_RESULT_CONTINUE_AND_REMOVE_JOB:
-                cut(startingElem);
+        case CHAIN_CALLBACK_RESULT_CONTINUE_AND_REMOVE_JOB:
+            cut(startingElem);
+            processedCount += 1;
+            break;
+        case CHAIN_CALLBACK_RESULT_EXECUTE_AGAIN:
+            if ((reinterpret_cast<uintptr_t>(startingElem->nextNode) & 2) == 0)
                 processedCount += 1;
-                continue;
-            case CHAIN_CALLBACK_RESULT_EXECUTE_AGAIN:
-                if ((reinterpret_cast<uintptr_t>(startingElem->nextNode) & 2) == 0)
-                    processedCount += 1;
-                continue;
-            case CHAIN_CALLBACK_RESULT_BREAK:
-                processedCount = 1;
-                goto Exit;
-            case CHAIN_CALLBACK_RESULT_EXIT_GAME_SUCCESS:
-                processedCount = 0;
-                goto Exit;
-            case CHAIN_CALLBACK_RESULT_EXIT_GAME_ERROR:
-                processedCount = -1;
-                goto Exit;
-            default:
-                processedCount += 1;
-                continue;
+            break;
+        case CHAIN_CALLBACK_RESULT_BREAK:
+            processedCount = 1;
+            breakLoop = true;
+            break;
+        case CHAIN_CALLBACK_RESULT_EXIT_GAME_SUCCESS:
+            processedCount = 0;
+            breakLoop = true;
+            break;
+        case CHAIN_CALLBACK_RESULT_EXIT_GAME_ERROR:
+            processedCount = -1;
+            breakLoop = true;
+            break;
+        default:
+            processedCount += 1;
+            break;
         }
     }
-
-Exit:
     g_supervisor.leaveCriticalSection(0);
     return processedCount;
 }
