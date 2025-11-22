@@ -1,4 +1,6 @@
 ﻿#include "Supervisor.h"
+#include "Globals.h"
+#include "GameConfig.h"
 
 Supervisor g_supervisor;
 
@@ -41,90 +43,87 @@ void Supervisor::leaveCriticalSection(size_t criticalSectionNumber)
     }
 }
 
+// 0x429eb0
 int Supervisor::verifyGameConfig()
 {
-    byte* th11ConfigFile;
-    int status;
-    int loopCounter;
-    uint32_t* th11ConfigFileCopy;
-    uint32_t* start;
-    size_t outSize;
-    const char* errString;
+    size_t fileSize;
+    byte* configFile = openFile("th11.cfg", &fileSize, 1);
+    m_gameConfig = GameConfig();
 
-    GameConfig::GameConfig(&gameConfig);
-    /* ???ok so we took the supervisor and put it in supervisorCopy and am now using
-       this param as the outSize... */
-    th11ConfigFile = openFile("th11.cfg", &outSize, 1);
-    if (th11ConfigFile == (byte*)0x0) {
-        errString = "コンフィグデータが見つからないので初期化しました\r\n";
-    }
-    else {
-        loopCounter = 0xf;
-        th11ConfigFileCopy = (uint32_t*)th11ConfigFile;
-        start = &g_supervisor.gameConfig.version;
-        /* movsd.rep copy */
-        for (; loopCounter != 0; loopCounter = loopCounter + -1) {
-            *start = *th11ConfigFileCopy;
-            th11ConfigFileCopy = th11ConfigFileCopy + 1;
-            start = start + 1;
-        }
-        _free(th11ConfigFile);
-        if (((((g_supervisor.gameConfig.idk6 < 2) && (g_supervisor.gameConfig.volumeMaybe < 3)) &&
-            (g_supervisor.gameConfig.lifeCount < 2)) &&
-            ((g_supervisor.gameConfig.windowSettings < 4 && (g_supervisor.gameConfig.frameSkip < 3)))) &&
-            ((g_supervisor.gameConfig.musicMode < 3 &&
-                ((g_supervisor.gameConfig.version == 0x110003 && (supervisorThenOutSize == (Supervisor*)0x3c))
-                    )))) {
-            /* restore original config */
-            g_defaultGameConfig.idk9 = g_supervisor.gameConfig.idk9;
-            g_defaultGameConfig.idk12 = g_supervisor.gameConfig.idk12;
-            g_defaultGameConfig.idk13 = g_supervisor.gameConfig.idk13;
-            g_defaultGameConfig.idk14 = g_supervisor.gameConfig.idk14;
-            g_defaultGameConfig.idk8 = g_supervisor.gameConfig.idk8;
-            g_defaultGameConfig.idk10 = g_supervisor.gameConfig.idk10;
-            g_defaultGameConfig.idk7 = g_supervisor.gameConfig.idk7;
-            g_defaultGameConfig.idk11 = g_supervisor.gameConfig.idk11;
-            g_defaultGameConfig.refreshRate = g_supervisor.gameConfig.refreshRate;
-            goto LoggingPortion;
-        }
-        errString = "コンフィグデータが異常でしたので再初期化しました\r\n";
-    }
-    FN_logToGlobalBuffer(&g_loggingBuffer, errString, vaList);
-    GameConfig::GameConfig(&g_supervisor.gameConfig);
+    bool isValid = true;
 
-LoggingPortion:
-    supervisorCopy->noVerticalSyncFlag = 0;
-    if (((supervisorCopy->gameConfig).optionsFlag & 4) != 0)
+    if (configFile == nullptr)
+    {
+        printf("コンフィグデータが見つからないので初期化しました\n");
+        isValid = false;
+    } 
+    else
+    {
+        memcpy(&m_gameConfig, configFile, sizeof(GameConfig));
+        delete[] configFile;
+
+        if (m_gameConfig.colorDepth    >= 2 ||
+            m_gameConfig.sfxEnabled    >= 3 ||
+            m_gameConfig.startingBombs >= 2 ||
+            m_gameConfig.displayMode   >= 4 ||
+            m_gameConfig.frameSkip     >= 3 ||
+            m_gameConfig.musicMode     >= 3 ||
+            m_gameConfig.version       != 0x110003 ||
+            fileSize != sizeof(GameConfig)) 
+        {
+            printf("コンフィグデータが異常でしたので再初期化しました\n");
+            isValid = false;
+        }
+    }
+
+    if (!isValid)
+        m_gameConfig = GameConfig(); // Reinitialize
+    else
+    {
+        g_defaultGameConfig.shootKey    = m_gameConfig.shootKey;
+        g_defaultGameConfig.bombKey     = m_gameConfig.bombKey;
+        g_defaultGameConfig.focusKey    = m_gameConfig.focusKey;
+        g_defaultGameConfig.pauseKey    = m_gameConfig.pauseKey;
+        g_defaultGameConfig.upKey       = m_gameConfig.upKey;
+        g_defaultGameConfig.downKey     = m_gameConfig.downKey;
+        g_defaultGameConfig.leftKey     = m_gameConfig.leftKey;
+        g_defaultGameConfig.rightKey    = m_gameConfig.rightKey;
+        g_defaultGameConfig.refreshRate = m_gameConfig.refreshRate;
+    }
+
+    uint32_t flags = m_gameConfig.flags;
+
+    if (flags & 0x4)
         printf("フォグの使用を抑制します\n");
 
-    if (((supervisorCopy->gameConfig).optionsFlag & 1) != 0)
-        printf("16Bit のテクスチャの使用を強制します\n");
+    if (flags & 0x1)
+        printf("16Bit のテクスチャの使用を強制します\r\n");
 
-    if ((supervisorCopy->d3dPresetParameters).Windowed != 0)
-        printf("ウィンドウモードで起動します\n");
+    if (m_d3dPresetParameters.Windowed != 0)
+        printf("ウィンドウモードで起動します\r\n");
 
-    if (((supervisorCopy->gameConfig).optionsFlag & 2) != 0)
-        printf("リファレンスラスタライザを強制します\n", vaList);
+    if (flags & 0x2)
+        printf("リファレンスラスタライザを強制します\r\n");
 
-    if (((supervisorCopy->gameConfig).optionsFlag & 8) != 0)
+    if (flags & 0x8)
         printf("パッド、キーボードの入力に DirectInput を使用しません\n");
 
-    if (((supervisorCopy->gameConfig).optionsFlag & 0x10) != 0)
+    if (flags & 0x10)
         printf("ＢＧＭをメモリに読み込みます\n");
 
-    if (((supervisorCopy->gameConfig).optionsFlag & 0x20) != 0)
-    {
-        printf("垂直同期を取りません\r\n");
-        g_supervisor.noVerticalSyncFlag = 1;
+    m_noVerticalSyncFlag = 0;
+    if (flags & 0x20) {
+        printf("垂直同期を取りません\n");
+        m_noVerticalSyncFlag = 1;
     }
 
-    if (((supervisorCopy->gameConfig).optionsFlag & 0x40) != 0)
-        printf("文字描画の環境を自動検出しません\n");
+    if (flags & 0x40)
+        printf("文字描画の環境を自動検出しません\r\n");
 
-    status = writeToFile("th11.cfg", 0x3c, &g_supervisor.gameConfig);
-    if (status != 0)
+    int writeStatus = writeToFile("th11.cfg", sizeof(GameConfig), &m_gameConfig);
+    if (writeStatus != 0)
     {
-        printf("ファイルが書き出せません %s\n");
+        printf("ファイルが書き出せません %s\n", "th11.cfg");
         printf("フォルダが書込み禁止属性になっているか、ディスクがいっぱいいっぱいになってませんか？\n");
         return -1;
     }
