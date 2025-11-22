@@ -3,10 +3,7 @@
 /* Global Variables */
 RngContext g_anmRngContext;
 RngContext g_replayRngContext;
-D3DXVECTOR3 g_bottomLeftDrawCorner;
-D3DXVECTOR3 g_bottomRightDrawCorner;
-D3DXVECTOR3 g_topLeftDrawCorner;
-D3DXVECTOR3 g_topRightDrawCorner;
+RenderVertex144 g_renderQuad[4];
 
 // 0x402270
 AnmVm::AnmVm()
@@ -27,7 +24,7 @@ void AnmVm::initialize()
 {
     D3DXVECTOR3 entityPos = m_entityPos;
     int layer = m_layer;
-    memset(this,0,0x434);
+    // memset(this,0,0x434);
 
     m_scale.x = 1.0;
     m_scale.y = 1.0;
@@ -325,7 +322,12 @@ float AnmVm::getFloatVar(float id)
 }
 
 // 0x4500f0
-void AnmVm::writeSpriteCharacters(D3DXVECTOR3* topLeft, D3DXVECTOR3* bottomLeft, D3DXVECTOR3* topRight, D3DXVECTOR3* bottomRight)
+void AnmVm::writeSpriteCharacters(
+    RenderVertex144* topLeft,
+    RenderVertex144* bottomLeft,
+    RenderVertex144* topRight,
+    RenderVertex144* bottomRight
+)
 {
     D3DXVECTOR3 effectivePos = m_entityPos + m_pos + m_offsetPos;
     float width = m_spriteSize.x * m_scale.x;
@@ -335,29 +337,29 @@ void AnmVm::writeSpriteCharacters(D3DXVECTOR3* topLeft, D3DXVECTOR3* bottomLeft,
     if (hAlign == 0)
     {
         float leftX = effectivePos.x - width * 0.5f;
-        topRight->x = leftX;
-        bottomLeft->x = leftX;
+        topRight->transformedPos.x = leftX;
+        bottomLeft->transformedPos.x = leftX;
         float rightX = leftX + width;
-        topLeft->x = rightX;
-        bottomRight->x = rightX;
+        topLeft->transformedPos.x = rightX;
+        bottomRight->transformedPos.x = rightX;
     }
     else if (hAlign == 1)
     {
         float leftX = effectivePos.x;
-        topRight->x = leftX;
-        bottomLeft->x = leftX;
+        topRight->transformedPos.x = leftX;
+        bottomLeft->transformedPos.x = leftX;
         float rightX = effectivePos.x + width;
-        topLeft->x = rightX;
-        bottomRight->x = rightX;
+        topLeft->transformedPos.x = rightX;
+        bottomRight->transformedPos.x = rightX;
     }
     else if (hAlign == 2)
     {
         float leftX = effectivePos.x - width;
-        topRight->x = leftX;
-        bottomLeft->x = leftX;
+        topRight->transformedPos.x = leftX;
+        bottomLeft->transformedPos.x = leftX;
         float rightX = effectivePos.x;
-        topLeft->x = rightX;
-        bottomRight->x = rightX;
+        topLeft->transformedPos.x = rightX;
+        bottomRight->transformedPos.x = rightX;
     }
     // Note: If hAlign == 3, x-coordinates are not set (matching original behavior)
 
@@ -365,41 +367,46 @@ void AnmVm::writeSpriteCharacters(D3DXVECTOR3* topLeft, D3DXVECTOR3* bottomLeft,
     if (vAlign == 0)
     {
         float bottomY = effectivePos.y - height * 0.5f;
-        bottomRight->y = bottomY;
-        bottomLeft->y = bottomY;
+        bottomRight->transformedPos.y = bottomY;
+        bottomLeft->transformedPos.y = bottomY;
         float topY = bottomY + height;
-        topLeft->y = topY;
-        topRight->y = topY;
+        topLeft->transformedPos.y = topY;
+        topRight->transformedPos.y = topY;
     }
     else if (vAlign == 1)
     {
         float bottomY = effectivePos.y;
-        bottomRight->y = bottomY;
-        bottomLeft->y = bottomY;
+        bottomRight->transformedPos.y = bottomY;
+        bottomLeft->transformedPos.y = bottomY;
         float topY = effectivePos.y + height;
-        topLeft->y = topY;
-        topRight->y = topY;
+        topLeft->transformedPos.y = topY;
+        topRight->transformedPos.y = topY;
     }
     else if (vAlign == 2)
     {
         float bottomY = effectivePos.y - height;
-        bottomRight->y = bottomY;
-        bottomLeft->y = bottomY;
+        bottomRight->transformedPos.y = bottomY;
+        bottomLeft->transformedPos.y = bottomY;
         float topY = effectivePos.y;
-        topLeft->y = topY;
-        topRight->y = topY;
+        topLeft->transformedPos.y = topY;
+        topRight->transformedPos.y = topY;
     }
     // Note: If vAlign == 3, y-coordinates are not set (matching original behavior)
 
     float effectiveZ = effectivePos.z;
-    topLeft->z = effectiveZ;
-    topRight->z = effectiveZ;
-    bottomRight->z = effectiveZ;
-    bottomLeft->z = effectiveZ;
+    topLeft->transformedPos.z = effectiveZ;
+    topRight->transformedPos.z = effectiveZ;
+    bottomRight->transformedPos.z = effectiveZ;
+    bottomLeft->transformedPos.z = effectiveZ;
 }
 
 // 0x44fe30
-void AnmVm::writeSpriteCharactersWithoutRot(D3DXVECTOR3* bottomLeft, D3DXVECTOR3* bottomRight, D3DXVECTOR3* topRight, D3DXVECTOR3* topLeft)
+void AnmVm::writeSpriteCharactersWithoutRot(
+    RenderVertex144* bottomLeft,
+    RenderVertex144* bottomRight,
+    RenderVertex144* topRight,
+    RenderVertex144* topLeft
+)
 {
     D3DXVECTOR3 effectivePos = m_entityPos + m_pos + m_offsetPos;
     float width = m_spriteSize.x * m_scale.x;
@@ -426,10 +433,10 @@ void AnmVm::writeSpriteCharactersWithoutRot(D3DXVECTOR3* bottomLeft, D3DXVECTOR3
         return;  // x not set for mode 3
 
     // Assign based on param order: left to topRight/bottomLeft, right to topLeft/bottomRight
-    topRight->x = leftX;
-    bottomLeft->x = leftX;
-    topLeft->x = rightX;
-    bottomRight->x = rightX;
+    topRight->transformedPos.x = leftX;
+    bottomLeft->transformedPos.x = leftX;
+    topLeft->transformedPos.x = rightX;
+    bottomRight->transformedPos.x = rightX;
 
     uint32_t vAlign = (m_flagsLow >> 0x14) & 3;
     float bottomY, topY;
@@ -450,20 +457,25 @@ void AnmVm::writeSpriteCharactersWithoutRot(D3DXVECTOR3* bottomLeft, D3DXVECTOR3
     } else
         return;  // y not set for mode 3
 
-    bottomRight->y = bottomY;
-    bottomLeft->y = bottomY;
-    topLeft->y = topY;
-    topRight->y = topY;
+    bottomRight->transformedPos.y = bottomY;
+    bottomLeft->transformedPos.y = bottomY;
+    topLeft->transformedPos.y = topY;
+    topRight->transformedPos.y = topY;
 
     float effectiveZ = effectivePos.z;
-    topLeft->z = effectiveZ;
-    topRight->z = effectiveZ;
-    bottomRight->z = effectiveZ;
-    bottomLeft->z = effectiveZ;
+    topLeft->transformedPos.z = effectiveZ;
+    topRight->transformedPos.z = effectiveZ;
+    bottomRight->transformedPos.z = effectiveZ;
+    bottomLeft->transformedPos.z = effectiveZ;
 }
 
 // 0x4503d0
-void AnmVm::applyZRotationToQuadCorners(D3DXVECTOR3* bottomLeft, D3DXVECTOR3* bottomRight, D3DXVECTOR3* topRight, D3DXVECTOR3* topLeft)
+void AnmVm::applyZRotationToQuadCorners(
+    RenderVertex144* bottomLeft,
+    RenderVertex144* bottomRight,
+    RenderVertex144* topRight,
+    RenderVertex144* topLeft
+)
 {
     D3DXVECTOR3 effectivePos = m_entityPos + m_pos + m_offsetPos;
     float width = m_spriteSize.x * m_scale.x;
@@ -522,26 +534,26 @@ void AnmVm::applyZRotationToQuadCorners(D3DXVECTOR3* bottomLeft, D3DXVECTOR3* bo
     float sinZ = sinf(rotZ);
 
     // Bottom-Left corner
-    bottomLeft->x = effectivePos.x + (cosZ * leftX - sinZ * bottomY);
-    bottomLeft->y = effectivePos.y + (cosZ * bottomY + sinZ * leftX);
+    bottomLeft->transformedPos.x = effectivePos.x + (cosZ * leftX - sinZ * bottomY);
+    bottomLeft->transformedPos.y = effectivePos.y + (cosZ * bottomY + sinZ * leftX);
 
     // Bottom-Right corner
-    bottomRight->x = effectivePos.x + (cosZ * rightX - sinZ * bottomY);
-    bottomRight->y = effectivePos.y + (cosZ * bottomY + sinZ * rightX);
+    bottomRight->transformedPos.x = effectivePos.x + (cosZ * rightX - sinZ * bottomY);
+    bottomRight->transformedPos.y = effectivePos.y + (cosZ * bottomY + sinZ * rightX);
 
     // Top-Left corner
-    topLeft->x = effectivePos.x + (cosZ * leftX - sinZ * topY);
-    topLeft->y = effectivePos.y + (cosZ * topY + sinZ * leftX);
+    topLeft->transformedPos.x = effectivePos.x + (cosZ * leftX - sinZ * topY);
+    topLeft->transformedPos.y = effectivePos.y + (cosZ * topY + sinZ * leftX);
 
     // Top-Right corner
-    topRight->x = effectivePos.x + (cosZ * rightX - sinZ * topY);
-    topRight->y = effectivePos.y + (cosZ * topY + sinZ * rightX);
+    topRight->transformedPos.x = effectivePos.x + (cosZ * rightX - sinZ * topY);
+    topRight->transformedPos.y = effectivePos.y + (cosZ * topY + sinZ * rightX);
 
     float effectiveZ = effectivePos.z;
-    topRight->z = effectiveZ;
-    topLeft->z = effectiveZ;
-    bottomRight->z = effectiveZ;
-    bottomLeft->z = effectiveZ;
+    topRight->transformedPos.z = effectiveZ;
+    topLeft->transformedPos.z = effectiveZ;
+    bottomRight->transformedPos.z = effectiveZ;
+    bottomLeft->transformedPos.z = effectiveZ;
 }
 
 // 0x450700
@@ -645,21 +657,21 @@ int AnmVm::projectQuadCornersThroughCameraViewport()
         offsetYTopRight = 0.0f;
     }
 
-    g_bottomLeftDrawCorner.x = screenPos.x + (cosZ * offsetXBottomLeft - sinZ * offsetYBottomLeft);
-    g_bottomLeftDrawCorner.y = screenPos.y + (cosZ * offsetYBottomLeft + sinZ * offsetXBottomLeft);
-    g_bottomLeftDrawCorner.z = screenPos.z;
+    g_renderQuad[0].transformedPos.x = screenPos.x + (cosZ * offsetXBottomLeft - sinZ * offsetYBottomLeft);
+    g_renderQuad[0].transformedPos.y = screenPos.y + (cosZ * offsetYBottomLeft + sinZ * offsetXBottomLeft);
+    g_renderQuad[0].transformedPos.z = screenPos.z;
 
-    g_bottomRightDrawCorner.x = screenPos.x + (cosZ * offsetXBottomRight - sinZ * offsetYBottomRight);
-    g_bottomRightDrawCorner.y = screenPos.y + (cosZ * offsetYBottomRight + sinZ * offsetXBottomRight);
-    g_bottomRightDrawCorner.z = screenPos.z;
+    g_renderQuad[1].transformedPos.x = screenPos.x + (cosZ * offsetXBottomRight - sinZ * offsetYBottomRight);
+    g_renderQuad[1].transformedPos.y = screenPos.y + (cosZ * offsetYBottomRight + sinZ * offsetXBottomRight);
+    g_renderQuad[1].transformedPos.z = screenPos.z;
 
-    g_topLeftDrawCorner.x = screenPos.x + (cosZ * offsetXTopLeft - sinZ * offsetYTopLeft);
-    g_topLeftDrawCorner.y = screenPos.y + (cosZ * offsetYTopLeft + sinZ * offsetXTopLeft);
-    g_topLeftDrawCorner.z = screenPos.z;
+    g_renderQuad[2].transformedPos.x = screenPos.x + (cosZ * offsetXTopLeft - sinZ * offsetYTopLeft);
+    g_renderQuad[2].transformedPos.y = screenPos.y + (cosZ * offsetYTopLeft + sinZ * offsetXTopLeft);
+    g_renderQuad[2].transformedPos.z = screenPos.z;
 
-    g_topRightDrawCorner.x = screenPos.x + (cosZ * offsetXTopRight - sinZ * offsetYTopRight);
-    g_topRightDrawCorner.y = screenPos.y + (cosZ * offsetYTopRight + sinZ * offsetXTopRight);
-    g_topRightDrawCorner.z = screenPos.z;
+    g_renderQuad[3].transformedPos.x = screenPos.x + (cosZ * offsetXTopRight - sinZ * offsetYTopRight);
+    g_renderQuad[3].transformedPos.y = screenPos.y + (cosZ * offsetYTopRight + sinZ * offsetXTopRight);
+    g_renderQuad[3].transformedPos.z = screenPos.z;
     return 0;
 }
 
@@ -754,9 +766,13 @@ void AnmVm::run()
         // Jumps to byte offset dest from the script's beginning and sets the time to t. thanm accepts a label name for dest.
         // Chinese wiki says some confusing recommendation about setting a=0, can someone explain to me?
         case 4: // jmp(int dest, int t)
-            m_timeInScript.setCurrent(m_currentInstruction->args[1]);
-            m_currentInstruction = (AnmRawInstruction*)((char*)m_beginningOfScript + m_currentInstruction->args[0]);
+        {
+            int dest = m_currentInstruction->args[0];
+            int t = m_currentInstruction->args[1];
+            m_timeInScript.setCurrent(t);
+            jumpToInstruction(dest);
             break;
+        }
 
         // Decrement count and then jump if count > 0. You can use this to repeat a loop a fixed number of times.
         case 5: // jmpDec(int& count, int dest, int t)
@@ -781,7 +797,7 @@ void AnmVm::run()
             }
             break;
         }
-
+        
         // Does a = b.
         case 6: // iset(int& dest, int val)
         {
@@ -962,8 +978,44 @@ void AnmVm::run()
 
         // Draw a random integer 0 <= x < n using the animation RNG.
         case 40: // isetRand(int& x, int n)
-
+        {
+//         int n = m_currentInstruction->args[1];
+//         if ((m_flagsLow & 0x40000000) == 0) 
+//         {
+//             if (m_currentInstruction->varMask & 2) 
+//             {
+//                 uVar3 = getIntVar(This,uVar3);
+//             }
+//             if (uVar3 == 0) goto LAB_0044d4da;
+//             spriteNumber = rng(&g_replayRngContext);
+//             posY = (float)(spriteNumber % uVar3);
+//             instr_interrupt = (AnmRawInstruction *)posY;
+//         }
+//         else {
+//           if ((m_currentInstruction->varMask & 2) != 0) {
+//             uVar3 = getIntVar(This,uVar3);
+//           }
+//           if (uVar3 == 0) {
+// LAB_0044d4da:
+//             instr_interrupt = (AnmRawInstruction *)0x0;
+//           }
+//           else {
+//             spriteNumber = rng(&g_anmRngContext);
+//             posY = (float)(spriteNumber % uVar3);
+//             instr_interrupt = (AnmRawInstruction *)posY;
+//           }
+//         }
+//         args = m_currentInstruction->args;
+//         if ((m_currentInstruction->varMask & 1) != 0) {
+//           args = getIntVarPtr(This,args);
+//         }
+// HelpMe:
+//         *args = (int)instr_interrupt;
+//         nextInstruction =
+//              (AnmRawInstruction *)((int)m_currentInstruction->args + (m_currentInstruction->offsetToNextInstr - 8));
+//         This->m_currentInstruction = nextInstruction;
             break;
+        }
 
         // Draw a random float 0 <= x <= r using the animation RNG.
         case 41: // fsetRand(float& x, float r)

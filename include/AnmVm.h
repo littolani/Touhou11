@@ -20,6 +20,23 @@ struct Int3
     int x, y, z;
 };
 
+struct RenderVertex144
+{
+    D3DXVECTOR4 transformedPos;
+    D3DCOLOR diffuseColor;
+    D3DXVECTOR2 textureUv;
+};
+ASSERT_SIZE(RenderVertex144, 0x1c);
+
+struct AnmVertexBuffers
+{
+    int leftoverSpriteCount;
+    RenderVertex144 spriteVertexData[0x20000];
+    RenderVertex144* spriteWriteCursor;
+    RenderVertex144* spriteRenderCursor;
+};
+ASSERT_SIZE(AnmVertexBuffers, 0x38000c);
+
 class AnmVm;
 struct AnmVmList
 {
@@ -112,11 +129,12 @@ public:
     void* m_dataForSpriteMappingFunc;
 
     AnmVm();
+    ~AnmVm();
     void initialize();
     void run();
-    void applyZRotationToQuadCorners(D3DXVECTOR3* bottomLeft, D3DXVECTOR3* bottomRight, D3DXVECTOR3* topRight, D3DXVECTOR3* topLeft);
-    void writeSpriteCharacters(D3DXVECTOR3* topLeft, D3DXVECTOR3* bottomLeft, D3DXVECTOR3* topRight, D3DXVECTOR3* bottomRight);
-    void writeSpriteCharactersWithoutRot(D3DXVECTOR3* bottomLeft, D3DXVECTOR3* bottomRight, D3DXVECTOR3* topRight, D3DXVECTOR3* topLeft);
+    void applyZRotationToQuadCorners(RenderVertex144* bottomLeft, RenderVertex144* bottomRight, RenderVertex144* topRight, RenderVertex144* topLeft);
+    void writeSpriteCharacters(RenderVertex144* topLeft, RenderVertex144* bottomLeft, RenderVertex144* topRight, RenderVertex144* bottomRight);
+    void writeSpriteCharactersWithoutRot(RenderVertex144* bottomLeft, RenderVertex144* bottomRight, RenderVertex144* topRight, RenderVertex144* topLeft);
     int setupTextureQuadAndMatrices(uint32_t spriteNumber, AnmLoaded* anmLoaded);
     int projectQuadCornersThroughCameraViewport();
     int getIntVar(int id);
@@ -128,6 +146,7 @@ public:
     static float normalizeUnsigned(RngContext* rngContext);
     static float normalizeToAngle(float angle, RngContext* rngContext);
 
+private:
     inline void loadNextInstruction()
     {
         m_currentInstruction = reinterpret_cast<AnmRawInstruction*>(
@@ -141,7 +160,6 @@ public:
             reinterpret_cast<char*>(m_beginningOfScript) + address
         );
     }
-
 };
 ASSERT_SIZE(AnmVm, 0x434);
 
@@ -149,7 +167,4 @@ ASSERT_SIZE(AnmVm, 0x434);
 
 extern RngContext g_anmRngContext;
 extern RngContext g_replayRngContext;
-extern D3DXVECTOR3 g_bottomLeftDrawCorner;
-extern D3DXVECTOR3 g_bottomRightDrawCorner;
-extern D3DXVECTOR3 g_topLeftDrawCorner;
-extern D3DXVECTOR3 g_topRightDrawCorner;
+extern RenderVertex144 g_renderQuad[4];
