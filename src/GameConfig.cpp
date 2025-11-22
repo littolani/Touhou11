@@ -4,7 +4,7 @@ GameConfig g_defaultGameConfig;
 
 GameConfig::GameConfig()
 {
-	memset(this, 0,  sizeof(GameConfig));
+	// memset(this, 0,  sizeof(GameConfig));
 	flags |= 0x100;
 	padDeadzoneX  = 600;
 	colorDepth    = 0;
