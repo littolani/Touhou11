@@ -4,6 +4,7 @@
 #include "GameConfig.h"
 #include "Globals.h"
 #include "Macros.h"
+#include <d3d9types.h>
 
 class Supervisor
 {
@@ -34,13 +35,15 @@ public:
     byte* th11DatBytes; // <0x9a4>
 
     HINSTANCE hInst;
-    GameConfig gameConfig;
+    GameConfig m_gameConfig;
     Camera cam0;
     Camera cam1;
     Camera stageCam;
     Camera* currentCam;
     int camIndex;
     int gameMode;
+    uint32_t m_noVerticalSyncFlag;
+    D3DPRESENT_PARAMETERS m_d3dPresetParameters;
 
     int initializeDevices();
     void releaseDinputIface();
