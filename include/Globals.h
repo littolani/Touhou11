@@ -24,5 +24,5 @@ double getDeltaTime();
 int fileExists(LPCSTR filePath);
 int createDirectory(LPCSTR pathName);
 int writeToFile(LPCSTR fileName, DWORD numBytes, LPVOID bytes);
-byte* openFile(char* filename, size_t* outSize, BOOL isExternalResource);
+byte* openFile(const char* filename, size_t* outSize, BOOL isExternalResource);
 PbgArchive* findMatchingArchive(const char* filename);
