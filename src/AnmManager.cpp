@@ -479,8 +479,11 @@ int AnmManager::updateWorldMatrixAndProjectQuadCorners(AnmVm* vm)
     vecTopRight.z = 0.0;
 
     // Project quad corners to screen space
+    // Note: In the original source, it appears that the RenderVertex144's first member (D3DXVECTOR4) is simply cast into a D3DXVECTOR3.
+    // That technically works, but here, 4 temporary D3DXVECTORS are used to as temporary variables.
+    D3DXVECTOR3 bottomLeftOut, bottomRightOut, topLeftOut, topRightOut;
     D3DXVec3Project(
-        &g_bottomLeftDrawCorner,
+        &bottomLeftOut,
         &vecBottomLeft,
         &g_supervisor.currentCam->viewport,
         &g_supervisor.currentCam->projectionMatrix,
@@ -489,7 +492,7 @@ int AnmManager::updateWorldMatrixAndProjectQuadCorners(AnmVm* vm)
     );
 
     D3DXVec3Project(
-        &g_bottomRightDrawCorner,
+        &bottomRightOut,
         &vecBottomRight,
         &g_supervisor.currentCam->viewport,
         &g_supervisor.currentCam->projectionMatrix,
@@ -498,7 +501,7 @@ int AnmManager::updateWorldMatrixAndProjectQuadCorners(AnmVm* vm)
     );
 
     D3DXVec3Project(
-        &g_topLeftDrawCorner,
+        &topLeftOut,
         &vecTopLeft,
         &g_supervisor.currentCam->viewport,
         &g_supervisor.currentCam->projectionMatrix,
@@ -507,13 +510,26 @@ int AnmManager::updateWorldMatrixAndProjectQuadCorners(AnmVm* vm)
     );
 
     D3DXVec3Project(
-        &g_topRightDrawCorner,
+        &topRightOut,
         &vecTopRight,
         &g_supervisor.currentCam->viewport,
         &g_supervisor.currentCam->projectionMatrix,
         &g_supervisor.currentCam->viewMatrix,
         &worldMatrix
     );
+
+    g_renderQuad144[0].transformedPos.x = bottomLeftOut.x;
+    g_renderQuad144[0].transformedPos.y = bottomLeftOut.y;
+    g_renderQuad144[0].transformedPos.z = bottomLeftOut.z;
+    g_renderQuad144[1].transformedPos.x = bottomRightOut.x;
+    g_renderQuad144[1].transformedPos.y = bottomRightOut.y;
+    g_renderQuad144[1].transformedPos.z = bottomRightOut.z;
+    g_renderQuad144[2].transformedPos.x = topRightOut.x;
+    g_renderQuad144[2].transformedPos.y = topRightOut.y;
+    g_renderQuad144[2].transformedPos.z = topRightOut.z;
+    g_renderQuad144[3].transformedPos.x = topLeftOut.x;
+    g_renderQuad144[3].transformedPos.y = topLeftOut.y;
+    g_renderQuad144[3].transformedPos.z = topLeftOut.z;
 
     memcpy(&m_currentWorldMatrix, &worldMatrix, sizeof(D3DXMATRIX));
     return 0;
@@ -842,42 +858,44 @@ void AnmManager::applyRenderStateForVm(AnmVm* vm)
     IDirect3DDevice9* device = g_supervisor.d3dDevice;
 
     uint8_t blendMode = (vm->m_flagsLow >> 4) & 0x7;
-    if (blendMode != renderStateMode) {
+    if (blendMode != renderStateMode)
+    {
         flushSprites();
         renderStateMode = blendMode;
 
         D3DBLEND srcBlend, destBlend;
-        switch (blendMode) {
-            case 0:
-                srcBlend = D3DBLEND_SRCALPHA;
-                destBlend = D3DBLEND_INVSRCALPHA;
-                break;
-            case 1:
-                srcBlend = D3DBLEND_SRCALPHA;
-                destBlend = D3DBLEND_ONE;
-                break;
-            case 2:
-                srcBlend = D3DBLEND_ZERO;
-                destBlend = D3DBLEND_INVSRCCOLOR;
-                break;
-            case 3:
-                srcBlend = D3DBLEND_ONE;
-                destBlend = D3DBLEND_ZERO;
-                break;
-            case 4:
-                srcBlend = D3DBLEND_INVDESTCOLOR;
-                destBlend = D3DBLEND_INVSRCALPHA;
-                break;
-            case 5:
-                srcBlend = D3DBLEND_DESTCOLOR;
-                destBlend = D3DBLEND_ZERO;
-                break;
-            case 6:
-                srcBlend = D3DBLEND_INVSRCCOLOR;
-                destBlend = D3DBLEND_INVSRCALPHA;
-                break;
-            default:
-                return;
+        switch (blendMode)
+        {
+        case 0:
+            srcBlend = D3DBLEND_SRCALPHA;
+            destBlend = D3DBLEND_INVSRCALPHA;
+            break;
+        case 1:
+            srcBlend = D3DBLEND_SRCALPHA;
+            destBlend = D3DBLEND_ONE;
+            break;
+        case 2:
+            srcBlend = D3DBLEND_ZERO;
+            destBlend = D3DBLEND_INVSRCCOLOR;
+            break;
+        case 3:
+            srcBlend = D3DBLEND_ONE;
+            destBlend = D3DBLEND_ZERO;
+            break;
+        case 4:
+            srcBlend = D3DBLEND_INVDESTCOLOR;
+            destBlend = D3DBLEND_INVSRCALPHA;
+            break;
+        case 5:
+            srcBlend = D3DBLEND_DESTCOLOR;
+            destBlend = D3DBLEND_ZERO;
+            break;
+        case 6:
+            srcBlend = D3DBLEND_INVSRCCOLOR;
+            destBlend = D3DBLEND_INVSRCALPHA;
+            break;
+        default:
+            return;
         }
         device->SetRenderState(D3DRS_SRCBLEND, srcBlend);
         device->SetRenderState(D3DRS_DESTBLEND, destBlend);
@@ -902,10 +920,10 @@ void AnmManager::applyRenderStateForVm(AnmVm* vm)
         color = (a << 24) | (r << 16) | (g << 8) | b;
     }
 
-    if (color != this->color)
+    if (color != this->m_color)
     {
         flushSprites();
-        this->color = color;
+        this->m_color = color;
         device->SetRenderState(D3DRS_TEXTUREFACTOR, color);
     }
 
@@ -920,6 +938,122 @@ void AnmManager::applyRenderStateForVm(AnmVm* vm)
         device->SetSamplerState(0, D3DSAMP_MINFILTER, filter);
     }
     someCounter++;
+}
+
+int AnmManager::drawVmTriangleStrip(AnmVm* vm, void* vertexBuffer, uint32_t vertexCount)
+{
+    uint8_t alpha = (vm->m_color0 >> 24) & 0xff;
+    if ((vm->m_flagsLow & 0x3) != 0x3 || alpha == 0)
+        return -1;
+
+    if (m_vertexBuffers.leftoverSpriteCount != 0)
+        flushSprites();
+
+    IDirect3DTexture9** tex = &vm->m_sprite->anmLoadedD3D->m_texture;
+    if (m_tex != tex)
+    {
+        m_tex = tex;
+        g_supervisor.d3dDevice->SetTexture(0, *tex);
+    }
+
+    if (m_haveFlushedSprites != 3)
+    {
+        g_supervisor.d3dDevice->SetFVF(0x144);
+        m_haveFlushedSprites = 3;
+    }
+    setupRenderStateForVm(vm);
+
+    g_supervisor.d3dDevice->SetTextureStageState(0, D3DTSS_ALPHAARG2, 0);
+    g_supervisor.d3dDevice->SetTextureStageState(0, D3DTSS_COLORARG2,0);
+    g_supervisor.d3dDevice->DrawPrimitiveUP(
+        D3DPT_TRIANGLESTRIP,
+        vertexCount - 2,
+        vertexBuffer,
+        0x1c
+    );
+    return 0;
+}
+
+int AnmManager::drawVmTriangleFan(AnmVm* vm, void* vertexBuffer, uint32_t vertexCount)
+{
+    IDirect3DDevice9 *device;
+    
+    if (m_vertexBuffers.leftoverSpriteCount != 0)
+        flushSprites();
+
+    if (m_haveFlushedSprites != 3)
+    {
+        g_supervisor.d3dDevice->SetFVF(0x144);
+        m_haveFlushedSprites = 3;
+    }
+    setupRenderStateForVm(vm);
+
+    IDirect3DTexture9** tex = &vm->m_sprite->anmLoadedD3D->m_texture;
+    if (m_tex != tex)
+    {
+        m_tex = tex;
+        g_supervisor.d3dDevice->SetTexture(0, *tex);
+    }
+
+    flushSprites();
+    g_supervisor.d3dDevice->SetRenderState(D3DRS_ZWRITEENABLE, 0);
+    g_supervisor.d3dDevice->SetTextureStageState(0, D3DTSS_ALPHAARG2,0);
+    g_supervisor.d3dDevice->SetTextureStageState(0, D3DTSS_COLORARG2,0);
+    g_supervisor.d3dDevice->DrawPrimitiveUP(
+        D3DPT_TRIANGLEFAN,
+        vertexCount - 2, 
+        vertexBuffer,
+        0x1c
+    );
+    return 0;
+}
+
+void AnmManager::drawVm(AnmVm *vm)
+{
+    uint8_t alpha = (vm->m_color0 >> 24) & 0xff;
+    if ((vm->m_flagsLow & 0x3) != 0x3 || alpha == 0)
+        return;
+
+    switch(vm->m_flagsLow >> 0x16 & 0xf) 
+    {
+    case 0:
+        //writeSpriteCharacterWithoutRotAndDrawVmSprite2D(vm);
+        break;
+    case 1:
+        //writeSpriteCharactersWithoutRotAndApplyZRotationToQuadCorners(vm);
+        break;
+    case 2:
+        //writeSpriteCharactersAndDrawVmSprite2D(This,vm);
+        break;
+    case 3:
+        //writeSpriteCharactersAndDrawVmSprite2DAndApplyZRotationToQuadCorners(This,vm);
+        break;
+    case 4:
+        //projectQuadCornersThroughCameraViewportAndDrawVmSprite2D(This,vm);
+        break;
+    case 5:
+        //updateWorldMatrixAndProjectBoundingBoxAndDrawVmSprite2DAndSetFloats(This,vm);
+        break;
+    case 6:
+        drawVmWithFog(vm);
+        break;
+    case 7:
+        // transformAndDraw(vm);
+        break;
+    case 8:
+        //sub_004513a0(vm);
+        break;
+    case 9:
+    case 0xc:
+    case 0xd:
+        drawVmTriangleStrip(vm, vm->m_specialRenderData,vm->m_intVars[0] * 2);
+        break;
+    case 0xb:
+        drawVmTriangleFan(vm, vm->m_specialRenderData,vm->m_intVars[0] * 2);
+        break;
+    default:
+        break;
+    }
 }
 
 /* Global Functions */

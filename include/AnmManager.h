@@ -7,23 +7,6 @@
 #include "FileAbstrction.h"
 #include "Macros.h"
 
-struct RenderVertex144
-{
-    D3DXVECTOR4 transformedPos;
-    D3DCOLOR diffuseColor;
-    D3DXVECTOR2 textureUv;
-};
-ASSERT_SIZE(RenderVertex144, 0x1c);
-
-struct AnmVertexBuffers
-{
-    int leftoverSpriteCount;
-    RenderVertex144 spriteVertexData[0x20000];
-    RenderVertex144* spriteWriteCursor;
-    RenderVertex144* spriteRenderCursor;
-};
-ASSERT_SIZE(AnmVertexBuffers, 0x38000c);
-
 struct BlitParams
 {
     int anmLoadedIndex;
@@ -51,7 +34,7 @@ public:
     D3DXMATRIX m_currentWorldMatrix;       // <0x435140>
     AnmVm primaryVm;                       // <0x435180>
     uint32_t u0;                           // <0x4355bc>
-    uint32_t color;                        // <0x4355b8>
+    D3DCOLOR m_color;                        // <0x4355b8>
     IDirect3DTexture9** m_tex;             // <0x4355bc>
     uint8_t renderStateMode;               // <0x4355c0>
     uint8_t l;                             // <0x4355c1>
@@ -89,10 +72,13 @@ public:
     void setupRenderStateForVm(AnmVm* vm);
     void applyRenderStateForVm(AnmVm* vm);
     void drawPrimitiveImmediate(AnmVm* vm, void* specialRenderData, uint32_t vertexCount);
+    void drawVmSprite2D(uint32_t layer, AnmVm* anmVm);
+    void drawVm(AnmVm *vm);
     int updateWorldMatrixAndProjectQuadCorners(AnmVm* vm);
     int writeSprite(RenderVertex144* someVertices);
-    void drawVmSprite2D(uint32_t layer, AnmVm* anmVm);
     int drawVmWithFog(AnmVm* vm);
+    int drawVmTriangleStrip(AnmVm* vm, void* vertexBuffer, uint32_t vertexCount);
+    int drawVmTriangleFan(AnmVm* vm, void* vertex_buffer, uint32_t vertex_count);
     AnmLoaded* preloadAnm(int anmIdx, const char* anmFileName);
     AnmLoaded* preloadAnmFromMemory(const char* anmFilePath, int anmSlotIndex);
     AnmVm* allocateVm();
