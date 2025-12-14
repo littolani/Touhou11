@@ -1,6 +1,6 @@
 #pragma once
-#define WIN32_LEAN_AND_MEAN // Exclude uncommon headers
 #define NOMINMAX            // Remove min and max macros from windef.h
+#define DIRECTINPUT_VERSION 0x0800
 
 // Windows Header Files
 #include <windows.h>
@@ -28,3 +28,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+
+// Utilities
+#include "Macros.h"
+#include "TrampolineFactory.h"
