@@ -17,7 +17,7 @@ inline void installHook(DWORD targetAddress, void* hookFunction)
 
 // Represents a value located on the stack at [EBP + Offset]
 template <int Offset>
-struct Stack { static constexpr int val = Offset; };
+struct Stack { static constexpr int offset = Offset; };
 
 enum class RegCode : uint32_t
 {
@@ -43,20 +43,31 @@ constexpr uint8_t getSize(RegCode r)
 template <RegCode R>
 struct Reg
 {
-    static constexpr RegCode value = R;
+    static constexpr RegCode regCode = R;
 };
 
-// Type trait to detect if T is a Register wrapper
 template<typename T> 
 struct IsRegWrapper : std::false_type {};
 
 template<RegCode R>
 struct IsRegWrapper<Reg<R>> : std::true_type
 {
-    static constexpr RegCode id = R;
+    static constexpr RegCode regCode = R;
 };
 
-class ThunkEmitter
+template <RegCode R>
+struct Returns { static constexpr RegCode regCode = R; };
+
+template<typename T>
+struct IsReturnWrapper : std::false_type {};
+
+template<RegCode R>
+struct IsReturnWrapper<Returns<R>> : std::true_type
+{
+    static constexpr RegCode regCode = R;
+};
+
+class TrampolineFactory
 {
     std::vector<uint8_t> code;
 
@@ -100,32 +111,45 @@ public:
         uint8_t id = getId(r);
         uint8_t size = getSize(r);
 
+        // Mapping for PUSHAD relative to EBP:
+        // EAX (0) is at [EBP - 8]
+        // ...
+        // EDI (7) is at [EBP - 36]
+        int8_t offset = -8 - ((id & 0x7) * 4);
+
+        // Handling High Byte registers (AH, CH, DH, BH - IDs 4-7 with size 1)
+        // If we want AH (ID 4), we want the EAX slot (ID 0).
+        bool isHighByte = (size == 1 && id >= 4);
+        if (isHighByte) offset = -8 - ((id - 4) * 4);
+
         if (size == 4)
         {
-            // Standard 32-bit PUSH: 0x50 + ID
-            addByte(0x50 + id);
+            // PUSH [EBP+Offset]
+            addByte(0xFF); addByte(0x75); addByte((uint8_t)offset);
         }
-        else if (size == 2)
+        else
         {
-            // 16-bit: Zero-Extend to ECX, then Push ECX
-            // MOVZX ECX, r16 -> 0F B7 /r (Dest=ECX=001)
-            // ModRM: 11(Reg) 001(Dest) XXX(Src)
-            // 0xC8 + SrcID
-            addByte(0x0F);
-            addByte(0xB7);
-            addByte(0xC8 + id);
-            addByte(0x51); // push ecx
-        }
-        else if (size == 1)
-        {
-            // 8-bit: Zero-Extend to ECX, then Push ECX
-            // MOVZX ECX, r8 -> 0F B6 /r (Dest=ECX=001)
-            // ModRM: 11(Reg) 001(Dest) XXX(Src)
-            // 0xC8 + SrcID (Note: AH/CH/DH/BH have IDs 4-7, which works perfectly here)
-            addByte(0x0F);
-            addByte(0xB6);
-            addByte(0xC8 + id);
-            addByte(0x51); // push ecx
+            // MOV EAX, [EBP + Offset]
+            addByte(0x8B); addByte(0x45); addByte((uint8_t)offset);
+
+            // Shift if High Byte (AH/BH/etc)
+            if (isHighByte) {
+                // SHR EAX, 8
+                addByte(0xC1); addByte(0xE8); addByte(0x08);
+            }
+
+            // Mask to size (standard C++ promotion)
+            if (size == 1) {
+                // AND EAX, 0xFF 
+                addByte(0x25); addDword(0x000000FF);
+            }
+            else if (size == 2) {
+                // AND EAX, 0xFFFF
+                addByte(0x25); addDword(0x0000FFFF);
+            }
+
+            // PUSH EAX
+            addByte(0x50);
         }
     }
 
@@ -139,7 +163,7 @@ public:
     void* finalize()
     {
         void* mem = VirtualAlloc(nullptr, code.size(), MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-        memcpy(mem, code.data(), code.size());
+        if (mem) memcpy(mem, code.data(), code.size());
 
         // TELL THE CPU WE WROTE NEW CODE
         FlushInstructionCache(GetCurrentProcess(), mem, code.size());
@@ -148,54 +172,119 @@ public:
     }
 
     size_t size() const { return code.size(); }
+
+    // Push All Double-words
+    void pushad() { addByte(0x60); }
+
+    // Pop All Double-words
+    void popad() { addByte(0x61); }
+
+    // Push EFLAGS register
+    void pushfd() { addByte(0x9C); }
+
+    // Pop EFLAGS register
+    void popfd() { addByte(0x9D); }
+
+    // Overwrite a register saved by PUSHAD with the current value of EAX.
+    // This allows a C++ return value (in EAX) to survive the POPAD instruction.
+    void overwriteSavedReg(RegCode targetReg)
+    {
+        // PUSHAD Order (Top to Bottom / Low Addr to High Addr):
+        // EDI, ESI, EBP, ESP, EBX, EDX, ECX, EAX
+        // Offsets from ESP: 0, 4, 8, 12, 16, 20, 24, 28
+
+        uint8_t id = getId(targetReg);
+        // Map RegID to PUSHAD offset. 
+        // RegIDs: AX=0, CX=1, DX=2, BX=3, SP=4, BP=5, SI=6, DI=7
+        // We need: 0->28, 1->24, 2->20, 3->16, 5->8, 6->4, 7->0
+        // Formula: (7 - (id & 7)) * 4
+
+        uint8_t offset = (7 - (id & 0x7)) * 4;
+
+        // Instruction: MOV [ESP + offset], EAX
+        addByte(0x89);
+        addByte(0x44);
+        addByte(0x24);
+        addByte(offset);
+    }
 };
 
 template<typename First, typename... Rest>
-void ProcessArgsReverse(ThunkEmitter& e)
+void ProcessArgsReverse(TrampolineFactory& e)
 {
+    // If this is a Return wrapper, skip it during argument processing
+    if constexpr (IsReturnWrapper<First>::value)
+    {
+        if constexpr (sizeof...(Rest) > 0)
+            ProcessArgsReverse<Rest...>(e);
+        return;
+    }
+
     if constexpr (sizeof...(Rest) > 0) // Recurse first (Right-to-Left processing)
         ProcessArgsReverse<Rest...>(e);
 
     using T = First;
     if constexpr (IsRegWrapper<T>::value) // Register
-        e.pushReg(IsRegWrapper<T>::id);
-    else  // Assume stack
-        e.pushStack(T::val + 4); // +4 for ebp push so it looks more normal on the CreateLtoThunk side
+        e.pushReg(IsRegWrapper<T>::regCode);
+
+    else if constexpr (!IsRegWrapper<T>::value && !IsReturnWrapper<T>::value)  // Only other case is Stack
+        e.pushStack(T::offset + 4); // +4 to account for for ebp push
 }
 
 template <typename... Args>
-void* CreateLtoThunk(void* targetFunction, int retPopSize) {
-    ThunkEmitter e;
+void* CreateLtoThunk(void* targetFunction, int retPopSize)
+{
+    TrampolineFactory e;
 
-    // 1. Prologue
-    e.addByte(0x55); // push ebp
-    e.addWord(0xEC8B); // mov ebp, esp
+    // Prologue
+    e.addByte(0x55);    // push ebp
+    e.addWord(0xEC8B);  // mov ebp, esp
+    e.addByte(0x9C);    // pushfd
+    e.addByte(0x60);    // pushad
 
-    // 2. Push Arguments (Right-to-Left)
+    // Process arguments
     ProcessArgsReverse<Args...>(e);
 
     // Call Target
-    e.addByte(0xB8); // mov eax, IMM32
+    e.addByte(0xB8);
     e.addDword((uint32_t)targetFunction);
     e.addWord(0xD0FF); // call eax
 
-    // Cleanup Pushes (Args count * 4)
-    uint8_t stackCleanup = sizeof...(Args) * 4;
-    if (stackCleanup > 0) {
-        e.addByte(0x83); e.addByte(0xC4); // add esp, ...
+    // Cleanup Hook Arguments
+    constexpr int realArgCount = (sizeof...(Args)) - (IsReturnWrapper<Args>::value + ... + 0);
+    uint8_t stackCleanup = realArgCount * 4;
+
+    if (stackCleanup > 0)
+    {
+        e.addByte(0x83); e.addByte(0xC4); // add esp, X
         e.addByte(stackCleanup);
     }
 
+    // Handle Return Value
+    using First = std::tuple_element_t<0, std::tuple<Args..., void>>;
+    if constexpr (IsReturnWrapper<First>::value)
+    {
+        constexpr RegCode r = First::regCode;
+
+        // Only overwrite if it's a GP register (EAX, ECX, etc)
+        if (static_cast<uint32_t>(r) & 0x0400)
+            e.overwriteSavedReg(r);
+    }
+
     // Epilogue
+    e.addByte(0x61); // popad
+    e.addByte(0x9D); // popfd
     e.addByte(0x5D); // pop ebp
 
-    // Return
-    if (retPopSize > 0) {
-        e.addByte(0xC2); // ret n
+    // ret n
+    if (retPopSize > 0)
+    {
+        e.addByte(0xC2);
         e.addWord((uint16_t)retPopSize);
     }
+    // ret
     else
-        e.addByte(0xC3); // ret
+        e.addByte(0xC3);
 
     return e.finalize();
 }
