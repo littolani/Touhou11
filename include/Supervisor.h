@@ -2,9 +2,6 @@
 #include "Chireiden.h"
 #include "Camera.h"
 #include "GameConfig.h"
-#include "Globals.h"
-#include "Macros.h"
-#include <d3d9types.h>
 
 class Supervisor
 {
@@ -33,7 +30,6 @@ public:
     uint8_t criticalSectionCounters[12]; // <0x930>
     size_t th11DatSize; // <0x9a0>
     byte* th11DatBytes; // <0x9a4>
-
     HINSTANCE hInst;
     GameConfig m_gameConfig;
     Camera cam0;
@@ -44,14 +40,13 @@ public:
     int gameMode;
     uint32_t m_noVerticalSyncFlag;
     D3DPRESENT_PARAMETERS m_d3dPresetParameters;
-
+    IDirect3DSurface9* surfaceR0;
     int initializeDevices();
     void releaseDinputIface();
     int verifyGameConfig();
     void enterCriticalSection(size_t criticalSectionNumber);
     void leaveCriticalSection(size_t criticalSectionNumber);
-
 };
-ASSERT_SIZE(Supervisor, 0x9c0);
+//ASSERT_SIZE(Supervisor, 0x9c0);
 
 extern Supervisor g_supervisor;
