@@ -4,6 +4,7 @@
 RngContext g_anmRngContext;
 RngContext g_replayRngContext;
 RenderVertex144 g_renderQuad[4];
+float g_gameSpeed = 1.0;
 
 // 0x402270
 AnmVm::AnmVm()
@@ -15,155 +16,154 @@ AnmVm::AnmVm()
 AnmVm::~AnmVm()
 {
     if (m_specialRenderData)
-        free(m_specialRenderData); //TODO: Figure out real type
+        free(m_specialRenderData);
     m_specialRenderData = nullptr;
 }
 
 // 0x401fd0
-void AnmVm::initialize()
+void AnmVm::initialize(AnmVm* This)
 {
-    D3DXVECTOR3 entityPos = m_entityPos;
-    int layer = m_layer;
-    // memset(this,0,0x434);
-
-    m_scale.x = 1.0;
-    m_scale.y = 1.0;
-    m_entityPos = entityPos;
-    m_layer = layer;
-    m_color0 = 0xffffffff;
-    D3DXMatrixIdentity(&m_baseScaleMatrix);
-    m_flagsLow = 7;
-    m_timeInScript.m_current = 0;
-    m_timeInScript.m_currentF = 0.0;
-    m_timeInScript.m_previous = -999999;
-    m_posInterp.endTime = 0;
-    m_rgbInterp.endTime = 0;
-    m_alphaInterp.endTime = 0;
-    m_rotationInterp.endTime = 0;
-    m_scaleInterp.endTime = 0;
-    m_rgb2Interp.endTime = 0;
-    m_alpha2Interp.endTime = 0;
-    m_uVelInterp.endTime = 0;
-    m_vVelInterp.endTime = 0;
-    m_nodeInGlobalList.next = nullptr;
-    m_nodeInGlobalList.prev = nullptr;
-    m_nodeInGlobalList.entry = this;
-    m_nodeAsFamilyMember.next = nullptr;
-    m_nodeAsFamilyMember.prev = nullptr;
-    m_nodeAsFamilyMember.entry = this;
+    D3DXVECTOR3 entityPos = This->m_entityPos;
+    int layer = This->m_layer;
+    memset(This,0,0x434);
+    This->m_scale.x = 1.0;
+    This->m_scale.y = 1.0;
+    This->m_entityPos = entityPos;
+    This->m_layer = layer;
+    This->m_color0 = 0xffffffff;
+    D3DXMatrixIdentity(&This->m_baseScaleMatrix);
+    This->m_flagsLow = 7;
+    This->m_timeInScript.m_current = 0;
+    This->m_timeInScript.m_currentF = 0.0;
+    This->m_timeInScript.m_previous = -999999;
+    This->m_posInterp.m_endTime = 0;
+    This->m_rgbInterp.m_endTime = 0;
+    This->m_alphaInterp.m_endTime = 0;
+    This->m_rotationInterp.m_endTime = 0;
+    This->m_scaleInterp.m_endTime = 0;
+    This->m_rgb2Interp.m_endTime = 0;
+    This->m_alpha2Interp.m_endTime = 0;
+    This->m_uVelInterp.m_endTime = 0;
+    This->m_vVelInterp.m_endTime = 0;
+    This->m_nodeInGlobalList.next = nullptr;
+    This->m_nodeInGlobalList.prev = nullptr;
+    This->m_nodeInGlobalList.entry = This;
+    This->m_nodeAsFamilyMember.next = nullptr;
+    This->m_nodeAsFamilyMember.prev = nullptr;
+    This->m_nodeAsFamilyMember.entry = This;
 }
 
-int AnmVm::setupTextureQuadAndMatrices(uint32_t spriteNumber, AnmLoaded* anmLoaded)
+int AnmVm::setupTextureQuadAndMatrices(AnmVm* This, uint32_t spriteNumber, AnmLoaded* anmLoaded)
 {
-    if (anmLoaded->header == nullptr || anmLoaded->anmsLoading != 0)
+    if (anmLoaded->m_header == nullptr || anmLoaded->m_anmsLoading != 0)
         return -1;
 
-    m_spriteNumber = static_cast<uint16_t>(spriteNumber);
-    m_anmLoaded = anmLoaded;
+    This->m_spriteNumber = static_cast<uint16_t>(spriteNumber);
+    This->m_anmLoaded = anmLoaded;
 
-    AnmLoadedSprite* sprite = &anmLoaded->keyframeData[spriteNumber];
-    m_sprite = sprite;
+    AnmLoadedSprite* sprite = &anmLoaded->m_keyframeData[spriteNumber];
+    This->m_sprite = sprite;
 
-    m_spriteUvQuad[0].x = sprite->uvStart.x;
-    m_spriteUvQuad[0].y = sprite->uvStart.y;
-    m_spriteUvQuad[1].x = sprite->uvEnd.x;
-    m_spriteUvQuad[1].y = sprite->uvStart.y;
-    m_spriteUvQuad[2].x = sprite->uvEnd.x;
-    m_spriteUvQuad[2].y = sprite->uvEnd.y;
-    m_spriteUvQuad[3].x = sprite->uvStart.x;
-    m_spriteUvQuad[3].y = sprite->uvEnd.y;
+    This->m_spriteUvQuad[0].x = sprite->uvStart.x;
+    This->m_spriteUvQuad[0].y = sprite->uvStart.y;
+    This->m_spriteUvQuad[1].x = sprite->uvEnd.x;
+    This->m_spriteUvQuad[1].y = sprite->uvStart.y;
+    This->m_spriteUvQuad[2].x = sprite->uvEnd.x;
+    This->m_spriteUvQuad[2].y = sprite->uvEnd.y;
+    This->m_spriteUvQuad[3].x = sprite->uvStart.x;
+    This->m_spriteUvQuad[3].y = sprite->uvEnd.y;
 
-    m_spriteSize.x = sprite->spriteWidth;
-    m_spriteSize.y = sprite->spriteHeight;
+    This->m_spriteSize.x = sprite->spriteWidth;
+    This->m_spriteSize.y = sprite->spriteHeight;
 
-    D3DXMatrixIdentity(&m_baseScaleMatrix);
-    D3DXMatrixIdentity(&m_matrix37c);
+    D3DXMatrixIdentity(&This->m_baseScaleMatrix);
+    D3DXMatrixIdentity(&This->m_matrix37c);
 
-    m_baseScaleMatrix._11 = m_spriteSize.x * (1.f / 256.f);
-    m_baseScaleMatrix._22 = m_spriteSize.y * (1.f / 256.f);
+    This->m_baseScaleMatrix._11 = This->m_spriteSize.x * (1.f / 256.f);
+    This->m_baseScaleMatrix._22 = This->m_spriteSize.y * (1.f / 256.f);
 
-    m_localTransformMatrix = m_baseScaleMatrix;
+    This->m_localTransformMatrix = This->m_baseScaleMatrix;
 
-    m_matrix37c._11 = (m_spriteSize.x / sprite->bitmapWidth) * sprite->maybeScale.x;
-    m_matrix37c._22 = (m_spriteSize.y / sprite->bitmapHeight) * sprite->maybeScale.y;
+    This->m_matrix37c._11 = (This->m_spriteSize.x / sprite->bitmapWidth) * sprite->maybeScale.x;
+    This->m_matrix37c._22 = (This->m_spriteSize.y / sprite->bitmapHeight) * sprite->maybeScale.y;
 
     return 0;
 }
 
 // 0x44b2a0
-int AnmVm::getIntVar(int id)
-{  
-    switch(id)
+int AnmVm::getIntVar(AnmVm* This, int id)
+{
+    switch (id)
     {
     case 10000:
-        return m_intVars[0];
+        return This->m_intVars[0];
     case 10001:
-        return m_intVars[1];
+        return This->m_intVars[1];
     case 10002:
-        return m_intVars[2];
+        return This->m_intVars[2];
     case 10003:
-        return m_intVars[3];
+        return This->m_intVars[3];
     case 10004:
-        return static_cast<float>(m_floatVars[0]);
+        return static_cast<int>(This->m_floatVars[0]);
     case 10005:
-        return static_cast<float>(m_floatVars[1]);
+        return static_cast<int>(This->m_floatVars[1]);
     case 10006:
-        return static_cast<float>(m_floatVars[2]);
+        return static_cast<int>(This->m_floatVars[2]);
     case 10007:
-        return static_cast<float>(m_floatVars[3]);
+        return static_cast<int>(This->m_floatVars[3]);
     case 10008:
-        return m_intVar8;
+        return This->m_intVar8;
     case 10009:
-        return m_intVar9;
+        return This->m_intVar9;
     case 10022:
-    RngContext* ctx = &g_anmRngContext;
-    if ((m_flagsLow & 0x40000000) == 0)
-      ctx = &g_replayRngContext; // One of these is ANM RNG, while the other is replay RNG
-    return rng(ctx);
-  }
-  return id;
+        RngContext * ctx = &g_anmRngContext;
+        if ((This->m_flagsLow & 0x40000000) == 0)
+            ctx = &g_replayRngContext; // One of these is ANM RNG, while the other is replay RNG
+        return rng(ctx);
+    }
+    return id;
 }
 
 // 0x44b400
-int* AnmVm::getIntVarPtr(int* id)
+int* AnmVm::getIntVarPtr(AnmVm* This, int* id)
 {
-    switch(*id)
+    switch (*id)
     {
     case 10000:
-        return &m_intVars[0];
+        return &This->m_intVars[0];
     case 10001:
-        return &m_intVars[1];
+        return &This->m_intVars[1];
     case 10002:
-        return &m_intVars[2];
+        return &This->m_intVars[2];
     case 10003:
-        return &m_intVars[3];
+        return &This->m_intVars[3];
     case 10008:
-        return &m_intVar8;
+        return &This->m_intVar8;
     case 10009:
-        return &m_intVar9;
+        return &This->m_intVar9;
     }
     return id;
 }
 
 // 0x44b380
-float* AnmVm::getFloatVarPtr(float* id)
+float* AnmVm::getFloatVarPtr(AnmVm* This, float* id)
 {
-    switch(static_cast<int>(*id))
+    switch (static_cast<int>(*id))
     {
-    case 10004: // 0x2714
-        return &m_floatVars[0];
-    case 10005: // 0x2715
-        return &m_floatVars[1];
-    case 10006: // 0x2716
-        return &m_floatVars[2];
-    case 10007: // 0x2717
-        return &m_floatVars[3];
-    case 10013: // 0x271d
-        return &m_pos.x;
-    case 10014: // 0x271e
-        return &m_pos.y;
-    case 10015: // 0x271f
-        return &m_pos.z;
+    case 10004:
+        return &This->m_floatVars[0];
+    case 10005:
+        return &This->m_floatVars[1];
+    case 10006:
+        return &This->m_floatVars[2];
+    case 10007:
+        return &This->m_floatVars[3];
+    case 10013:
+        return &This->m_pos.x;
+    case 10014:
+        return &This->m_pos.y;
+    case 10015:
+        return &This->m_pos.z;
     default:
         return id;
     }
@@ -190,13 +190,13 @@ uint32_t AnmVm::rng(RngContext* RngContext)
 float AnmVm::normalizeToAngle(float angle, RngContext* rngContext)
 {
     int rng = AnmVm::rng(rngContext);
-    float fRng = rng;
+    float fRng = static_cast<float>(rng);
 
     // Check for overflow
     if (rng < 0)
         fRng += (1ULL << 32);
 
-    return (fRng * (1.0 / (1ULL << 32)) - 1.0) * angle;
+    return (fRng * (1.0f / (1ULL << 32)) - 1.0f) * angle;
 }
 
 /* 0x458da0
@@ -214,7 +214,7 @@ float AnmVm::normalizeUnsigned(RngContext* rngContext)
     if (rng < 0)
         fRng += (1ULL << 32);
 
-    return fRng * (1.0 / (1ULL << 32));
+    return fRng * (1.0f / (1ULL << 32));
 }
 
 /* 0x458dd0
@@ -239,7 +239,7 @@ float AnmVm::normalizeSigned(RngContext* rngContext)
 /* 0x40b9f0
  * normalize a 32-bit integer RNG output into a float in [0,1)
  */
-float randScale(float f, RngContext *ctx)
+float randScale(float f, RngContext* ctx)
 {
     uint32_t u = AnmVm::rng(ctx);
     const float invTwo32 = 1.0f / static_cast<float>(1ULL << 32);
@@ -248,7 +248,7 @@ float randScale(float f, RngContext *ctx)
 
 
 // 0x44b080
-float AnmVm::getFloatVar(float id)
+float AnmVm::getFloatVar(AnmVm* This, float id)
 {
     RngContext* rngContext;
     uint32_t rngValue;
@@ -256,43 +256,43 @@ float AnmVm::getFloatVar(float id)
     int index = roundedId - 10000;
     float fRng;
 
-    switch(index)
+    switch (index)
     {
     case 0:
-        return m_intVars[0];
+        return static_cast<float>(This->m_intVars[0]);
     case 1:
-        return m_intVars[1];
+        return static_cast<float>(This->m_intVars[1]);
     case 2:
-        return m_intVars[2];
+        return static_cast<float>(This->m_intVars[2]);
     case 3:
-        return m_intVars[3];
+        return static_cast<float>(This->m_intVars[3]);
     case 4:
-        return m_floatVars[0];
+        return This->m_floatVars[0];
     case 5:
-        return m_floatVars[1];
+        return This->m_floatVars[1];
     case 6:
-        return m_floatVars[2];
+        return This->m_floatVars[2];
     case 7:
-        return m_floatVars[3];
+        return This->m_floatVars[3];
     case 8:
-        return m_intVar8;
+        return static_cast<float>(This->m_intVar8);
     case 9:
-        return m_intVar9;
+        return static_cast<float>(This->m_intVar9);
     case 10:
-        rngContext = (m_flagsLow & 0x40000000) ? &g_anmRngContext : &g_replayRngContext;
+        rngContext = (This->m_flagsLow & 0x40000000) ? &g_anmRngContext : &g_replayRngContext;
         return normalizeToAngle(3.1415927f, rngContext);
     case 11:
-        rngContext = (m_flagsLow & 0x40000000) ? &g_anmRngContext : &g_replayRngContext;
+        rngContext = (This->m_flagsLow & 0x40000000) ? &g_anmRngContext : &g_replayRngContext;
         return normalizeUnsigned(rngContext);
     case 12:
-        rngContext = (m_flagsLow & 0x40000000) ? &g_anmRngContext : &g_replayRngContext;
+        rngContext = (This->m_flagsLow & 0x40000000) ? &g_anmRngContext : &g_replayRngContext;
         return normalizeSigned(rngContext);
     case 13:
-        return m_pos.x;
+        return This->m_pos.x;
     case 14:
-        return m_pos.y;
+        return This->m_pos.y;
     case 15:
-        return m_pos.z;
+        return This->m_pos.z;
     case 16:
         return g_supervisor.stageCam.offset.x;
     case 17:
@@ -306,7 +306,7 @@ float AnmVm::getFloatVar(float id)
     case 21:
         return g_supervisor.stageCam.v3.z;
     case 22:
-        rngContext = (m_flagsLow & 0x40000000) ? &g_anmRngContext : &g_replayRngContext;
+        rngContext = (This->m_flagsLow & 0x40000000) ? &g_anmRngContext : &g_replayRngContext;
         rngValue = rng(rngContext);
         fRng = static_cast<float>(rngValue);
 
@@ -315,7 +315,7 @@ float AnmVm::getFloatVar(float id)
             fRng += (1ULL << 32); // 2^32
         return fRng;
 
-    // Should never be reached
+        // Should never be reached
     default:
         return 0.0f;
     }
@@ -323,96 +323,98 @@ float AnmVm::getFloatVar(float id)
 
 // 0x4500f0
 void AnmVm::writeSpriteCharacters(
-    RenderVertex144* topLeft,
+    AnmVm* This,
     RenderVertex144* bottomLeft,
-    RenderVertex144* topRight,
-    RenderVertex144* bottomRight
+    RenderVertex144* bottomRight,
+    RenderVertex144* topLeft,
+    RenderVertex144* topRight
 )
 {
-    D3DXVECTOR3 effectivePos = m_entityPos + m_pos + m_offsetPos;
-    float width = m_spriteSize.x * m_scale.x;
-    float height = m_spriteSize.y * m_scale.y;
+    D3DXVECTOR3 effectivePos = This->m_entityPos + This->m_pos + This->m_offsetPos;
+    float width = This->m_spriteSize.x * This->m_scale.x;
+    float height = This->m_spriteSize.y * This->m_scale.y;
 
-    uint32_t hAlign = (m_flagsLow >> 0x12) & 3;
+    uint32_t hAlign = (This->m_flagsLow >> 0x12) & 3;
     if (hAlign == 0)
     {
         float leftX = effectivePos.x - width * 0.5f;
-        topRight->transformedPos.x = leftX;
-        bottomLeft->transformedPos.x = leftX;
+        topRight->pos.x = leftX;
+        bottomLeft->pos.x = leftX;
         float rightX = leftX + width;
-        topLeft->transformedPos.x = rightX;
-        bottomRight->transformedPos.x = rightX;
+        topLeft->pos.x = rightX;
+        bottomRight->pos.x = rightX;
     }
     else if (hAlign == 1)
     {
         float leftX = effectivePos.x;
-        topRight->transformedPos.x = leftX;
-        bottomLeft->transformedPos.x = leftX;
+        topRight->pos.x = leftX;
+        bottomLeft->pos.x = leftX;
         float rightX = effectivePos.x + width;
-        topLeft->transformedPos.x = rightX;
-        bottomRight->transformedPos.x = rightX;
+        topLeft->pos.x = rightX;
+        bottomRight->pos.x = rightX;
     }
     else if (hAlign == 2)
     {
         float leftX = effectivePos.x - width;
-        topRight->transformedPos.x = leftX;
-        bottomLeft->transformedPos.x = leftX;
+        topRight->pos.x = leftX;
+        bottomLeft->pos.x = leftX;
         float rightX = effectivePos.x;
-        topLeft->transformedPos.x = rightX;
-        bottomRight->transformedPos.x = rightX;
+        topLeft->pos.x = rightX;
+        bottomRight->pos.x = rightX;
     }
     // Note: If hAlign == 3, x-coordinates are not set (matching original behavior)
 
-    uint32_t vAlign = (m_flagsLow >> 0x14) & 3;
+    uint32_t vAlign = (This->m_flagsLow >> 0x14) & 3;
     if (vAlign == 0)
     {
         float bottomY = effectivePos.y - height * 0.5f;
-        bottomRight->transformedPos.y = bottomY;
-        bottomLeft->transformedPos.y = bottomY;
+        bottomRight->pos.y = bottomY;
+        bottomLeft->pos.y = bottomY;
         float topY = bottomY + height;
-        topLeft->transformedPos.y = topY;
-        topRight->transformedPos.y = topY;
+        topLeft->pos.y = topY;
+        topRight->pos.y = topY;
     }
     else if (vAlign == 1)
     {
         float bottomY = effectivePos.y;
-        bottomRight->transformedPos.y = bottomY;
-        bottomLeft->transformedPos.y = bottomY;
+        bottomRight->pos.y = bottomY;
+        bottomLeft->pos.y = bottomY;
         float topY = effectivePos.y + height;
-        topLeft->transformedPos.y = topY;
-        topRight->transformedPos.y = topY;
+        topLeft->pos.y = topY;
+        topRight->pos.y = topY;
     }
     else if (vAlign == 2)
     {
         float bottomY = effectivePos.y - height;
-        bottomRight->transformedPos.y = bottomY;
-        bottomLeft->transformedPos.y = bottomY;
+        bottomRight->pos.y = bottomY;
+        bottomLeft->pos.y = bottomY;
         float topY = effectivePos.y;
-        topLeft->transformedPos.y = topY;
-        topRight->transformedPos.y = topY;
+        topLeft->pos.y = topY;
+        topRight->pos.y = topY;
     }
     // Note: If vAlign == 3, y-coordinates are not set (matching original behavior)
 
     float effectiveZ = effectivePos.z;
-    topLeft->transformedPos.z = effectiveZ;
-    topRight->transformedPos.z = effectiveZ;
-    bottomRight->transformedPos.z = effectiveZ;
-    bottomLeft->transformedPos.z = effectiveZ;
+    topLeft->pos.z = effectiveZ;
+    topRight->pos.z = effectiveZ;
+    bottomRight->pos.z = effectiveZ;
+    bottomLeft->pos.z = effectiveZ;
 }
 
 // 0x44fe30
 void AnmVm::writeSpriteCharactersWithoutRot(
+    AnmVm* This,
     RenderVertex144* bottomLeft,
     RenderVertex144* bottomRight,
     RenderVertex144* topRight,
     RenderVertex144* topLeft
 )
 {
-    D3DXVECTOR3 effectivePos = m_entityPos + m_pos + m_offsetPos;
-    float width = m_spriteSize.x * m_scale.x;
-    float height = m_spriteSize.y * m_scale.y;
+    D3DXVECTOR3 effectivePos = This->m_entityPos + This->m_pos + This->m_offsetPos;
+    float width = This->m_spriteSize.x * This->m_scale.x;
+    float height = This->m_spriteSize.y * This->m_scale.y;
 
-    uint32_t hAlign = (m_flagsLow >> 0x12) & 3;
+    uint32_t hAlign = (This->m_flagsLow >> 0x12) & 3;
     float leftX, rightX;
     if (hAlign == 0)
     {
@@ -433,12 +435,12 @@ void AnmVm::writeSpriteCharactersWithoutRot(
         return;  // x not set for mode 3
 
     // Assign based on param order: left to topRight/bottomLeft, right to topLeft/bottomRight
-    topRight->transformedPos.x = leftX;
-    bottomLeft->transformedPos.x = leftX;
-    topLeft->transformedPos.x = rightX;
-    bottomRight->transformedPos.x = rightX;
+    topRight->pos.x = leftX;
+    bottomLeft->pos.x = leftX;
+    topLeft->pos.x = rightX;
+    bottomRight->pos.x = rightX;
 
-    uint32_t vAlign = (m_flagsLow >> 0x14) & 3;
+    uint32_t vAlign = (This->m_flagsLow >> 0x14) & 3;
     float bottomY, topY;
     if (vAlign == 0)
     {
@@ -454,34 +456,35 @@ void AnmVm::writeSpriteCharactersWithoutRot(
     {
         bottomY = effectivePos.y - height;
         topY = effectivePos.y;
-    } else
+    }
+    else
         return;  // y not set for mode 3
 
-    bottomRight->transformedPos.y = bottomY;
-    bottomLeft->transformedPos.y = bottomY;
-    topLeft->transformedPos.y = topY;
-    topRight->transformedPos.y = topY;
+    bottomRight->pos.y = bottomY;
+    bottomLeft->pos.y = bottomY;
+    topLeft->pos.y = topY;
+    topRight->pos.y = topY;
 
     float effectiveZ = effectivePos.z;
-    topLeft->transformedPos.z = effectiveZ;
-    topRight->transformedPos.z = effectiveZ;
-    bottomRight->transformedPos.z = effectiveZ;
-    bottomLeft->transformedPos.z = effectiveZ;
+    topLeft->pos.z = effectiveZ;
+    topRight->pos.z = effectiveZ;
+    bottomRight->pos.z = effectiveZ;
+    bottomLeft->pos.z = effectiveZ;
 }
 
-// 0x4503d0
 void AnmVm::applyZRotationToQuadCorners(
+    AnmVm* This,
     RenderVertex144* bottomLeft,
     RenderVertex144* bottomRight,
-    RenderVertex144* topRight,
-    RenderVertex144* topLeft
+    RenderVertex144* topLeft,
+    RenderVertex144* topRight
 )
 {
-    D3DXVECTOR3 effectivePos = m_entityPos + m_pos + m_offsetPos;
-    float width = m_spriteSize.x * m_scale.x;
-    float height = m_spriteSize.y * m_scale.y;
+    D3DXVECTOR3 effectivePos = This->m_entityPos + This->m_pos + This->m_offsetPos;
+    float width = This->m_spriteSize.x * This->m_scale.x;
+    float height = This->m_spriteSize.y * This->m_scale.y;
 
-    uint32_t hAlign = (m_flagsLow >> 0x12) & 3;
+    uint32_t hAlign = (This->m_flagsLow >> 0x12) & 3;
     float leftX;
     float rightX;
 
@@ -505,7 +508,7 @@ void AnmVm::applyZRotationToQuadCorners(
     else
         return; // x not set for mode 3
 
-    uint32_t vAlign = (m_flagsLow >> 0x14) & 3;
+    uint32_t vAlign = (This->m_flagsLow >> 0x14) & 3;
     float bottomY;
     float topY;
 
@@ -514,7 +517,7 @@ void AnmVm::applyZRotationToQuadCorners(
         bottomY = -height * 0.5f;
         topY = height * 0.5f;
     }
-    
+
     else if (vAlign == 1)
     {
         bottomY = 0.0f;
@@ -529,37 +532,37 @@ void AnmVm::applyZRotationToQuadCorners(
     else
         return; // y not set for mode 3
 
-    float rotZ = m_rotation.z;
+    float rotZ = This->m_rotation.z;
     float cosZ = cosf(rotZ);
     float sinZ = sinf(rotZ);
 
     // Bottom-Left corner
-    bottomLeft->transformedPos.x = effectivePos.x + (cosZ * leftX - sinZ * bottomY);
-    bottomLeft->transformedPos.y = effectivePos.y + (cosZ * bottomY + sinZ * leftX);
+    bottomLeft->pos.x = effectivePos.x + (cosZ * leftX - sinZ * bottomY);
+    bottomLeft->pos.y = effectivePos.y + (cosZ * bottomY + sinZ * leftX);
 
     // Bottom-Right corner
-    bottomRight->transformedPos.x = effectivePos.x + (cosZ * rightX - sinZ * bottomY);
-    bottomRight->transformedPos.y = effectivePos.y + (cosZ * bottomY + sinZ * rightX);
+    bottomRight->pos.x = effectivePos.x + (cosZ * rightX - sinZ * bottomY);
+    bottomRight->pos.y = effectivePos.y + (cosZ * bottomY + sinZ * rightX);
 
     // Top-Left corner
-    topLeft->transformedPos.x = effectivePos.x + (cosZ * leftX - sinZ * topY);
-    topLeft->transformedPos.y = effectivePos.y + (cosZ * topY + sinZ * leftX);
+    topLeft->pos.x = effectivePos.x + (cosZ * leftX - sinZ * topY);
+    topLeft->pos.y = effectivePos.y + (cosZ * topY + sinZ * leftX);
 
     // Top-Right corner
-    topRight->transformedPos.x = effectivePos.x + (cosZ * rightX - sinZ * topY);
-    topRight->transformedPos.y = effectivePos.y + (cosZ * topY + sinZ * rightX);
+    topRight->pos.x = effectivePos.x + (cosZ * rightX - sinZ * topY);
+    topRight->pos.y = effectivePos.y + (cosZ * topY + sinZ * rightX);
 
     float effectiveZ = effectivePos.z;
-    topRight->transformedPos.z = effectiveZ;
-    topLeft->transformedPos.z = effectiveZ;
-    bottomRight->transformedPos.z = effectiveZ;
-    bottomLeft->transformedPos.z = effectiveZ;
+    topRight->pos.z = effectiveZ;
+    topLeft->pos.z = effectiveZ;
+    bottomRight->pos.z = effectiveZ;
+    bottomLeft->pos.z = effectiveZ;
 }
 
 // 0x450700
-int AnmVm::projectQuadCornersThroughCameraViewport()
+int AnmVm::projectQuadCornersThroughCameraViewport(AnmVm* This)
 {
-    float rotZ = m_rotation.z;
+    float rotZ = This->m_rotation.z;
     float cosZ = cosf(rotZ);
     float sinZ = sinf(rotZ);
 
@@ -572,9 +575,9 @@ int AnmVm::projectQuadCornersThroughCameraViewport()
     worldMatrix._33 = 1.0f;
     worldMatrix._44 = 1.0f;
     // Set translation
-    worldMatrix._41 = m_entityPos.x + m_pos.x + m_offsetPos.x;
-    worldMatrix._42 = m_entityPos.y + m_pos.y + m_offsetPos.y;
-    worldMatrix._43 = m_entityPos.z + m_pos.z + m_offsetPos.z;
+    worldMatrix._41 = This->m_entityPos.x + This->m_pos.x + This->m_offsetPos.x;
+    worldMatrix._42 = This->m_entityPos.y + This->m_pos.y + This->m_offsetPos.y;
+    worldMatrix._43 = This->m_entityPos.z + This->m_pos.z + This->m_offsetPos.z;
 
     D3DXVECTOR3 screenPos;
     D3DXVec3Project(&screenPos, &localOrigin, &g_supervisor.currentCam->viewport,
@@ -601,13 +604,13 @@ int AnmVm::projectQuadCornersThroughCameraViewport()
     float diffLength = sqrtf(diff.x * diff.x + diff.y * diff.y + diff.z * diff.z);
     float scaleFactor = diffLength * 0.5f;
 
-    float width = m_scale.x * scaleFactor * m_spriteSize.x;
-    float height = m_scale.y * scaleFactor * m_spriteSize.y;
+    float width = This->m_scale.x * scaleFactor * This->m_spriteSize.x;
+    float height = This->m_scale.y * scaleFactor * This->m_spriteSize.y;
 
-    float offsetXBottomLeft, offsetXBottomRight, offsetXTopLeft, offsetXTopRight;
-    float offsetYBottomLeft, offsetYBottomRight, offsetYTopLeft, offsetYTopRight;
+    float offsetXBottomLeft{}, offsetXBottomRight{}, offsetXTopLeft{}, offsetXTopRight{};
+    float offsetYBottomLeft{}, offsetYBottomRight{}, offsetYTopLeft{}, offsetYTopRight{};
 
-    uint32_t anchorX = (m_flagsLow >> 18) & 3;
+    uint32_t anchorX = (This->m_flagsLow >> 18) & 3;
     if (anchorX == 0) // centered
     {
         float halfW = width * 0.5f;
@@ -633,7 +636,7 @@ int AnmVm::projectQuadCornersThroughCameraViewport()
         offsetXTopRight = 0.0f;
     }
 
-    uint32_t anchorY = (m_flagsLow >> 20) & 3;
+    uint32_t anchorY = (This->m_flagsLow >> 20) & 3;
     if (anchorY == 0) // centered
     {
         float halfH = height * 0.5f;
@@ -657,36 +660,153 @@ int AnmVm::projectQuadCornersThroughCameraViewport()
         offsetYTopRight = 0.0f;
     }
 
-    g_renderQuad[0].transformedPos.x = screenPos.x + (cosZ * offsetXBottomLeft - sinZ * offsetYBottomLeft);
-    g_renderQuad[0].transformedPos.y = screenPos.y + (cosZ * offsetYBottomLeft + sinZ * offsetXBottomLeft);
-    g_renderQuad[0].transformedPos.z = screenPos.z;
+    g_renderQuad[0].pos.x = screenPos.x + (cosZ * offsetXBottomLeft - sinZ * offsetYBottomLeft);
+    g_renderQuad[0].pos.y = screenPos.y + (cosZ * offsetYBottomLeft + sinZ * offsetXBottomLeft);
+    g_renderQuad[0].pos.z = screenPos.z;
 
-    g_renderQuad[1].transformedPos.x = screenPos.x + (cosZ * offsetXBottomRight - sinZ * offsetYBottomRight);
-    g_renderQuad[1].transformedPos.y = screenPos.y + (cosZ * offsetYBottomRight + sinZ * offsetXBottomRight);
-    g_renderQuad[1].transformedPos.z = screenPos.z;
+    g_renderQuad[1].pos.x = screenPos.x + (cosZ * offsetXBottomRight - sinZ * offsetYBottomRight);
+    g_renderQuad[1].pos.y = screenPos.y + (cosZ * offsetYBottomRight + sinZ * offsetXBottomRight);
+    g_renderQuad[1].pos.z = screenPos.z;
 
-    g_renderQuad[2].transformedPos.x = screenPos.x + (cosZ * offsetXTopLeft - sinZ * offsetYTopLeft);
-    g_renderQuad[2].transformedPos.y = screenPos.y + (cosZ * offsetYTopLeft + sinZ * offsetXTopLeft);
-    g_renderQuad[2].transformedPos.z = screenPos.z;
+    g_renderQuad[2].pos.x = screenPos.x + (cosZ * offsetXTopLeft - sinZ * offsetYTopLeft);
+    g_renderQuad[2].pos.y = screenPos.y + (cosZ * offsetYTopLeft + sinZ * offsetXTopLeft);
+    g_renderQuad[2].pos.z = screenPos.z;
 
-    g_renderQuad[3].transformedPos.x = screenPos.x + (cosZ * offsetXTopRight - sinZ * offsetYTopRight);
-    g_renderQuad[3].transformedPos.y = screenPos.y + (cosZ * offsetYTopRight + sinZ * offsetXTopRight);
-    g_renderQuad[3].transformedPos.z = screenPos.z;
+    g_renderQuad[3].pos.x = screenPos.x + (cosZ * offsetXTopRight - sinZ * offsetYTopRight);
+    g_renderQuad[3].pos.y = screenPos.y + (cosZ * offsetYTopRight + sinZ * offsetXTopRight);
+    g_renderQuad[3].pos.z = screenPos.z;
+    return 0;
+}
+
+void AnmVm::WrapUVsX(RenderVertex144* vertices, int count)
+{
+    for (int i = 0; i < count; ++i)
+    {
+        vertices[i].uv.x += 1.0f;
+    }
+}
+
+void AnmVm::WrapUVsY(RenderVertex144* vertices, int count)
+{
+    for (int i = 0; i < count; ++i)
+    {
+        vertices[i].uv.y += 1.0f;
+    }
+}
+
+void AnmVm::inlineAsmFsincos(RenderVertex144* This, float theta, float scale)
+{
+    This->pos.x = cos(theta) * scale;
+    This->pos.y = sin(theta) * scale;
+}
+
+// 0x452420
+int AnmVm::onTick(AnmVm* This)
+{
+    puts("!! called !!");
+    SpecialRenderData* data = This->m_specialRenderData;
+
+    // 0x452423: Initialize angle to -PI
+    float currentAngle = -3.1415927f;
+
+    // The game maps World Y -> Vert X, World Z -> Vert Y, World X -> Vert Z
+    float totalY = This->m_entityPos.y + This->m_pos.y;
+    float totalZ = This->m_entityPos.z + This->m_pos.z;
+    float totalX = This->m_entityPos.x + This->m_pos.x;
+
+    // Update Center Vertex (Index 0)
+    data->vertices[0].pos.x = totalY;
+    data->vertices[0].pos.y = totalZ;
+    data->vertices[0].pos.z = totalX;
+
+    // ---------------------------------------------------------
+    // UV Scrolling (U Coordinate)
+    float scrollSpeed = data->uvScrollSpeedU;
+
+    data->vertices[0].uv.x += scrollSpeed;
+
+    // 0x452491: Check if U < 0. If so, loop through ALL vertices and add 1.0
+    if (data->vertices[0].uv.x < 0.0f)
+    {
+        for (int i = 0; i < 33; i++)
+        {
+            data->vertices[i].uv.x += 1.0f;
+        }
+    }
+
+    // UV Scrolling (V Coordinate)
+    data->vertices[0].uv.y += scrollSpeed;
+    if (data->vertices[0].uv.y < 0.0f)
+    {
+        for (int i = 0; i < 33; i++)
+            data->vertices[i].uv.y += 1.0f;
+    }
+
+    data->vertices[0].diffuse = This->m_color0;
+
+    // Update Ring Vertices (Indices 1 to 31)
+    float* radiusPtr = data->currentRadii;
+    RenderVertex144* vert = &data->vertices[1];
+
+    for (int k = 0x1f; k > 0; k--) // Loop 31 times
+    {
+        // Update UVs for this vertex
+        vert->uv.x += scrollSpeed;
+        if (vert->uv.x < 0.0f)
+        {
+            for (int i = 0; i < 33; i++)
+                data->vertices[i].uv.x += 1.0f;
+        }
+
+        vert->uv.y += scrollSpeed;
+        if (vert->uv.y < 0.0f)
+        {
+            for (int i = 0; i < 33; i++)
+                data->vertices[i].uv.y += 1.0f;
+        }
+
+        // Set Color (Clear Alpha/High byte)
+        vert->diffuse = This->m_color0;
+        vert->diffuse &= 0x00FFFFFF;
+
+        // Update Radius
+        float delta = *(radiusPtr + 33);
+        *radiusPtr += delta;
+        float r = *radiusPtr;
+
+        // Calculate Position (X/Y)
+        inlineAsmFsincos(vert, currentAngle, r);
+
+        // Apply Position Offset
+        vert->pos.x += totalY;
+        vert->pos.y += totalZ;
+        vert->pos.z += totalX;
+
+        // Advance pointers and angle
+        vert++;
+        radiusPtr++;
+        currentAngle += 0.2026834f; // ~0.2 radians
+    }
+
+    // Close the Loop
+    data->vertices[32] = data->vertices[1];
     return 0;
 }
 
 // 0x44b4b0
-void AnmVm::run()
+void AnmVm::run(AnmVm* This)
 {
+#if 0
     while (m_currentInstruction != nullptr)
     {
         if (m_flagsLow & 0x20000)
             return;
-        
+
         float gameSpeed = g_gameSpeed;
         g_gameSpeed = 1.0;
 
         AnmRawInstruction* instr_interrupt = nullptr;
+        uint32_t opcode = m_currentInstruction->opcode;
 
         //TODO: Move local variables into inner scopes if possible
         uint32_t spriteNumber;
@@ -714,34 +834,31 @@ void AnmVm::run()
             // TODO: Update timers and interpolation
             return;
         }
-        
-        // Opcode is adjusted in the actual binary for the jump table, where each case is 1 higher than the actual opcode.
-        // This reconstruction will be following the correct values.
-        uint32_t opcode = m_currentInstruction->opcode;
+
         switch (opcode)
         {
-        // Does nothing.
+            // Does nothing.
         case 0: // nop
             break;
 
-        // Destroys the graphic.
+            // Destroys the graphic.
         case 1: // delete
             m_flagsLow &= ~1; // Clear visibility
             m_currentInstruction = nullptr; // Terminate script
             g_gameSpeed = gameSpeed;
             break;
 
-        // Freezes the graphic until it is destroyed externally.
-        // Any interpolation instructions like posTime will no longer advance, and interrupts are disabled.
+            // Freezes the graphic until it is destroyed externally.
+            // Any interpolation instructions like posTime will no longer advance, and interrupts are disabled.
         case 2: // static
             m_currentInstruction = nullptr; // Terminate script
             g_gameSpeed = gameSpeed;
             return;
 
-        // Sets the image used by this VM to one of the sprites defined in the ANM file.
-        // A value of -1 means to not use an image (this is frequently used with special drawing instructions).
-        // Thanm also lets you use the sprite's name instead of an index.
-        // Under some unknown conditions, these sprite indices are transformed by a "sprite-mapping" function; e.g. many bullet scripts use false indices, presumably to avoid repeating the same script for 16 different colors. The precise mechanism of this is not yet fully understood.
+            // Sets the image used by this VM to one of the sprites defined in the ANM file.
+            // A value of -1 means to not use an image (this is frequently used with special drawing instructions).
+            // Thanm also lets you use the sprite's name instead of an index.
+            // Under some unknown conditions, these sprite indices are transformed by a "sprite-mapping" function; e.g. many bullet scripts use false indices, presumably to avoid repeating the same script for 16 different colors. The precise mechanism of this is not yet fully understood.
         case 3: // sprite(int id)
             m_flagsLow |= 1; // Set visibility
 
@@ -757,14 +874,14 @@ void AnmVm::run()
                 arg0_1 = m_currentInstruction->args[0];
                 if ((m_currentInstruction->varMask & 1) != 0)
                     arg0_1 = getIntVar(arg0_1);
-                spriteNumber = (uint32_t) m_spriteMappingFunc(this, arg0_1);
+                spriteNumber = (uint32_t)m_spriteMappingFunc(this, arg0_1);
             }
-            setupTextureQuadAndMatrices(spriteNumber,m_anmLoaded);
+            setupTextureQuadAndMatrices(spriteNumber, m_anmLoaded);
             loadNextInstruction();
             break;
 
-        // Jumps to byte offset dest from the script's beginning and sets the time to t. thanm accepts a label name for dest.
-        // Chinese wiki says some confusing recommendation about setting a=0, can someone explain to me?
+            // Jumps to byte offset dest from the script's beginning and sets the time to t. thanm accepts a label name for dest.
+            // Chinese wiki says some confusing recommendation about setting a=0, can someone explain to me?
         case 4: // jmp(int dest, int t)
         {
             int dest = m_currentInstruction->args[0];
@@ -797,126 +914,393 @@ void AnmVm::run()
             }
             break;
         }
-        
+
         // Does a = b.
         case 6: // iset(int& dest, int val)
         {
-            int* dest = reinterpret_cast<int*>(&m_currentInstruction->args[0]);
-            int num = m_currentInstruction->args[1];
-
+            int src = m_currentInstruction->args[1];
             if ((m_currentInstruction->varMask & 2) == 0)
-                num = getIntVar(m_currentInstruction->args[1]);
+                src = getIntVar(m_currentInstruction->args[1]);
 
-            if ((m_currentInstruction->varMask & 1) == 0) 
+            int* dest = reinterpret_cast<int*>(&m_currentInstruction->args[0]);
+            if ((m_currentInstruction->varMask & 1) == 0)
                 dest = getIntVarPtr(dest);
-        
-            *dest = num;
+
+            *dest = src;
             loadNextInstruction();
             break;
         }
         // Does a = b.
         case 7: // fset(float& dest, float val)
+        {
+            float src = bit_cast<float>(m_currentInstruction->args[1]);
+            if ((m_currentInstruction->varMask & 2) != 0)
+                src = getFloatVar(src);
 
+            float* dest = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
+            if ((m_currentInstruction->varMask & 1) != 0)
+                dest = getFloatVarPtr(dest);
+            *dest = src;
+            loadNextInstruction();
             break;
-
+        }
+        
         // Does a += b.
         case 8: // iadd(int& a, int b)
+        {
+            int b = getIntVar(m_currentInstruction->args[1]);
+            if ((m_currentInstruction->varMask & 2) != 0)
+                b = m_currentInstruction->args[1];
             
+            int* a = &m_currentInstruction->args[0];
+            if ((m_currentInstruction->varMask & 1) != 0)
+                a = getIntVarPtr(a);
+            *a += b;
+            loadNextInstruction();
             break;
-
+        }
+        
         // Does a += b.
         case 9: // fadd(float& a, float b)
+        {
+            float b = bit_cast<float>(m_currentInstruction->args[1]);
+            if ((m_currentInstruction->varMask & 2) != 0)
+                b = getFloatVar(b);
 
+            float* a = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
+            if ((m_currentInstruction->varMask & 1) != 0)
+                a = getFloatVarPtr(a);
+
+            *a += b;
+            loadNextInstruction();
             break;
-
+        }
+        
         // Does a -= b.
         case 10: // isub(int& a, int b)
-            
-            break;
+        {
+            int b = m_currentInstruction->args[1];
+    
+            if ((m_currentInstruction->varMask & 2) != 0)
+                b = getIntVar(m_currentInstruction->args[1]);
 
+            int* a = m_currentInstruction->args;
+            if ((m_currentInstruction->varMask & 1) != 0)
+                a = getIntVarPtr(a);
+
+            *a -= b;
+            loadNextInstruction();
+            break;
+        }
+        
         // Does a -= b.
         case 11: // fsub(float& a, float b)
+        {
+            float b = bit_cast<float>(m_currentInstruction->args[1]);
+            if ((m_currentInstruction->varMask & 2) != 0)
+                b = getFloatVar(b);
 
+            float* a = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
+            if ((m_currentInstruction->varMask & 1) != 0)
+                a = getFloatVarPtr(a);
+
+            *a -= b;
+            loadNextInstruction();
             break;
+        }
 
         // Does a *= b.
         case 12: // imul(int& a, int b)
-    
+        {
+            int b = getIntVar(m_currentInstruction->args[1]);
+            if ((m_currentInstruction->varMask & 2) == 0)
+                b = m_currentInstruction->args[1];
+
+            int* a = &m_currentInstruction->args[0];
+            if ((m_currentInstruction->varMask & 1) != 0)
+                a = getIntVarPtr(a);
+
+            *a *= b;
+            loadNextInstruction();
             break;
+        }
 
         // Does a *= b.
         case 13: // fmul(float& a, float b)
-            
-            break;
+        {
+            float b = m_currentInstruction->args[1];
+            if ((m_currentInstruction->varMask & 2) != 0)
+                b = getFloatVar(b);
 
+            float* a = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
+            if ((m_currentInstruction->varMask & 1) != 0)
+                a = getFloatVarPtr(a);
+
+            *a *= b;
+            loadNextInstruction();
+        }
         // Does a /= b.
         case 14: // idiv(int& a, int b)
+        {
+            int b = m_currentInstruction->args[1];
+            if ((m_currentInstruction->varMask & 2) != 0)
+                b = getIntVar(m_currentInstruction->args[1]);
 
+            int* a = &m_currentInstruction->args[0];
+            if ((m_currentInstruction->varMask & 1) != 0)
+                a = getIntVarPtr(a);
+
+            *a /= b;
+            loadNextInstruction();
             break;
+        }
 
         // Does a /= b.
         case 15: // fdiv(float& a, float b)
-    
-            break;
+        {
+            float b = bit_cast<float>(m_currentInstruction->args[1]);
+            if ((m_currentInstruction->varMask & 2) != 0)
+                b = getFloatVar(b);
 
+            float* a = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
+            if ((m_currentInstruction->varMask & 1) != 0)
+                a = getFloatVarPtr(a);
+
+            *a /= b;
+            loadNextInstruction();
+            break;
+        }
         // Does a %= b.
         case 16: // imod(int& a, int b)
-    
+        {
+            int b = m_currentInstruction->args[1];
+            if ((m_currentInstruction->varMask & 2) != 0)
+                b = getIntVar(m_currentInstruction->args[1]);
+
+            int* a = &m_currentInstruction->args[0];
+            if ((m_currentInstruction->varMask & 1) != 0)
+                a = getIntVarPtr(a);
+
+            *a %= b;
+            loadNextInstruction();
             break;
+        }
 
         // Does a %= b.
         case 17: // fmod(float& a, float b)
-        
+        {
+            float b = bit_cast<float>(m_currentInstruction->args[1]);
+            if ((m_currentInstruction->varMask & 2) != 0)
+                b = getFloatVar(b);
+
+            float* dest = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
+            float a = bit_cast<float>(m_currentInstruction->args[0]);
+            if ((m_currentInstruction->varMask & 1) != 0)
+            {
+                a = getFloatVar(a);
+                dest = getFloatVarPtr(dest);
+            }
+
+            *dest = fmod(a, b);
+            loadNextInstruction();
             break;
+        }
 
         // Does a = b + c.
-        case 18: // isetAdd(int& x, int a, int b)
+        case 18: // isetAdd(int& a, int b, int c)
+        {
+            int* a = &m_currentInstruction->args[0];
+            if ((m_currentInstruction->varMask & 1) != 0)
+                a = getIntVarPtr(a);
 
+            int b = m_currentInstruction->args[1];
+            if ((m_currentInstruction->varMask & 2) != 0)
+                b = getIntVar(b);
+
+            int c = m_currentInstruction->args[2];
+            if ((m_currentInstruction->varMask & 4) != 0)
+                c = getIntVar(c);
+
+            *a = b + c;
+            loadNextInstruction();
             break;
+        }
 
         // Does a = b + c.
         case 19: // fsetAdd(float& x, float a, float b)
+        {
+            float* a = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
+            if ((m_currentInstruction->varMask & 1) != 0)
+                a = getFloatVarPtr(a);
+
+            float b = bit_cast<float>(m_currentInstruction->args[1]);
+            if ((m_currentInstruction->varMask & 2) != 0)
+                b = getFloatVar(b);
+        
+            float c = bit_cast<float>(m_currentInstruction->args[2]);
+            if ((m_currentInstruction->varMask & 4) != 0)
+                c = getFloatVar(c);
             
+            *a = b + c;
+            loadNextInstruction();
             break;
+        }
 
         // Does a = b - c.
         case 20: // isetSub(int& x, int a, int b)
+        {
+            int* a = &m_currentInstruction->args[0];
+            if ((m_currentInstruction->varMask & 1) != 0)
+                a = getIntVarPtr(a);
 
+            int b = m_currentInstruction->args[1];
+            if ((m_currentInstruction->varMask & 2) != 0)
+                b = getIntVar(b);
+        
+            int c = m_currentInstruction->args[2];
+            if ((m_currentInstruction->varMask & 4) != 0)
+                c = getIntVar(c);
+            
+            *a = b - c;
+            loadNextInstruction();
             break;
-
+        }
         // Does a = b - c.
-        case 21: // fsetSub(float& x, float a, float b)
+        case 21: // fsetSub(float& a, float b, float c)
+        {
+            float* a = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
+            if ((m_currentInstruction->varMask & 1) != 0)
+                a = getFloatVarPtr(a);
+
+            float b = bit_cast<float>(m_currentInstruction->args[1]);
+            if ((m_currentInstruction->varMask & 2) != 0)
+                b = getFloatVar(b);
+        
+            float c = bit_cast<float>(m_currentInstruction->args[2]);
+            if ((m_currentInstruction->varMask & 4) != 0)
+                c = getFloatVar(c);
+            
+            *a = b - c;
+            loadNextInstruction();
             break;
+        }
 
         // Does a = b * c.
-        case 22: // isetMul(int& x, int a, int b)
-    
+        case 22: // isetMul(int& a, int b, int c)
+        {
+            int* a = &m_currentInstruction->args[0];
+            if ((m_currentInstruction->varMask & 1) != 0)
+                a = getIntVarPtr(a);
+
+            int b = m_currentInstruction->args[1];
+            if ((m_currentInstruction->varMask & 2) != 0)
+                b = getIntVar(b);
+        
+            int c = m_currentInstruction->args[2];
+            if ((m_currentInstruction->varMask & 4) != 0)
+                c = getIntVar(c);
+            
+            *a = b * c;
+            loadNextInstruction();
             break;
+        }
 
         // Does a = b * c.
-        case 23: // fsetMul(float& x, float a, float b)
+        case 23: // fsetMul(float& a, float b, float c)
+        {
+            float* a = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
+            if ((m_currentInstruction->varMask & 1) != 0)
+                a = getFloatVarPtr(a);
 
+            float b = bit_cast<float>(m_currentInstruction->args[1]);
+            if ((m_currentInstruction->varMask & 2) != 0)
+                b = getFloatVar(b);
+        
+            float c = bit_cast<float>(m_currentInstruction->args[2]);
+            if ((m_currentInstruction->varMask & 4) != 0)
+                c = getFloatVar(c);
+            
+            *a = b * c;
+            loadNextInstruction();
             break;
-
+        }
         // Does a = b / c.
         case 24: // isetDiv(int& x, int a, int b)
+        {
+            int* a = &m_currentInstruction->args[0];
+            if ((m_currentInstruction->varMask & 1) != 0)
+                a = getIntVarPtr(a);
 
+            int b = m_currentInstruction->args[1];
+            if ((m_currentInstruction->varMask & 2) != 0)
+                b = getIntVar(b);
+        
+            int c = m_currentInstruction->args[2];
+            if ((m_currentInstruction->varMask & 4) != 0)
+                c = getIntVar(c);
+            
+            *a = b / c;
+            loadNextInstruction();
             break;
-
+        }
         // Does a = b / c.
         case 25: // fsetDiv(float& x, float a, float b)
+        {
+            float* a = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
+            if ((m_currentInstruction->varMask & 1) != 0)
+                a = getFloatVarPtr(a);
 
+            float b = bit_cast<float>(m_currentInstruction->args[1]);
+            if ((m_currentInstruction->varMask & 2) != 0)
+                b = getFloatVar(b);
+        
+            float c = bit_cast<float>(m_currentInstruction->args[2]);
+            if ((m_currentInstruction->varMask & 4) != 0)
+                c = getFloatVar(c);
+            
+            *a = b / c;
+            loadNextInstruction();
             break;
+        }
 
         // Does a = b % c.
         case 26: // isetMod(int& x, int a, int b)
+        {
+            int* a = &m_currentInstruction->args[0];
+            if ((m_currentInstruction->varMask & 1) != 0)
+                a = getIntVarPtr(a);
 
+            int b = m_currentInstruction->args[1];
+            if ((m_currentInstruction->varMask & 2) != 0)
+                b = getIntVar(b);
+        
+            int c = m_currentInstruction->args[2];
+            if ((m_currentInstruction->varMask & 4) != 0)
+                c = getIntVar(c);
+            
+            *a = b % c;
+            loadNextInstruction();
             break;
-
+        }
+ 
         // Does a = b % c.
-        case 27: // fsetMod(float& x, float a, float b)
+        case 27: // fsetMod(float& a, float b, float c)
+        {
+            float c = (float)m_currentInstruction->args[2];
+            if ((m_currentInstruction->varMask & 4) != 0)
+                c = getFloatVar(c);
 
-            break;
+            float b = (float)m_currentInstruction->args[1];
+            if ((m_currentInstruction->varMask & 2) != 0)
+                b = getFloatVar(b);
+ 
+            float* a = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
+            if ((m_currentInstruction->varMask & 1) != 0)
+                a = getFloatVarPtr(a);
+            
+            *a = fmod(b,c);
+            loadNextInstruction();
+        }
 
         // Jumps if a == b.
         case 28: // ije(int a, int b, int dest, int t)
@@ -979,41 +1363,41 @@ void AnmVm::run()
         // Draw a random integer 0 <= x < n using the animation RNG.
         case 40: // isetRand(int& x, int n)
         {
-//         int n = m_currentInstruction->args[1];
-//         if ((m_flagsLow & 0x40000000) == 0) 
-//         {
-//             if (m_currentInstruction->varMask & 2) 
-//             {
-//                 uVar3 = getIntVar(This,uVar3);
-//             }
-//             if (uVar3 == 0) goto LAB_0044d4da;
-//             spriteNumber = rng(&g_replayRngContext);
-//             posY = (float)(spriteNumber % uVar3);
-//             instr_interrupt = (AnmRawInstruction *)posY;
-//         }
-//         else {
-//           if ((m_currentInstruction->varMask & 2) != 0) {
-//             uVar3 = getIntVar(This,uVar3);
-//           }
-//           if (uVar3 == 0) {
-// LAB_0044d4da:
-//             instr_interrupt = (AnmRawInstruction *)0x0;
-//           }
-//           else {
-//             spriteNumber = rng(&g_anmRngContext);
-//             posY = (float)(spriteNumber % uVar3);
-//             instr_interrupt = (AnmRawInstruction *)posY;
-//           }
-//         }
-//         args = m_currentInstruction->args;
-//         if ((m_currentInstruction->varMask & 1) != 0) {
-//           args = getIntVarPtr(This,args);
-//         }
-// HelpMe:
-//         *args = (int)instr_interrupt;
-//         nextInstruction =
-//              (AnmRawInstruction *)((int)m_currentInstruction->args + (m_currentInstruction->offsetToNextInstr - 8));
-//         This->m_currentInstruction = nextInstruction;
+            //         int n = m_currentInstruction->args[1];
+            //         if ((m_flagsLow & 0x40000000) == 0) 
+            //         {
+            //             if (m_currentInstruction->varMask & 2) 
+            //             {
+            //                 uVar3 = getIntVar(This,uVar3);
+            //             }
+            //             if (uVar3 == 0) goto LAB_0044d4da;
+            //             spriteNumber = rng(&g_replayRngContext);
+            //             posY = (float)(spriteNumber % uVar3);
+            //             instr_interrupt = (AnmRawInstruction *)posY;
+            //         }
+            //         else {
+            //           if ((m_currentInstruction->varMask & 2) != 0) {
+            //             uVar3 = getIntVar(This,uVar3);
+            //           }
+            //           if (uVar3 == 0) {
+            // LAB_0044d4da:
+            //             instr_interrupt = (AnmRawInstruction *)0x0;
+            //           }
+            //           else {
+            //             spriteNumber = rng(&g_anmRngContext);
+            //             posY = (float)(spriteNumber % uVar3);
+            //             instr_interrupt = (AnmRawInstruction *)posY;
+            //           }
+            //         }
+            //         args = m_currentInstruction->args;
+            //         if ((m_currentInstruction->varMask & 1) != 0) {
+            //           args = getIntVarPtr(This,args);
+            //         }
+            // HelpMe:
+            //         *args = (int)instr_interrupt;
+            //         nextInstruction =
+            //              (AnmRawInstruction *)((int)m_currentInstruction->args + (m_currentInstruction->offsetToNextInstr - 8));
+            //         This->m_currentInstruction = nextInstruction;
             break;
         }
 
@@ -1043,14 +1427,14 @@ void AnmVm::run()
             loadNextInstruction();
         }
 
-        // Compute sin(θ) (θ in radians).
-        case 42: // fsin(float& dest, float θ)
+        // Compute sin(theta) (in radians).
+        case 42: // fsin(float& dest, float theta)
         {
             float* dest = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
             float theta = bit_cast<float>(m_currentInstruction->args[1]);
             if ((m_currentInstruction->varMask & 2) != 0)
                 theta = getFloatVar(posX);
-    
+
             if ((m_currentInstruction->varMask & 1) != 0)
                 dest = getFloatVarPtr(dest);
 
@@ -1059,8 +1443,8 @@ void AnmVm::run()
             break;
         }
 
-        // Compute cos(θ) (θ in radians).
-        case 43: // fcos(float& dest, float θ)
+        // Compute cos(theta) (in radians).
+        case 43: // fcos(float& dest, float theta)
         {
             float* dest = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
             float theta = bit_cast<float>(m_currentInstruction->args[1]);
@@ -1075,8 +1459,8 @@ void AnmVm::run()
             break;
         }
 
-        // Compute tan(θ) (θ in radians).
-        case 44: // ftan(float& dest, float θ)
+        // Compute tan(theta) (in radians).
+        case 44: // ftan(float& dest, float theta)
         {
             float* dest = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
             float theta = bit_cast<float>(m_currentInstruction->args[1]);
@@ -1090,7 +1474,7 @@ void AnmVm::run()
             loadNextInstruction();
             break;
         }
-        // Compute acos(x) (output in radians).
+        // Compute acos(x) (in radians).
         case 45: // facos(float& dest, float x)
         {
             float* dest = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
@@ -1106,7 +1490,7 @@ void AnmVm::run()
             break;
         }
 
-        // Compute atan(f) (output in radians).
+        // Compute atan(f) (in radians).
         case 46: // fatan(float& dest, float f)
         {
             float* dest = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
@@ -1123,18 +1507,18 @@ void AnmVm::run()
         }
 
         // Reduce an angle modulo 2*PI into the range [-PI, +PI].
-        case 47: // validRad(float& θ)
+        case 47: // validRad(float& theta)
             break;
 
-        // Sets the position of the graphic.
-        // If you look in the code, you'll see that if a certain bitflag is set, this will write to a different variable.
-        // This is part of the implementation of th09:posMode in earlier games, and is, to my knowledge,
-        // entirely dead code in every game since StB.
+            // Sets the position of the graphic.
+            // If you look in the code, you'll see that if a certain bitflag is set, this will write to a different variable.
+            // This is part of the implementation of th09:posMode in earlier games, and is, to my knowledge,
+            // entirely dead code in every game since StB.
         case 48: // pos(float x, float y, float z)
             posX = bit_cast<float>(m_currentInstruction->args[0]);
             posY = bit_cast<float>(m_currentInstruction->args[1]);
             posZ = bit_cast<float>(m_currentInstruction->args[2]);
-            
+
             if ((m_flagsLow & 0x100) == 0)
             {
                 if ((m_currentInstruction->varMask & 4) != 0)
@@ -1174,15 +1558,15 @@ void AnmVm::run()
             loadNextInstruction();
             break;
 
-        // Set the graphic's rotation. For 2D objects, only the z rotation matters.
-        // In some rare cases, x rotation has a special meaning for special drawing instructions.
-        // Graphics rotate around their anchor point (see anchor).
-        // A positive angle around the z-axis goes clockwise from the +x direction towards the +y direction (defined to point down).
-        // 3D rotations are performed as follows:
-        // (EoSD) Rotate first around x, then around y, then around z.
-        // (PCB–GFW) Haven't checked. Probably the same?
-        // (TD–) You can choose the rotation system with th185:rotationMode. (what's the default? probably the same?)
-        // If nothing seems to be happening when you call this, check your type setting!
+            // Set the graphic's rotation. For 2D objects, only the z rotation matters.
+            // In some rare cases, x rotation has a special meaning for special drawing instructions.
+            // Graphics rotate around their anchor point (see anchor).
+            // A positive angle around the z-axis goes clockwise from the +x direction towards the +y direction (defined to point down).
+            // 3D rotations are performed as follows:
+            // (EoSD) Rotate first around x, then around y, then around z.
+            // (PCB-GFW) Haven't checked. Probably the same?
+            // (TD-) You can choose the rotation system with th185:rotationMode. (what's the default? probably the same?)
+            // If nothing seems to be happening when you call this, check your type setting!
         case 49: // rotate(float rx, float ry, float rz)
         {
             rX = bit_cast<float>(m_currentInstruction->args[0]);
@@ -1191,10 +1575,10 @@ void AnmVm::run()
 
             if ((m_currentInstruction->varMask & 1) != 0)
                 rX = getFloatVar(rX);
-            
+
             if ((m_currentInstruction->varMask & 2) != 0)
                 rY = getFloatVar(rY);
-            
+
             if ((m_currentInstruction->varMask & 4) != 0)
                 rZ = getFloatVar(rZ);
 
@@ -1210,124 +1594,124 @@ void AnmVm::run()
 
             break;
 
-        // Set alpha (opacity) to a value 0-255.
+            // Set alpha (opacity) to a value 0-255.
         case 51: // alpha(int alpha)
-            
+
             break;
 
-        // Set a color which gets blended with this sprite. Blend operation is multiply, so setting white (255, 255, 255) eliminates the effect.
+            // Set a color which gets blended with this sprite. Blend operation is multiply, so setting white (255, 255, 255) eliminates the effect.
         case 52: // color(int r, int g, int b)
 
             break;
 
-        // Set a constant angular velocity, in radians per frame.
-        case 53: // angleVel(float ωx, float ωy, float ωz)
+            // Set a constant angular velocity, in radians per frame.
+        case 53: // angleVel(float x, float y, float z)
 
             break;
 
-        // Every frame, it increases the values of scale as sx -> sx + gx and sy -> sy + gy. Basically, scaleGrowth is to scale as angleVel is to rotate. (they even share implemenation details...)
+            // Every frame, it increases the values of scale as sx -> sx + gx and sy -> sy + gy. Basically, scaleGrowth is to scale as angleVel is to rotate. (they even share implemenation details...)
         case 54: // scaleGrowth(float gx, float gy)
 
             break;
 
-        // Obsolete. Use alphaTime instead.
-        // UNTESTED: Linearly changes alpha to alpha over the next t frames. Identical to calling alphaTime(t, 0, alpha).
+            // Obsolete. Use alphaTime instead.
+            // UNTESTED: Linearly changes alpha to alpha over the next t frames. Identical to calling alphaTime(t, 0, alpha).
         case 55: // alphaTimeLinear(int alpha, int t)
 
             break;
 
-        // Over the next t frames, changes pos to the given values using interpolation mode mode.
+            // Over the next t frames, changes pos to the given values using interpolation mode mode.
         case 56: // posTime(int t, int mode, float x, float y, float z)
 
             break;
 
-        // Over the next t frames, changes color to the given value using interpolation mode mode.
+            // Over the next t frames, changes color to the given value using interpolation mode mode.
         case 57: // colorTime(int t, int mode, int r, int g, int b)
 
             break;
 
-        // Over the next t frames, changes alpha to the given values using interpolation mode mode.
+            // Over the next t frames, changes alpha to the given values using interpolation mode mode.
         case 58: // alphaTime(int t, int mode, int alpha)
 
             break;
 
-        // Over the next t frames, changes rotate to the given values using interpolation mode mode.
+            // Over the next t frames, changes rotate to the given values using interpolation mode mode.
         case 59: // rotateTime(int t, int mode, float rx, float ry, float rz)
 
             break;
 
-        // Over the next t frames, changes scale to the given values using interpolation mode mode.
+            // Over the next t frames, changes scale to the given values using interpolation mode mode.
         case 60: // scaleTime(int t, int mode, float sx, float sy)
 
             break;
 
-        // Toggles mirroring on the x axis.
-        // This flips the sign of sx in scale. Future calls to scale will thus clobber it.
-        // (It also toggles a bitflag. This flag is used by EoSD to keep the sign flipped during interpolation of scale, and is then unused until BM which added th185:unflip.)
+            // Toggles mirroring on the x axis.
+            // This flips the sign of sx in scale. Future calls to scale will thus clobber it.
+            // (It also toggles a bitflag. This flag is used by EoSD to keep the sign flipped during interpolation of scale, and is then unused until BM which added th185:unflip.)
         case 61: // flipX
 
             break;
 
-        // Toggles mirroring on the y axis.
-        // This flips the sign of sy in scale. Future calls to scale will thus clobber it.
-        // (It also toggles a bitflag. This flag is used by EoSD to keep the sign flipped during interpolation of scale, and is then unused until BM which added th185:unflip.)
+            // Toggles mirroring on the y axis.
+            // This flips the sign of sy in scale. Future calls to scale will thus clobber it.
+            // (It also toggles a bitflag. This flag is used by EoSD to keep the sign flipped during interpolation of scale, and is then unused until BM which added th185:unflip.)
         case 62: // flipY
 
             break;
 
-        // Stops executing the script (at least for now), but keeps the graphic alive.
-        // Interpolation instructions like posTime will continue to advance, and interrupts can be triggered at any time. You could say this essentially behaves like an infinitely long wait.
+            // Stops executing the script (at least for now), but keeps the graphic alive.
+            // Interpolation instructions like posTime will continue to advance, and interrupts can be triggered at any time. You could say this essentially behaves like an infinitely long wait.
         case 63: // stop
             goto switchD_0044b52d_caseD_3f;
 
-        // A label for an interrupt. When executed, it is a no-op.
+            // A label for an interrupt. When executed, it is a no-op.
         case 64: // interruptLabel(int n)
             // No-op
             break;
 
-        // Set the horizontal and vertical anchoring of the sprite. Notice the args are each two bytes. For further fine-tuning see th185:anchorOffset.
-        // Args: 0=Center, 1=Left, 2=Right (h); 0=Center, 1=Top, 2=Bottom (v)
+            // Set the horizontal and vertical anchoring of the sprite. Notice the args are each two bytes. For further fine-tuning see th185:anchorOffset.
+            // Args: 0=Center, 1=Left, 2=Right (h); 0=Center, 1=Top, 2=Bottom (v)
         case 65: // anchor(short h, short v)
 
             break;
 
-        // Set color blending mode.
-        // Modes for DDC: (other games may be different)
-        // 0: Normal (SRCALPHA, INVSRCALPHA, ADD)
-        // 1: Add (SRCALPHA, ONE, ADD)
-        // 2: Subtract (SRCALPHA, ONE, REVSUBTRACT)
-        // ...
+            // Set color blending mode.
+            // Modes for DDC: (other games may be different)
+            // 0: Normal (SRCALPHA, INVSRCALPHA, ADD)
+            // 1: Add (SRCALPHA, ONE, ADD)
+            // 2: Subtract (SRCALPHA, ONE, REVSUBTRACT)
+            // ...
         case 66: // blendMode(int mode)
 
             break;
 
-        // Determines how the ANM is rendered.
-        // Mode 0: 2D sprites, no rotation.
-        // Mode 1: 2D sprites with z-axis rotation.
-        // Mode 8: 3D rotation.
-        // Mode 2: Like mode 0 but shifted by (-0.5, -0.5) pixels.
+            // Determines how the ANM is rendered.
+            // Mode 0: 2D sprites, no rotation.
+            // Mode 1: 2D sprites with z-axis rotation.
+            // Mode 8: 3D rotation.
+            // Mode 2: Like mode 0 but shifted by (-0.5, -0.5) pixels.
         case 67: // type(int mode)
 
             break;
 
-        // Sets the layer of the ANM. This may or may not affect z-ordering? It's weird...
-        // Different layer numbers may behave differently! Each game only has a finite number of layers, and certain groups of these layers are drawn at different stages in the rendering pipeline.
+            // Sets the layer of the ANM. This may or may not affect z-ordering? It's weird...
+            // Different layer numbers may behave differently! Each game only has a finite number of layers, and certain groups of these layers are drawn at different stages in the rendering pipeline.
         case 68: // layer(int n)
 
             break;
 
-        // This is like stop except that it also hides the graphic by clearing the visibility flag (see visible).
-        // Interpolation instructions like posTime will continue to advance, and interrupts can be triggered at any time. Successful interrupts will automatically re-enable the visibility flag.
+            // This is like stop except that it also hides the graphic by clearing the visibility flag (see visible).
+            // Interpolation instructions like posTime will continue to advance, and interrupts can be triggered at any time. Successful interrupts will automatically re-enable the visibility flag.
         case 69: // stopHide
             m_flagsLow &= 0xfffffffe;
 
-switchD_0044b52d_caseD_3f:
+        switchD_0044b52d_caseD_3f:
 
             if (m_pendingInterrupt == 0)
                 m_flagsLow |= 0x1000;
             else
             {
-Interrupt:
+            Interrupt:
                 m_currentInstruction = m_beginningOfScript;
                 instr_interrupt = nullptr;
                 while (1)
@@ -1340,10 +1724,10 @@ Interrupt:
 
                     if (m_currentInstruction_opcode == 64 && m_currentInstruction->args[0] == -1)
                         instr_interrupt = m_currentInstruction;
-                
+
                     m_currentInstruction = (AnmRawInstruction*)((char*)m_currentInstruction + m_currentInstruction->offsetToNextInstr);
                 }
-            
+
                 if (m_currentInstruction->opcode == 64 || (m_currentInstruction = instr_interrupt, instr_interrupt != nullptr))
                 {
                     m_interruptReturnTime.m_previous = m_timeInScript.m_previous;
@@ -1366,179 +1750,179 @@ Interrupt:
 
             goto Idk_Why_I_Must_Jump_0044c2ae;
 
-        // Add vel to the texture u coordinate every frame (in units of 1 / total_image_width), causing the displayed sprite to scroll horizontally through the image file.
+            // Add vel to the texture u coordinate every frame (in units of 1 / total_image_width), causing the displayed sprite to scroll horizontally through the image file.
         case 70: // scrollX(float vel)
-            
+
             break;
 
-        // Add vel to the texture v coordinate every frame (in units of 1 / total_image_height), causing the displayed sprite to scroll vertically through the image file.
+            // Add vel to the texture v coordinate every frame (in units of 1 / total_image_height), causing the displayed sprite to scroll vertically through the image file.
         case 71: // scrollY(float vel)
-            
+
             break;
 
-        // Set the visibility flag (1 = visible). Invisible graphics are skipped during rendering.
-        // Generally speaking this is not a huge deal as the most expensive parts of rendering are typically skipped anyways whenever alpha and alpha2 are both 0.
+            // Set the visibility flag (1 = visible). Invisible graphics are skipped during rendering.
+            // Generally speaking this is not a huge deal as the most expensive parts of rendering are typically skipped anyways whenever alpha and alpha2 are both 0.
         case 72: // visible(byte visible)
-            
+
             break;
 
-        // If disable is 1, writing to the z-buffer is disabled. Otherwise, it is enabled. This can matter in cases where z-testing is used to filter writes.
+            // If disable is 1, writing to the z-buffer is disabled. Otherwise, it is enabled. This can matter in cases where z-testing is used to filter writes.
         case 73: // zWriteDisable(int disable)
-        
+
             break;
 
-        // Sets the state of a STD-related bitflag. When this flag is enabled, some unknown vector from the stage background camera data is added to some poorly-understood position-related vector on the ANM, for an even more unknown purpose.
+            // Sets the state of a STD-related bitflag. When this flag is enabled, some unknown vector from the stage background camera data is added to some poorly-understood position-related vector on the ANM, for an even more unknown purpose.
         case 74: // ins_74(int enable)
             // TODO: Implement STD-related bitflag logic
             break;
 
-        // Wait t frames.
-        // StB and earlier: wait is implemented using a dedicated timer.
-        // MoF and later: Subtracts t from the current time before executing the next instruction.
+            // Wait t frames.
+            // StB and earlier: wait is implemented using a dedicated timer.
+            // MoF and later: Subtracts t from the current time before executing the next instruction.
         case 75: // wait(int t)
-        
+
             break;
 
-        // Set a second color for gradients. Gradients are used by certain special drawing instructions, and can be enabled on regular sprites using colorMode.
+            // Set a second color for gradients. Gradients are used by certain special drawing instructions, and can be enabled on regular sprites using colorMode.
         case 76: // color2(int r, int g, int b)
 
             break;
 
-        // Set a second alpha for gradients. Gradients are used by certain special drawing instructions, and can be enabled on regular sprites using colorMode.
+            // Set a second alpha for gradients. Gradients are used by certain special drawing instructions, and can be enabled on regular sprites using colorMode.
         case 77: // alpha2(int alpha)
 
             break;
 
-        // Over the next t frames, changes color2 to the given value using interpolation mode mode.
-        // For some reason, in DDC onwards, this also sets colorMode to 1, which can be a mild inconvenience.
+            // Over the next t frames, changes color2 to the given value using interpolation mode mode.
+            // For some reason, in DDC onwards, this also sets colorMode to 1, which can be a mild inconvenience.
         case 78: // color2Time(int t, int mode, int r, int g, int b)
             break;
 
-        // Over the next t frames, changes alpha2 to the given value using interpolation mode mode.
-        // For some reason, in DDC onwards, this also sets colorMode to 1, which can be a mild inconvenience.
+            // Over the next t frames, changes alpha2 to the given value using interpolation mode mode.
+            // For some reason, in DDC onwards, this also sets colorMode to 1, which can be a mild inconvenience.
         case 79: // alpha2Time(int t, int mode, int alpha)
 
             break;
 
-        // Lets you enable gradients on regular sprites.
-        // 0: Only use color and alpha.
-        // 1: Only use color2 and alpha2.
-        // 2: (DS–) Horizontal gradient.
-        // 3: (DS–) Vertical gradient.
+            // Lets you enable gradients on regular sprites.
+            // 0: Only use color and alpha.
+            // 1: Only use color2 and alpha2.
+            // 2: (DS-) Horizontal gradient.
+            // 3: (DS-) Vertical gradient.
         case 80: // colorMode(int mode)
             break;
 
-        // Can be used at the end of a interruptLabel block to return back to the moment just before the VM received the interrupt.
-        // This is not the only way to end a interruptLabel block; oftentimes the game may use a stop instead.
+            // Can be used at the end of a interruptLabel block to return back to the moment just before the VM received the interrupt.
+            // This is not the only way to end a interruptLabel block; oftentimes the game may use a stop instead.
         case 81: // caseReturn
             break;
 
-        // Placeholder for rotateAuto(byte mode)
+            // Placeholder for rotateAuto(byte mode)
         case 82: // rotateAuto
             // TODO: Implement rotateAuto logic
             break;
 
-        // Placeholder for ins_83()
+            // Placeholder for ins_83()
         case 83: // ins_83
             // TODO: Unknown instruction
             break;
 
-        // Placeholder for texCircle(int nmax)
+            // Placeholder for texCircle(int nmax)
         case 84: // texCircle
             // TODO: Implement texCircle logic
             break;
 
-        // Placeholder for ins_85(int enable)
+            // Placeholder for ins_85(int enable)
         case 85: // ins_85
             // TODO: Unknown instruction
             break;
 
-        // Placeholder for slowdownImmune(int enable)
+            // Placeholder for slowdownImmune(int enable)
         case 86: // slowdownImmune
             // TODO: Implement slowdownImmune logic
             break;
 
-        // Placeholder for randMode(int mode)
+            // Placeholder for randMode(int mode)
         case 87: // randMode
             // TODO: Implement randMode logic
             break;
 
-        // Placeholder for scriptNew(int script)
+            // Placeholder for scriptNew(int script)
         case 88: // scriptNew
             // TODO: Implement script creation (calls 0x455a00)
             break;
 
-        // Placeholder for resampleMode(int n)
+            // Placeholder for resampleMode(int n)
         case 89: // resampleMode
             // TODO: Implement resampleMode logic
             break;
 
-        // Placeholder for scriptNewUI(int script)
+            // Placeholder for scriptNewUI(int script)
         case 90: // scriptNewUI
             // TODO: Implement scriptNewUI logic
             break;
 
-        // Placeholder for scriptNewFront(int script)
+            // Placeholder for scriptNewFront(int script)
         case 91: // scriptNewFront
             // TODO: Implement scriptNewFront logic
             break;
 
-        // Placeholder for scriptNewUIFront(int script)
+            // Placeholder for scriptNewUIFront(int script)
         case 92: // scriptNewUIFront
             // TODO: Implement scriptNewUIFront logic
             break;
 
-        // Placeholder for scrollXTime(int t, int mode, float vel)
+            // Placeholder for scrollXTime(int t, int mode, float vel)
         case 93: // scrollXTime
             // TODO: Implement scrollXTime logic
             break;
 
-        // Placeholder for scrollYTime(int t, int mode, float vel)
+            // Placeholder for scrollYTime(int t, int mode, float vel)
         case 94: // scrollYTime
             // TODO: Implement scrollYTime logic
             break;
 
-        // Placeholder for scriptNewRoot(int script)
+            // Placeholder for scriptNewRoot(int script)
         case 95: // scriptNewRoot
             // TODO: Implement scriptNewRoot logic
             break;
 
-        // Placeholder for scriptNewPos(int script, float x, float y)
+            // Placeholder for scriptNewPos(int script, float x, float y)
         case 96: // scriptNewPos
             // TODO: Implement scriptNewPos logic
             break;
 
-        // Placeholder for scriptNewRootPos(int script, float x, float y)
+            // Placeholder for scriptNewRootPos(int script, float x, float y)
         case 97: // scriptNewRootPos
             // TODO: Implement scriptNewRootPos logic
             break;
 
-        // Placeholder for ins_98()
+            // Placeholder for ins_98()
         case 98: // ins_98
             // TODO: Unknown instruction
             break;
 
-        // Placeholder for ins_99(int enable)
+            // Placeholder for ins_99(int enable)
         case 99: // ins_99
             // TODO: Unknown instruction
             break;
 
-        // Placeholder for moveBezier(int t, float x1, float y1, float z1, float x2, float y2, float z2, float x3, float y3, float z3)
+            // Placeholder for moveBezier(int t, float x1, float y1, float z1, float x2, float y2, float z2, float x3, float y3, float z3)
         case 100: // moveBezier
             // TODO: Implement Bezier curve movement
             break;
 
-        // Placeholder for ins_101()
+            // Placeholder for ins_101()
         case 101: // ins_101
             // TODO: Unknown instruction
             break;
 
-        // Placeholder for spriteRand(int a, int b)
+            // Placeholder for spriteRand(int a, int b)
         case 102: // spriteRand
             // TODO: Implement spriteRand logic
             break;
 
-        // Placeholder for drawRect(float w, float h)
+            // Placeholder for drawRect(float w, float h)
         case 103: // drawRect
             // TODO: Implement drawRect logic
             break;
@@ -1548,4 +1932,5 @@ Interrupt:
             break;
         }
     }
+#endif
 }
