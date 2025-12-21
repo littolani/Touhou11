@@ -2,20 +2,9 @@
 #include "Chireiden.h"
 #include "Macros.h"
 #include "Globals.h"
-#include <vector>
+#include "Lzss.h"
 
-#define LZSS_DICTSIZE      0x2000
-#define LZSS_DICTSIZE_MASK 0x1fff
-#define LZSS_MIN_MATCH     3
-#define LZSS_MAX_MATCH     18
-
-struct LzssTree
-{
-    int parent;
-    int left;
-    int right;
-};
-
+#if 0
 class BitReader
 {
 public:
@@ -46,6 +35,7 @@ private:
     byte m_bitBuffer;
     int m_bitCount;
 };
+#endif
 
 struct DecryptionKey
 {
@@ -59,38 +49,8 @@ struct DecryptionKey
 class FileUtils
 {
 public:
-    static byte* lzssCompress(byte* inputData, size_t inputSize, size_t* compressedSize);
-    static byte* lzssDecompress(byte* compressedData, int compressedSize, byte* outBuffer, size_t decompressedSize);
-
-    static void decrypt(
-        uint8_t* data,
-        uint32_t size,
-        uint8_t key,
-        const uint8_t step,
-        uint32_t block,
-        uint32_t limit
-    );
-
-    static void encrypt(
-        uint8_t* data,
-        uint32_t size,
-        uint8_t key,
-        const uint8_t step,
-        uint32_t block,
-        uint32_t limit
-    );
-
-private:
-    static void lzssTreeReplaceNode(LzssTree* lzssTree, uint32_t oldNode, int newNode);
-    static void resetEncoderState(byte* lzssDict, LzssTree* lzssTree);
-
-    static int lzssDictAddString(
-        byte* lzssDict,
-        LzssTree* lzssTree,
-        uint32_t lzssTreeRoot,
-        int* matchPosition,
-        int newNode
-    );
+    static void decrypt(uint8_t* data, uint32_t size, uint8_t key, uint8_t step, uint32_t block, uint32_t limit);
+    static void encrypt(uint8_t* data, uint32_t size, uint8_t key, uint8_t step, uint32_t block, uint32_t limit);
 };
 
 class IPbgFile
@@ -146,13 +106,13 @@ ASSERT_SIZE(PbgArchiveHeader, 0x10);
 
 struct PbgArchiveEntry
 {
-    PbgArchiveEntry() { filename = NULL; }
+    PbgArchiveEntry() {}
     ~PbgArchiveEntry() { delete[] filename; }
 
-    char *filename;
-    uint32_t dataOffset;
-    uint32_t decompressedSize;
-    uint32_t unk;
+    char* filename{};
+    uint32_t dataOffset{};
+    uint32_t decompressedSize{};
+    uint32_t unk{};
 };
 ASSERT_SIZE(PbgArchiveEntry, 0x10);
 
@@ -163,18 +123,14 @@ struct PbgArchive
 
     bool load(LPCSTR filename);
     void release();
-    //byte* readDecompressEntry(LPCSTR filename, byte* outBuffer);
-    //DWORD getEntryDecompressedSize(LPCSTR filename);
-
-    PbgArchiveEntry* findEntry(LPCSTR filename);
+    byte* readDecompressEntry(LPCSTR filename, byte* outBuffer);
+    DWORD getEntryDecompressedSize(LPCSTR filename);
     bool parseHeader(LPCSTR filename);
-    //PbgArchiveEntry *allocEntries(LPVOID entryBuffer, int count, uint32_t offset);
-    LPSTR copyFilename(LPCSTR filename);
-
-    //static int seekPastInt(LPVOID *ptr);
-    //static LPVOID seekPastString(LPVOID *ptr);
-    byte* loadWithDecryptionKeyset(byte* destBuffer, LPCSTR requestedFilename); 
-    PbgArchiveEntry* loadEntries(byte* bytes,int numEntries,uint32_t seekOffset);
+    PbgArchiveEntry* findEntry(LPCSTR filename);
+    PbgArchiveEntry* allocEntries(LPVOID entryBuffer, int count, uint32_t offset);
+    LPSTR copyFileName(LPCSTR fileName);
+    static int seekPastInt(LPVOID* ptr);
+    static LPVOID seekPastString(LPVOID* ptr);
 
     PbgArchiveEntry* m_entries;
     int m_numEntries;
@@ -182,7 +138,7 @@ struct PbgArchive
     CPbgFile* m_fileAbstraction;
 };
 
-DecryptionKey decryptionKeySet[8] =
+const DecryptionKey decryptionKeySet[8] =
 {
     { 0x1b, 0x37, 0xaa, 0x40,  0x2800 },
     { 0x51, 0xE9, 0xBB, 0x40,  0x3000 },
@@ -193,3 +149,6 @@ DecryptionKey decryptionKeySet[8] =
     { 0x35, 0x97, 0x11, 0x80,  0x2800 },
     { 0x99, 0x37, 0x77, 0x400, 0x2000 }
 };
+
+extern PbgArchive g_pbgArchive;
+PbgArchive* findMatchingArchive(const char* filename);
