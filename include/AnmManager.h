@@ -1,11 +1,8 @@
 #pragma once
 
-#include "AnmVm.h"
-#include "AnmLoaded.h"
 #include "Chireiden.h"
-#include "Chain.h"
+#include "AnmVm.h"
 #include "FileAbstrction.h"
-#include "Macros.h"
 
 struct BlitParams
 {
@@ -16,72 +13,81 @@ struct BlitParams
 };
 ASSERT_SIZE(BlitParams, 0x28);
 
+struct AnmVertexBuffers
+{
+    int leftoverSpriteCount;
+    RenderVertex144 spriteVertexData[0x20000];
+    RenderVertex144* spriteWriteCursor;
+    RenderVertex144* spriteRenderCursor;
+};
+ASSERT_SIZE(AnmVertexBuffers, 0x38000c);
+
 class AnmManager
 {
 public:
-    BlitParams blitParamsArray[4];         // <0x0>
-    int allocatedVmCountMaybe;             // <0xa0>
-    int idk;                               // <0xa4>
-    int someCounter;                       // <0xa8>
-    int refreshCounter;                    // <0xac>
-    int globalRenderQuadOffsetX;           // <0xb0>
-    int globalRenderQuadOffsetY;           // <0xb4>
-    int unk3;                              // <0xb8>
-    AnmVm bulkVms[4096];                   // <0xbc>
-    uint8_t bulkVmsIsAlive[4096];          // <0x4340bc>
-    int nextBulkVmIndex;                   // <0x4350bc>
-    AnmLoaded* loadedAnms[32];             // <0x4350c0>
-    D3DXMATRIX m_currentWorldMatrix;       // <0x435140>
-    AnmVm primaryVm;                       // <0x435180>
-    uint32_t u0;                           // <0x4355bc>
-    D3DCOLOR m_color;                        // <0x4355b8>
-    IDirect3DTexture9** m_tex;             // <0x4355bc>
-    uint8_t renderStateMode;               // <0x4355c0>
-    uint8_t l;                             // <0x4355c1>
-    uint8_t m_haveFlushedSprites;          // <0x4355c2>
-    uint8_t stuff[3];
-    uint8_t usePointFilter;                // <0x4355c7>
-    uint8_t stuff2[5];
-    IDirect3DVertexBuffer9* vertexBuffer;  // <0x4355cc>
-    D3DXVECTOR3 primitive0Position;        // <0x4355d0>
-    D3DXVECTOR2 primitive0Uv;              // <0x4355dc>
-    D3DXVECTOR3 primitive1Position;        // <0x4355e4>
-    D3DXVECTOR2 primitive1Uv;              // <0x4355f0>
-    D3DXVECTOR3 primitive2Position;        // <0x4355f8>
-    D3DXVECTOR2 primitive2Uv;              // <0x435604>
-    D3DXVECTOR3 primitive3Position;        // <0x43560c>
-    D3DXVECTOR2 primitive3Uv;              // <0x435618>
-    AnmVertexBuffers m_vertexBuffers;      // <0x435620>
-    AnmVmList* primaryGlobalNext;          // <0x7b562c>
-    AnmVmList* primaryGlobalPrev;          // <0x7b5630>
-    AnmVmList* secondaryGlobalNext;        // <0x7b5634>
-    AnmVmList* secondaryGlobalPrev;        // <0x7b5638>
-    AnmVm vmLayers[31];                    // <0x7b563c>
-    int id;                                // <0x7bd888>
-    uint8_t scaleB;                        // <0x7bd88c>
-    uint8_t scaleG;                        // <0x7bd88d>
-    uint8_t scaleR;                        // <0x7bd88e>
-    uint8_t scaleA;                        // <0x7bd88f>
-    uint32_t m_rebuildColorFlag;           // <0x7bd890>
+    BlitParams m_blitParamsArray[4];            // <0x0>
+    int m_allocatedVmCountMaybe;                // <0xa0>
+    int m_idk;                                  // <0xa4>
+    int m_someCounter;                          // <0xa8>
+    int m_refreshCounter;                       // <0xac>
+    int m_globalRenderQuadOffsetX;              // <0xb0>
+    int m_globalRenderQuadOffsetY;              // <0xb4>
+    int m_unk3;                                 // <0xb8>
+    AnmVm m_bulkVms[4096];                      // <0xbc>
+    uint8_t m_bulkVmsIsAlive[4096];             // <0x4340bc>
+    int m_nextBulkVmIndex;                      // <0x4350bc>
+    AnmLoaded* m_loadedAnms[32];                // <0x4350c0>
+    D3DXMATRIX m_currentWorldMatrix;            // <0x435140>
+    AnmVm m_primaryVm;                          // <0x435180>
+    uint32_t m_u0;                              // <0x4355bc>
+    D3DCOLOR m_color;                           // <0x4355b8>
+    IDirect3DTexture9** m_tex;                  // <0x4355bc>
+    uint8_t m_renderStateMode;                  // <0x4355c0>
+    uint8_t m_l;                                // <0x4355c1>
+    uint8_t m_haveFlushedSprites;               // <0x4355c2>
+    uint8_t m_stuff[3];
+    bool m_usePointFilter;                      // <0x4355c7>
+    uint8_t m_stuff2[5];
+    IDirect3DVertexBuffer9* m_d3dVertexBuffer;  // <0x4355cc>
+    D3DXVECTOR3 m_primitive0Position;           // <0x4355d0>
+    D3DXVECTOR2 m_primitive0Uv;                 // <0x4355dc>
+    D3DXVECTOR3 m_primitive1Position;           // <0x4355e4>
+    D3DXVECTOR2 m_primitive1Uv;                 // <0x4355f0>
+    D3DXVECTOR3 m_primitive2Position;           // <0x4355f8>
+    D3DXVECTOR2 m_primitive2Uv;                 // <0x435604>
+    D3DXVECTOR3 m_primitive3Position;           // <0x43560c>
+    D3DXVECTOR2 m_primitive3Uv;                 // <0x435618>
+    AnmVertexBuffers m_anmVertexBuffers;        // <0x435620>
+    AnmVmList* m_primaryGlobalNext;             // <0x7b562c>
+    AnmVmList* m_primaryGlobalPrev;             // <0x7b5630>
+    AnmVmList* m_secondaryGlobalNext;           // <0x7b5634>
+    AnmVmList* m_secondaryGlobalPrev;           // <0x7b5638>
+    AnmVm m_vmLayers[31];                       // <0x7b563c>
+    int m_id;                                   // <0x7bd888>
+    uint8_t m_scaleB;                           // <0x7bd88c>
+    uint8_t m_scaleG;                           // <0x7bd88d>
+    uint8_t m_scaleR;                           // <0x7bd88e>
+    uint8_t m_scaleA;                           // <0x7bd88f>
+    uint32_t m_rebuildColorFlag;                // <0x7bd890>
 
-    void createD3DTextures();
-    void markAnmLoadedAsReleasedInVmList(AnmLoaded* anmLoaded);
-    void releaseTextures();
-    void flushSprites();
-    void blitTextureToSurface(BlitParams* blitParams);
-    void setupRenderStateForVm(AnmVm* vm);
-    void applyRenderStateForVm(AnmVm* vm);
-    void drawPrimitiveImmediate(AnmVm* vm, void* specialRenderData, uint32_t vertexCount);
-    void drawVmSprite2D(uint32_t layer, AnmVm* anmVm);
-    void drawVm(AnmVm *vm);
-    int updateWorldMatrixAndProjectQuadCorners(AnmVm* vm);
-    int writeSprite(RenderVertex144* someVertices);
-    int drawVmWithFog(AnmVm* vm);
-    int drawVmTriangleStrip(AnmVm* vm, void* vertexBuffer, uint32_t vertexCount);
-    int drawVmTriangleFan(AnmVm* vm, void* vertex_buffer, uint32_t vertex_count);
-    AnmLoaded* preloadAnm(int anmIdx, const char* anmFileName);
-    AnmLoaded* preloadAnmFromMemory(const char* anmFilePath, int anmSlotIndex);
-    AnmVm* allocateVm();
+    static void createD3DTextures(AnmManager* This);
+    static void markAnmLoadedAsReleasedInVmList(AnmManager* This, AnmLoaded* anmLoaded);
+    static void releaseTextures(AnmManager* This);
+    static void flushSprites(AnmManager* This);
+    static void blitTextureToSurface(AnmManager* This, BlitParams* blitParams);
+    static void setupRenderStateForVm(AnmManager* This, AnmVm* vm);
+    static void applyRenderStateForVm(AnmManager* This, AnmVm* vm);
+    static void drawVmSprite2D(AnmManager* This, uint32_t layer, AnmVm* anmVm);
+    static void drawVm(AnmManager* This, AnmVm* vm);
+    static int updateWorldMatrixAndProjectQuadCorners(AnmManager* This, AnmVm* vm);
+    static int writeSprite(AnmManager* This, RenderVertex144* vertexBuffer);
+    static int drawVmWithFog(AnmManager* This, AnmVm* vm);
+    static int drawVmTriangleStrip(AnmManager* This, AnmVm* vm, RenderVertex144* vertexBuffer, uint32_t vertexCount);
+    static int drawVmTriangleFan(AnmManager* This, AnmVm* vm, RenderVertex144* vertexBuffer, uint32_t vertexCount);
+    static AnmLoaded* preloadAnm(AnmManager* This, int anmIdx, const char* anmFileName);
+    static AnmLoaded* preloadAnmFromMemory(AnmManager* This, const char* anmFilePath, int m_anmSlotIndex);
+    static AnmVm* allocateVm(AnmManager* This);
+    static AnmVm* getVmWithId(AnmManager* This, int anmId);
 private:
     static constexpr int NUM_BULK_VMS = 4096;
     static constexpr int NUM_ANM_LOADEDS = 32;

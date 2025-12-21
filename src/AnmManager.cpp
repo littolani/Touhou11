@@ -1,27 +1,25 @@
 #include "AnmManager.h"
-#include "AnmVm.h"
-#include "Chireiden.h"
 
 AnmManager* g_anmManager;
 RenderVertex144 g_renderQuad144[4];
 
 // 0x454360
-AnmLoaded* AnmManager::preloadAnm(int anmIdx, const char* anmFileName)
+AnmLoaded* AnmManager::preloadAnm(AnmManager* This, int anmIdx, const char* anmFileName)
 {
     // Return existing animation if already loaded
-    if (g_anmManager->loadedAnms[anmIdx] != nullptr)
+    if (This->m_loadedAnms[anmIdx] != nullptr)
     {
         printf("::preloadAnm already loaded: %s\n", anmFileName);
-        return g_anmManager->loadedAnms[anmIdx];
+        return This->m_loadedAnms[anmIdx];
     }
 
     // Load animation from memory
-    AnmLoaded* anmLoaded = preloadAnmFromMemory(anmFileName, anmIdx);
+    AnmLoaded* anmLoaded = preloadAnmFromMemory(This, anmFileName, anmIdx);
     if (anmLoaded == nullptr)
         return nullptr;
 
-    anmLoaded->anmsLoading = 1;
-    while (anmLoaded->anmsLoading != 0 && (g_supervisor.criticalSectionFlag & 0x180) == 0) // Wait until animation loading is complete
+    anmLoaded->m_anmsLoading = 1;
+    while (anmLoaded->m_anmsLoading != 0 && (g_supervisor.criticalSectionFlag & 0x180) == 0) // Wait until animation loading is complete
         Sleep(1);
 
     printf("::preloadAnmEnd: %s\n", anmFileName);
@@ -34,7 +32,7 @@ int openAnmLoaded(AnmLoaded* anmLoaded, AnmHeader* chunk, int chunkIndex)
     // Check if the version is 7 (specific to this ANM format)
     if (chunk->version != 7)
     {
-        printf("アニメのバージョンが違います\n");
+        printf("\n");
         return -1;
     }
 
@@ -52,12 +50,12 @@ int openAnmLoaded(AnmLoaded* anmLoaded, AnmHeader* chunk, int chunkIndex)
             uint32_t* memoryMappedFile = (uint32_t*)openFile(filePath, &outSize, 1);
             if (memoryMappedFile == nullptr)
             {
-                printf("テクスチャ %s が読み込めません。データが失われてるか壊れています\n", name);
+                printf(" %s \n", name);
                 return -1;
             }
             // Store the loaded file and size in the chunk data buffer
-            anmLoaded->anmLoadedD3D[chunkIndex].m_srcData = memoryMappedFile;
-            anmLoaded->anmLoadedD3D[chunkIndex].m_srcDataSize = outSize;
+            anmLoaded->m_anmLoadedD3D[chunkIndex].m_srcData = memoryMappedFile;
+            anmLoaded->m_anmLoadedD3D[chunkIndex].m_srcDataSize = outSize;
         }
     }
     return 1;
@@ -65,15 +63,15 @@ int openAnmLoaded(AnmLoaded* anmLoaded, AnmHeader* chunk, int chunkIndex)
 
 // 0x454190
 // Function to preload an ANM file into memory
-AnmLoaded* AnmManager::preloadAnmFromMemory(const char* anmFilePath, int anmSlotIndex)
+AnmLoaded* AnmManager::preloadAnmFromMemory(AnmManager* This, const char* anmFilePath, int m_anmSlotIndex)
 {
     // Log the preload action
     printf("::preloadAnim : %s\n", anmFilePath);
 
     // Check if the slot index is within bounds (0-31)
-    if (anmSlotIndex >= 32)
+    if (m_anmSlotIndex >= 32)
     {
-        printf("テクスチャ格納先が足りません\n");
+        printf("\n");
         return nullptr;
     }
 
@@ -85,20 +83,20 @@ AnmLoaded* AnmManager::preloadAnmFromMemory(const char* anmFilePath, int anmSlot
     AnmHeader* header = (AnmHeader*)openFile(resolvedFilePath, nullptr, 0);
     if (!header)
     {
-        printf("アニメが読み込めません。データが失われてるか壊れています\n");
+        printf("\n");
         return nullptr;
     }
 
     // Allocate and initialize the AnmLoaded structure
-    AnmLoaded* anmLoaded = (AnmLoaded*) malloc(sizeof(AnmLoaded));
+    AnmLoaded* anmLoaded = (AnmLoaded*)malloc(sizeof(AnmLoaded));
     if (anmLoaded)
         memset(anmLoaded, 0, sizeof(AnmLoaded));
-    loadedAnms[anmSlotIndex] = anmLoaded;
+    This->m_loadedAnms[m_anmSlotIndex] = anmLoaded;
 
     // Set initial fields
-    anmLoaded->anmSlotIndex = anmSlotIndex;
-    anmLoaded->header = header;
-    strcpy_s(anmLoaded->filePath, anmFilePath);
+    anmLoaded->m_anmSlotIndex = m_anmSlotIndex;
+    anmLoaded->m_header = header;
+    strcpy_s(anmLoaded->m_filePath, anmFilePath);
 
     // Parse the ANM header and count chunks, sprites, and scripts
     AnmHeader* chunk = (AnmHeader*)header;
@@ -118,12 +116,12 @@ AnmLoaded* AnmManager::preloadAnmFromMemory(const char* anmFilePath, int anmSlot
     }
 
     // Allocate buffers for chunk data, keyframes, and sprites
-    anmLoaded->numAnmLoadedD3Ds = processedCount;
-    anmLoaded->header = new AnmHeader[processedCount]();
-    anmLoaded->keyframeData = new AnmLoadedSprite[numSprites]();
-    anmLoaded->spriteData = new char[numScripts * 4]();
-    anmLoaded->numScripts = numScripts;
-    anmLoaded->numSprites = numSprites;
+    anmLoaded->m_numAnmLoadedD3Ds = processedCount;
+    anmLoaded->m_header = new AnmHeader[processedCount]();
+    anmLoaded->m_keyframeData = new AnmLoadedSprite[numSprites]();
+    anmLoaded->m_spriteData = new char[numScripts * 4]();
+    anmLoaded->m_numScripts = numScripts;
+    anmLoaded->m_numSprites = numSprites;
 
     // Process each chunk
     int chunkIndex = 0;
@@ -133,34 +131,34 @@ AnmLoaded* AnmManager::preloadAnmFromMemory(const char* anmFilePath, int anmSlot
         int result = openAnmLoaded(anmLoaded, currentChunk, chunkIndex);
         if (result < 0)
         {
-            printf("アニメが読み込めません。データが失われてるか壊れています\n");
-            free(anmLoaded->header);
-            free(anmLoaded->keyframeData);
-            free(anmLoaded->spriteData);
+            printf("\n");
+            free(anmLoaded->m_header);
+            free(anmLoaded->m_keyframeData);
+            free(anmLoaded->m_spriteData);
             free(anmLoaded);
-            loadedAnms[anmSlotIndex] = nullptr;
+            This->m_loadedAnms[m_anmSlotIndex] = nullptr;
             return nullptr;
         }
         chunkIndex++;
-        if (currentChunk->nextOffset == 0) 
+        if (currentChunk->nextOffset == 0)
             break;
         currentChunk = (AnmHeader*)((byte*)currentChunk + currentChunk->nextOffset);
     }
     return anmLoaded;
 }
 
-void AnmManager::markAnmLoadedAsReleasedInVmList(AnmLoaded* anmLoaded)
+void AnmManager::markAnmLoadedAsReleasedInVmList(AnmManager* This, AnmLoaded* anmLoaded)
 {
-    AnmVmList* temp = this->primaryGlobalNext;
+    AnmVmList* temp = This->m_primaryGlobalNext;
     while (temp)
     {
         AnmVmList* next = temp->next;
         AnmVm* entry = temp->entry;
         temp = next;
         if (entry->m_anmLoaded == anmLoaded)
-        entry->m_flagsLow |= 0x4000000;
+            entry->m_flagsLow |= 0x4000000;
     }
-    temp = this->secondaryGlobalNext;
+    temp = This->m_secondaryGlobalNext;
     while (temp)
     {
         AnmVmList* next = temp->next;
@@ -171,48 +169,48 @@ void AnmManager::markAnmLoadedAsReleasedInVmList(AnmLoaded* anmLoaded)
     }
 }
 
-AnmVm* AnmManager::allocateVm()
+AnmVm* AnmManager::allocateVm(AnmManager* This)
 {
-    int index = g_anmManager->nextBulkVmIndex;
+    int index = This->m_nextBulkVmIndex;
     AnmVm* vm;
 
-    if (g_anmManager->bulkVmsIsAlive[index] == 0)
+    if (This->m_bulkVmsIsAlive[index] == 0)
     {
-        vm = &g_anmManager->bulkVms[index];
-        g_anmManager->bulkVmsIsAlive[index] = 1;
-        g_anmManager->nextBulkVmIndex = g_anmManager->getNextBulkVmIndex(index);
+        vm = &This->m_bulkVms[index];
+        This->m_bulkVmsIsAlive[index] = 1;
+        This->m_nextBulkVmIndex = This->getNextBulkVmIndex(index);
     }
     else
     {
-        int nextIdx = getNextBulkVmIndex(index);
-        if (g_anmManager->bulkVmsIsAlive[nextIdx] == 0)
+        int nextIdx = This->getNextBulkVmIndex(index);
+        if (This->m_bulkVmsIsAlive[nextIdx] == 0)
         {
-            vm = &g_anmManager->bulkVms[nextIdx];
-            g_anmManager->bulkVmsIsAlive[nextIdx] = 1;
+            vm = &This->m_bulkVms[nextIdx];
+            This->m_bulkVmsIsAlive[nextIdx] = 1;
         }
         else
         {
             vm = new AnmVm();
             if (vm)
-                vm->initialize();
+                vm->initialize(vm);
         }
-        g_anmManager->nextBulkVmIndex = getNextBulkVmIndex(nextIdx);
+        This->m_nextBulkVmIndex = This->getNextBulkVmIndex(nextIdx);
     }
     return vm;
 }
 
 // 0x445320
-void AnmManager::releaseTextures()
+void AnmManager::releaseTextures(AnmManager* This)
 {
     for (int i = 0; i < NUM_ANM_LOADEDS; ++i)
     {
-        AnmLoaded* anmLoaded = g_anmManager->loadedAnms[i];
+        AnmLoaded* anmLoaded = This->m_loadedAnms[i];
         if (anmLoaded == nullptr)
             continue; // Skip null entries
 
-        AnmLoadedD3D* anmLoadedD3Ds = anmLoaded->anmLoadedD3D;
-        int numAnmLoadedD3Ds = anmLoaded->numAnmLoadedD3Ds;
-        for (int j = 0; j < numAnmLoadedD3Ds; ++j)
+        AnmLoadedD3D* anmLoadedD3Ds = anmLoaded->m_anmLoadedD3D;
+        int m_numAnmLoadedD3Ds = anmLoaded->m_numAnmLoadedD3Ds;
+        for (int j = 0; j < m_numAnmLoadedD3Ds; ++j)
         {
             AnmLoadedD3D* entry = &anmLoadedD3Ds[j];
             if ((entry->m_flags & 1) != 0 && entry->m_texture != nullptr)
@@ -225,9 +223,9 @@ void AnmManager::releaseTextures()
 }
 
 // 0x44fd10
-void AnmManager::flushSprites()
+void AnmManager::flushSprites(AnmManager* This)
 {
-    if ((this->m_vertexBuffers).leftoverSpriteCount == 0)
+    if ((This->m_anmVertexBuffers).leftoverSpriteCount == 0)
         return;
 
     g_supervisor.d3dDevice->SetTextureStageState(0, D3DTSS_ALPHAARG2, 0);
@@ -236,25 +234,25 @@ void AnmManager::flushSprites()
 
     g_supervisor.d3dDevice->DrawPrimitiveUP(
         D3DPT_TRIANGLELIST,
-        this->m_vertexBuffers.leftoverSpriteCount * 2,
-        this->m_vertexBuffers.spriteRenderCursor,
+        This->m_anmVertexBuffers.leftoverSpriteCount * 2,
+        This->m_anmVertexBuffers.spriteRenderCursor,
         0x1c
     );
 
-    ++this->refreshCounter;
-    this->m_vertexBuffers.spriteRenderCursor = this->m_vertexBuffers.spriteWriteCursor;
-    this->m_vertexBuffers.leftoverSpriteCount = 0;
+    ++This->m_refreshCounter;
+    This->m_anmVertexBuffers.spriteRenderCursor = This->m_anmVertexBuffers.spriteWriteCursor;
+    This->m_anmVertexBuffers.leftoverSpriteCount = 0;
 }
 
 // 0x454ec0
-void AnmManager::blitTextureToSurface(BlitParams* blitParams)
+void AnmManager::blitTextureToSurface(AnmManager* This, BlitParams* blitParams)
 {
     // Early return if the texture is null
-    if (!this->loadedAnms[blitParams->anmLoadedIndex]->anmLoadedD3D[blitParams->anmLoadedD3dIndex].m_texture)
+    if (!This->m_loadedAnms[blitParams->anmLoadedIndex]->m_anmLoadedD3D[blitParams->anmLoadedD3dIndex].m_texture)
         return;
 
     // Ensure pending sprite operations are completed
-    flushSprites();
+    flushSprites(This);
 
     // Retrieve the back buffer from the Direct3D device
     IDirect3DSurface9* backBuffer = nullptr;
@@ -268,7 +266,7 @@ void AnmManager::blitTextureToSurface(BlitParams* blitParams)
         return;
 
     // Access the texture from the AnmLoadedD3D array
-    AnmLoadedD3D* anmLoadedD3d = this->loadedAnms[blitParams->anmLoadedIndex]->anmLoadedD3D;
+    AnmLoadedD3D* anmLoadedD3d = This->m_loadedAnms[blitParams->anmLoadedIndex]->m_anmLoadedD3D;
     IDirect3DTexture9* texture = anmLoadedD3d[blitParams->anmLoadedD3dIndex].m_texture;
 
     // Get the surface from the texture (level 0)
@@ -316,20 +314,20 @@ void AnmManager::blitTextureToSurface(BlitParams* blitParams)
 }
 
 // 0x4453b0
-void AnmManager::createD3DTextures()
+void AnmManager::createD3DTextures(AnmManager* This)
 {
     for (int i = 0; i < 32; ++i)
     {
-        AnmLoaded* loadedAnm = g_anmManager->loadedAnms[i];
+        AnmLoaded* loadedAnm = This->m_loadedAnms[i];
         if (!loadedAnm)
             continue;
 
-        if (loadedAnm->numAnmLoadedD3Ds <= 0)
+        if (loadedAnm->m_numAnmLoadedD3Ds <= 0)
             continue;
 
-        for (int j = 0; j < loadedAnm->numAnmLoadedD3Ds; ++j)
+        for (int j = 0; j < loadedAnm->m_numAnmLoadedD3Ds; ++j)
         {
-            AnmLoadedD3D *anmLoadedD3D = &loadedAnm->anmLoadedD3D[j];
+            AnmLoadedD3D* anmLoadedD3D = &loadedAnm->m_anmLoadedD3D[j];
             if (anmLoadedD3D->m_flags & 1)
             {
                 anmLoadedD3D->m_flags |= 1;
@@ -343,7 +341,7 @@ void AnmManager::createD3DTextures()
                     &anmLoadedD3D->m_texture,
                     NULL
                 );
-                
+
                 anmLoadedD3D->m_bytesPerPixel = (g_supervisor.d3dPresetParameters.BackBufferFormat == D3DFMT_X8R8G8B8) * 2 + 2;
             }
         }
@@ -351,7 +349,7 @@ void AnmManager::createD3DTextures()
 }
 
 // 0x450e20
-int AnmManager::updateWorldMatrixAndProjectQuadCorners(AnmVm* vm)
+int AnmManager::updateWorldMatrixAndProjectQuadCorners(AnmManager* This, AnmVm* vm)
 {
     uint32_t flags;
     D3DXMATRIX* baseSpriteScaleMatrix;
@@ -479,8 +477,6 @@ int AnmManager::updateWorldMatrixAndProjectQuadCorners(AnmVm* vm)
     vecTopRight.z = 0.0;
 
     // Project quad corners to screen space
-    // Note: In the original source, it appears that the RenderVertex144's first member (D3DXVECTOR4) is simply cast into a D3DXVECTOR3.
-    // That technically works, but here, 4 temporary D3DXVECTORS are used to as temporary variables.
     D3DXVECTOR3 bottomLeftOut, bottomRightOut, topLeftOut, topRightOut;
     D3DXVec3Project(
         &bottomLeftOut,
@@ -518,58 +514,31 @@ int AnmManager::updateWorldMatrixAndProjectQuadCorners(AnmVm* vm)
         &worldMatrix
     );
 
-    g_renderQuad144[0].transformedPos.x = bottomLeftOut.x;
-    g_renderQuad144[0].transformedPos.y = bottomLeftOut.y;
-    g_renderQuad144[0].transformedPos.z = bottomLeftOut.z;
-    g_renderQuad144[1].transformedPos.x = bottomRightOut.x;
-    g_renderQuad144[1].transformedPos.y = bottomRightOut.y;
-    g_renderQuad144[1].transformedPos.z = bottomRightOut.z;
-    g_renderQuad144[2].transformedPos.x = topRightOut.x;
-    g_renderQuad144[2].transformedPos.y = topRightOut.y;
-    g_renderQuad144[2].transformedPos.z = topRightOut.z;
-    g_renderQuad144[3].transformedPos.x = topLeftOut.x;
-    g_renderQuad144[3].transformedPos.y = topLeftOut.y;
-    g_renderQuad144[3].transformedPos.z = topLeftOut.z;
+    g_renderQuad144[0].pos.x = bottomLeftOut.x;
+    g_renderQuad144[0].pos.y = bottomLeftOut.y;
+    g_renderQuad144[0].pos.z = bottomLeftOut.z;
+    g_renderQuad144[1].pos.x = bottomRightOut.x;
+    g_renderQuad144[1].pos.y = bottomRightOut.y;
+    g_renderQuad144[1].pos.z = bottomRightOut.z;
+    g_renderQuad144[2].pos.x = topRightOut.x;
+    g_renderQuad144[2].pos.y = topRightOut.y;
+    g_renderQuad144[2].pos.z = topRightOut.z;
+    g_renderQuad144[3].pos.x = topLeftOut.x;
+    g_renderQuad144[3].pos.y = topLeftOut.y;
+    g_renderQuad144[3].pos.z = topLeftOut.z;
 
-    memcpy(&m_currentWorldMatrix, &worldMatrix, sizeof(D3DXMATRIX));
+    memcpy(&This->m_currentWorldMatrix, &worldMatrix, sizeof(D3DXMATRIX));
     return 0;
 }
 
-void AnmManager::drawPrimitiveImmediate(AnmVm* vm, void* vertexStreamZeroData, uint32_t primitiveCount)
-{
-    if (m_vertexBuffers.leftoverSpriteCount != 0)
-        flushSprites();
-   
-    if (m_haveFlushedSprites != 3)
-    {
-        g_supervisor.d3dDevice->SetFVF(0x144);
-        m_haveFlushedSprites = 3;
-    }
-
-    setupRenderStateForVm(vm);
-
-    IDirect3DTexture9** tex = &vm->m_sprite->anmLoadedD3D->m_texture;
-    if (m_tex != tex)
-    {
-        m_tex = tex;
-        g_supervisor.d3dDevice->SetTexture(0, *tex);
-    }
-    flushSprites(); // this time with g_anmManager?
-
-    g_supervisor.d3dDevice->SetRenderState(D3DRS_ZWRITEENABLE, 0);
-    g_supervisor.d3dDevice->SetTextureStageState(0, D3DTSS_ALPHAARG2, 0);
-    g_supervisor.d3dDevice->SetTextureStageState(0, D3DTSS_COLORARG2, 0);
-    g_supervisor.d3dDevice->DrawPrimitiveUP(D3DPT_TRIANGLEFAN, primitiveCount, vertexStreamZeroData, 0x1c);
-}
-
 // 0x44f710
-void AnmManager::setupRenderStateForVm(AnmVm* vm)
+void AnmManager::setupRenderStateForVm(AnmManager* This, AnmVm* vm)
 {
     uint8_t mode = (vm->m_flagsLow >> 4) & 0x7;
-    if (renderStateMode != mode)
+    if (This->m_renderStateMode != mode)
     {
-        flushSprites();
-        renderStateMode = mode;
+        flushSprites(This);
+        This->m_renderStateMode = mode;
         D3DBLEND srcBlend = D3DBLEND_ONE;
         D3DBLEND destBlend = D3DBLEND_ONE;
 
@@ -610,34 +579,34 @@ void AnmManager::setupRenderStateForVm(AnmVm* vm)
         g_supervisor.d3dDevice->SetRenderState(D3DRS_DESTBLEND, destBlend);
     }
     bool usefilter = (vm->m_flagsLow & 0x80000000) != 0;
-    if (usePointFilter != usefilter)
+    if (This->m_usePointFilter != usefilter)
     {
-        flushSprites();
-        usePointFilter = usefilter;
-        D3DTEXTUREFILTERTYPE filterType = usePointFilter ? D3DTEXF_POINT : D3DTEXF_LINEAR;
+        flushSprites(This);
+        This->m_usePointFilter = usefilter;
+        D3DTEXTUREFILTERTYPE filterType = This->m_usePointFilter ? D3DTEXF_POINT : D3DTEXF_LINEAR;
         g_supervisor.d3dDevice->SetSamplerState(0, D3DSAMP_MAGFILTER, filterType);
         g_supervisor.d3dDevice->SetSamplerState(0, D3DSAMP_MINFILTER, filterType);
     }
-    someCounter++;
+    This->m_someCounter++;
 }
 
 // 0x44fda0
-int AnmManager::writeSprite(RenderVertex144* someVertices)
+int AnmManager::writeSprite(AnmManager* This, RenderVertex144* someVertices)
 {
-    RenderVertex144* cursor = m_vertexBuffers.spriteWriteCursor;
+    RenderVertex144* cursor = This->m_anmVertexBuffers.spriteWriteCursor;
     cursor[0] = someVertices[0];
     cursor[1] = someVertices[1];
     cursor[2] = someVertices[2];
     cursor[3] = someVertices[1];
     cursor[4] = someVertices[2];
     cursor[5] = someVertices[3];
-    m_vertexBuffers.spriteWriteCursor += 6;
-    m_vertexBuffers.leftoverSpriteCount += 1;
+    This->m_anmVertexBuffers.spriteWriteCursor += 6;
+    This->m_anmVertexBuffers.leftoverSpriteCount += 1;
     return 0;
 }
 
 // 0x44f880
-void AnmManager::drawVmSprite2D(uint32_t layer, AnmVm* anmVm)
+void AnmManager::drawVmSprite2D(AnmManager* This, uint32_t layer, AnmVm* anmVm)
 {
     // Store original layer for later use
     uint32_t originalLayer = layer;
@@ -645,60 +614,60 @@ void AnmManager::drawVmSprite2D(uint32_t layer, AnmVm* anmVm)
     // Apply offsets to all quad positions
     for (int i = 0; i < 4; ++i)
     {
-        g_renderQuad144[i].transformedPos.x += static_cast<float>(globalRenderQuadOffsetX);
-        g_renderQuad144[i].transformedPos.y += static_cast<float>(globalRenderQuadOffsetY);
+        g_renderQuad144[i].pos.x += static_cast<float>(This->m_globalRenderQuadOffsetX);
+        g_renderQuad144[i].pos.y += static_cast<float>(This->m_globalRenderQuadOffsetY);
     }
 
     // Pixel alignment if layer is odd
     if (layer & 1)
     {
         // Round and offset x coordinates for bottom-left and bottom-right
-        g_renderQuad144[0].transformedPos.x = static_cast<float>(g_renderQuad144[0].transformedPos.x) - 0.5f;
-        g_renderQuad144[1].transformedPos.x = static_cast<float>(g_renderQuad144[1].transformedPos.x) - 0.5f;
+        g_renderQuad144[0].pos.x = static_cast<float>(g_renderQuad144[0].pos.x) - 0.5f;
+        g_renderQuad144[1].pos.x = static_cast<float>(g_renderQuad144[1].pos.x) - 0.5f;
         // Round and offset y coordinates for bottom-left and top-left
-        g_renderQuad144[0].transformedPos.y = static_cast<float>(g_renderQuad144[0].transformedPos.y) - 0.5f;
-        g_renderQuad144[2].transformedPos.y = static_cast<float>(g_renderQuad144[2].transformedPos.y) - 0.5f;
+        g_renderQuad144[0].pos.y = static_cast<float>(g_renderQuad144[0].pos.y) - 0.5f;
+        g_renderQuad144[2].pos.y = static_cast<float>(g_renderQuad144[2].pos.y) - 0.5f;
         // Copy adjusted y to bottom-right and top-right
-        g_renderQuad144[1].transformedPos.y = g_renderQuad144[0].transformedPos.y;
-        g_renderQuad144[3].transformedPos.y = g_renderQuad144[2].transformedPos.y;
+        g_renderQuad144[1].pos.y = g_renderQuad144[0].pos.y;
+        g_renderQuad144[3].pos.y = g_renderQuad144[2].pos.y;
         // Copy adjusted x to top-left and top-right
-        g_renderQuad144[2].transformedPos.x = g_renderQuad144[0].transformedPos.x;
-        g_renderQuad144[3].transformedPos.x = g_renderQuad144[1].transformedPos.x;
+        g_renderQuad144[2].pos.x = g_renderQuad144[0].pos.x;
+        g_renderQuad144[3].pos.x = g_renderQuad144[1].pos.x;
     }
 
     // Apply UVs with scroll offset
     for (int i = 0; i < 4; ++i)
     {
-        g_renderQuad144[i].textureUv.x = anmVm->m_spriteUvQuad[i].x + anmVm->m_uvScrollPos.x;
-        g_renderQuad144[i].textureUv.y = anmVm->m_spriteUvQuad[i].y + anmVm->m_uvScrollPos.y;
+        g_renderQuad144[i].uv.x = anmVm->m_spriteUvQuad[i].x + anmVm->m_uvScrollPos.x;
+        g_renderQuad144[i].uv.y = anmVm->m_spriteUvQuad[i].y + anmVm->m_uvScrollPos.y;
     }
 
     // Compute bounding box max x
-    float maxX = g_renderQuad144[0].transformedPos.x;
-    maxX = std::max(maxX, g_renderQuad144[1].transformedPos.x);
-    maxX = std::max(maxX, g_renderQuad144[2].transformedPos.x);
-    maxX = std::max(maxX, g_renderQuad144[3].transformedPos.x);
+    float maxX = g_renderQuad144[0].pos.x;
+    maxX = std::max(maxX, g_renderQuad144[1].pos.x);
+    maxX = std::max(maxX, g_renderQuad144[2].pos.x);
+    maxX = std::max(maxX, g_renderQuad144[3].pos.x);
 
     // Compute bounding box max y
-    float maxY = g_renderQuad144[0].transformedPos.y;
-    maxY = std::max(maxY, g_renderQuad144[1].transformedPos.y);
-    maxY = std::max(maxY, g_renderQuad144[2].transformedPos.y);
-    maxY = std::max(maxY, g_renderQuad144[3].transformedPos.y);
+    float maxY = g_renderQuad144[0].pos.y;
+    maxY = std::max(maxY, g_renderQuad144[1].pos.y);
+    maxY = std::max(maxY, g_renderQuad144[2].pos.y);
+    maxY = std::max(maxY, g_renderQuad144[3].pos.y);
 
     // Compute bounding box min x
-    float minX = g_renderQuad144[0].transformedPos.x;
-    minX = std::min(minX, g_renderQuad144[1].transformedPos.x);
-    minX = std::min(minX, g_renderQuad144[2].transformedPos.x);
-    minX = std::min(minX, g_renderQuad144[3].transformedPos.x);
+    float minX = g_renderQuad144[0].pos.x;
+    minX = std::min(minX, g_renderQuad144[1].pos.x);
+    minX = std::min(minX, g_renderQuad144[2].pos.x);
+    minX = std::min(minX, g_renderQuad144[3].pos.x);
 
     // Compute bounding box min y
-    float minY = g_renderQuad144[0].transformedPos.y;
-    minY = std::min(minY, g_renderQuad144[1].transformedPos.y);
-    minY = std::min(minY, g_renderQuad144[2].transformedPos.y);
-    minY = std::min(minY, g_renderQuad144[3].transformedPos.y);
+    float minY = g_renderQuad144[0].pos.y;
+    minY = std::min(minY, g_renderQuad144[1].pos.y);
+    minY = std::min(minY, g_renderQuad144[2].pos.y);
+    minY = std::min(minY, g_renderQuad144[3].pos.y);
 
     // Get viewport dimensions
-    const auto& viewport = g_supervisor.currentCam->viewport;
+    const D3DVIEWPORT9& viewport = g_supervisor.currentCam->viewport;
     float viewportLeft = static_cast<float>(viewport.X);
     float viewportTop = static_cast<float>(viewport.Y);
     float viewportRight = viewportLeft + static_cast<float>(viewport.Width);
@@ -710,25 +679,25 @@ void AnmManager::drawVmSprite2D(uint32_t layer, AnmVm* anmVm)
 
     // Handle texture change
     IDirect3DTexture9** newTex = &anmVm->m_sprite->anmLoadedD3D->m_texture;
-    if (m_tex != newTex)
+    if (This->m_tex != newTex)
     {
-        m_tex = newTex;
-        flushSprites();
-        g_supervisor.d3dDevice->SetTexture(0, *m_tex);
+        This->m_tex = newTex;
+        flushSprites(This);
+        g_supervisor.d3dDevice->SetTexture(0, *This->m_tex);
     }
 
     // Flush if needed
-    if (m_haveFlushedSprites != 1)
+    if (This->m_haveFlushedSprites != 1)
     {
-        flushSprites();
-        m_haveFlushedSprites = 1;
+        flushSprites(This);
+        This->m_haveFlushedSprites = 1;
     }
 
     // Set colors
-    D3DCOLOR c0 = g_renderQuad144[0].diffuseColor;
-    D3DCOLOR c1 = g_renderQuad144[1].diffuseColor;
-    D3DCOLOR c2 = g_renderQuad144[2].diffuseColor;
-    D3DCOLOR c3 = g_renderQuad144[3].diffuseColor;
+    D3DCOLOR c0 = g_renderQuad144[0].diffuse;
+    D3DCOLOR c1 = g_renderQuad144[1].diffuse;
+    D3DCOLOR c2 = g_renderQuad144[2].diffuse;
+    D3DCOLOR c3 = g_renderQuad144[3].diffuse;
 
     if ((originalLayer & 2) == 0)
     {
@@ -737,7 +706,7 @@ void AnmManager::drawVmSprite2D(uint32_t layer, AnmVm* anmVm)
         c2 = c0;
         c3 = c0;
 
-        if (m_rebuildColorFlag != 0)
+        if (This->m_rebuildColorFlag != 0)
         {
             // Extract channels (assuming ARGB format?)
             //FIXME: Confirm this??
@@ -747,10 +716,10 @@ void AnmManager::drawVmSprite2D(uint32_t layer, AnmVm* anmVm)
             uint8_t b = c0 & 0xFF;
 
             // Clamp each channel
-            r = modulateColorComponent(r, scaleR);
-            g = modulateColorComponent(g, scaleG);
-            b = modulateColorComponent(b, scaleB);
-            a = modulateColorComponent(a, scaleA);
+            r = modulateColorComponent(r, This->m_scaleR);
+            g = modulateColorComponent(g, This->m_scaleG);
+            b = modulateColorComponent(b, This->m_scaleB);
+            a = modulateColorComponent(a, This->m_scaleA);
 
             // Rebuild color
             c0 = (a << 24) | (r << 16) | (g << 8) | b;
@@ -761,13 +730,13 @@ void AnmManager::drawVmSprite2D(uint32_t layer, AnmVm* anmVm)
     }
 
     // Assign colors back to vertices
-    g_renderQuad144[0].diffuseColor = c0;
-    g_renderQuad144[1].diffuseColor = c1;
-    g_renderQuad144[2].diffuseColor = c2;
-    g_renderQuad144[3].diffuseColor = c3;
+    g_renderQuad144[0].diffuse = c0;
+    g_renderQuad144[1].diffuse = c1;
+    g_renderQuad144[2].diffuse = c2;
+    g_renderQuad144[3].diffuse = c3;
 
-    setupRenderStateForVm(anmVm);
-    writeSprite(g_renderQuad144);
+    setupRenderStateForVm(This, anmVm);
+    writeSprite(This, g_renderQuad144);
 }
 
 // 0x44f490
@@ -780,9 +749,9 @@ uint32_t AnmManager::modulateColorComponent(uint16_t base, uint16_t factor)
 }
 
 // 0x450b00
-int AnmManager::drawVmWithFog(AnmVm* vm)
+int AnmManager::drawVmWithFog(AnmManager* This, AnmVm* vm)
 {
-    if (vm->projectQuadCornersThroughCameraViewport() != 0)
+    if (vm->projectQuadCornersThroughCameraViewport(vm) != 0)
         return -1;
 
     float fogStart = g_supervisor.currentCam->f0;
@@ -797,22 +766,22 @@ int AnmManager::drawVmWithFog(AnmVm* vm)
 
     float dist = sqrtf(x * x + y * y + z * z);
 
-    if (m_rebuildColorFlag != 0) {
+    if (This->m_rebuildColorFlag != 0) {
         uint8_t r = (color >> 16) & 0xFF;
         uint8_t g = (color >> 8) & 0xFF;
         uint8_t b = color & 0xFF;
         uint8_t a = (color >> 24) & 0xFF;
 
-        r = std::min(static_cast<uint32_t>(scaleR * r) >> 7, 255u);
-        g = std::min(static_cast<uint32_t>(scaleG * g) >> 7, 255u);
-        b = std::min(static_cast<uint32_t>(scaleB * b) >> 7, 255u);
-        a = std::min(static_cast<uint32_t>(scaleA * a) >> 7, 255u);
+        r = std::min(static_cast<uint32_t>(This->m_scaleR * r) >> 7, 255u);
+        g = std::min(static_cast<uint32_t>(This->m_scaleG * g) >> 7, 255u);
+        b = std::min(static_cast<uint32_t>(This->m_scaleB * b) >> 7, 255u);
+        a = std::min(static_cast<uint32_t>(This->m_scaleA * a) >> 7, 255u);
 
         color = (a << 24) | (r << 16) | (g << 8) | b;
     }
 
     if (dist <= cullDistance)
-        g_renderQuad144[0].diffuseColor = color;
+        g_renderQuad144[0].diffuse = color;
     else
     {
         float denominator = fogStart - fogEnd;
@@ -827,7 +796,7 @@ int AnmManager::drawVmWithFog(AnmVm* vm)
 
         uint8_t a = (color >> 24) & 0xFF;
         uint8_t r = (color >> 16) & 0xFF;
-        uint8_t g = (color >> 8)  & 0xFF;
+        uint8_t g = (color >> 8) & 0xFF;
         uint8_t b = color & 0xFF;
 
 
@@ -841,27 +810,27 @@ int AnmManager::drawVmWithFog(AnmVm* vm)
 
         a = static_cast<uint8_t>(static_cast<float>(a) * (1.0f - factor));
         color = (a << 24) | (r << 16) | (g << 8) | b;
-        g_renderQuad144[0].diffuseColor = color;
+        g_renderQuad144[0].diffuse = color;
     }
 
-    g_renderQuad144[1].diffuseColor = g_renderQuad144[0].diffuseColor;
-    g_renderQuad144[2].diffuseColor = g_renderQuad144[0].diffuseColor;
-    g_renderQuad144[3].diffuseColor = g_renderQuad144[0].diffuseColor;
+    g_renderQuad144[1].diffuse = g_renderQuad144[0].diffuse;
+    g_renderQuad144[2].diffuse = g_renderQuad144[0].diffuse;
+    g_renderQuad144[3].diffuse = g_renderQuad144[0].diffuse;
 
-    drawVmSprite2D(2, vm);
+    drawVmSprite2D(This, 2, vm);
     return 0;
 }
 
 // 0x44f4b0
-void AnmManager::applyRenderStateForVm(AnmVm* vm)
+void AnmManager::applyRenderStateForVm(AnmManager* This, AnmVm* vm)
 {
     IDirect3DDevice9* device = g_supervisor.d3dDevice;
 
     uint8_t blendMode = (vm->m_flagsLow >> 4) & 0x7;
-    if (blendMode != renderStateMode)
+    if (blendMode != This->m_renderStateMode)
     {
-        flushSprites();
-        renderStateMode = blendMode;
+        flushSprites(This);
+        This->m_renderStateMode = blendMode;
 
         D3DBLEND srcBlend, destBlend;
         switch (blendMode)
@@ -903,68 +872,68 @@ void AnmManager::applyRenderStateForVm(AnmVm* vm)
 
     D3DCOLOR color = (vm->m_flagsLow & 0x8000) ? vm->m_color1 : vm->m_color0;
 
-    if (m_rebuildColorFlag)
+    if (This->m_rebuildColorFlag)
     {
-        uint32_t r = ((color >> 16) & 0xFF) * scaleR >> 7;
+        uint32_t r = ((color >> 16) & 0xFF) * This->m_scaleR >> 7;
         r = (r > 255) ? 255 : r;
 
-        uint32_t g = ((color >> 8) & 0xFF) * scaleG >> 7;
+        uint32_t g = ((color >> 8) & 0xFF) * This->m_scaleG >> 7;
         g = (g > 255) ? 255 : g;
 
-        uint32_t b = (color & 0xff) * scaleB >> 7;
+        uint32_t b = (color & 0xff) * This->m_scaleB >> 7;
         b = (b > 255) ? 255 : b;
 
-        uint32_t a = (color >> 24) * scaleA >> 7;
+        uint32_t a = (color >> 24) * This->m_scaleA >> 7;
         a = (a > 255) ? 255 : a;
 
         color = (a << 24) | (r << 16) | (g << 8) | b;
     }
 
-    if (color != this->m_color)
+    if (color != This->m_color)
     {
-        flushSprites();
-        this->m_color = color;
+        flushSprites(This);
+        This->m_color = color;
         device->SetRenderState(D3DRS_TEXTUREFACTOR, color);
     }
 
     bool usePointFilterNew = (vm->m_flagsLow & 0x80000000) != 0;
-    if (usePointFilterNew != usePointFilter)
+    if (usePointFilterNew != This->m_usePointFilter)
     {
-        flushSprites();
-        usePointFilter = usePointFilterNew;
+        flushSprites(This);
+        This->m_usePointFilter = usePointFilterNew;
 
         DWORD filter = usePointFilterNew ? D3DTEXF_POINT : D3DTEXF_LINEAR;
         device->SetSamplerState(0, D3DSAMP_MAGFILTER, filter);
         device->SetSamplerState(0, D3DSAMP_MINFILTER, filter);
     }
-    someCounter++;
+    This->m_someCounter++;
 }
 
-int AnmManager::drawVmTriangleStrip(AnmVm* vm, void* vertexBuffer, uint32_t vertexCount)
+int AnmManager::drawVmTriangleStrip(AnmManager* This, AnmVm* vm, RenderVertex144* vertexBuffer, uint32_t vertexCount)
 {
     uint8_t alpha = (vm->m_color0 >> 24) & 0xff;
     if ((vm->m_flagsLow & 0x3) != 0x3 || alpha == 0)
         return -1;
 
-    if (m_vertexBuffers.leftoverSpriteCount != 0)
-        flushSprites();
+    if (This->m_anmVertexBuffers.leftoverSpriteCount != 0)
+        flushSprites(This);
 
     IDirect3DTexture9** tex = &vm->m_sprite->anmLoadedD3D->m_texture;
-    if (m_tex != tex)
+    if (This->m_tex != tex)
     {
-        m_tex = tex;
+        This->m_tex = tex;
         g_supervisor.d3dDevice->SetTexture(0, *tex);
     }
 
-    if (m_haveFlushedSprites != 3)
+    if (This->m_haveFlushedSprites != 3)
     {
         g_supervisor.d3dDevice->SetFVF(0x144);
-        m_haveFlushedSprites = 3;
+        This->m_haveFlushedSprites = 3;
     }
-    setupRenderStateForVm(vm);
+    setupRenderStateForVm(This, vm);
 
     g_supervisor.d3dDevice->SetTextureStageState(0, D3DTSS_ALPHAARG2, 0);
-    g_supervisor.d3dDevice->SetTextureStageState(0, D3DTSS_COLORARG2,0);
+    g_supervisor.d3dDevice->SetTextureStageState(0, D3DTSS_COLORARG2, 0);
     g_supervisor.d3dDevice->DrawPrimitiveUP(
         D3DPT_TRIANGLESTRIP,
         vertexCount - 2,
@@ -974,47 +943,71 @@ int AnmManager::drawVmTriangleStrip(AnmVm* vm, void* vertexBuffer, uint32_t vert
     return 0;
 }
 
-int AnmManager::drawVmTriangleFan(AnmVm* vm, void* vertexBuffer, uint32_t vertexCount)
+// 0x451e10
+int AnmManager::drawVmTriangleFan(AnmManager* This, AnmVm* vm, RenderVertex144* vertexBuffer, uint32_t vertexCount)
 {
-    IDirect3DDevice9 *device;
-    
-    if (m_vertexBuffers.leftoverSpriteCount != 0)
-        flushSprites();
+    if (This->m_anmVertexBuffers.leftoverSpriteCount != 0)
+        flushSprites(This);
 
-    if (m_haveFlushedSprites != 3)
+    if (This->m_haveFlushedSprites != 3)
     {
         g_supervisor.d3dDevice->SetFVF(0x144);
-        m_haveFlushedSprites = 3;
+        This->m_haveFlushedSprites = 3;
     }
-    setupRenderStateForVm(vm);
+    setupRenderStateForVm(This, vm);
 
     IDirect3DTexture9** tex = &vm->m_sprite->anmLoadedD3D->m_texture;
-    if (m_tex != tex)
+    if (This->m_tex != tex)
     {
-        m_tex = tex;
+        This->m_tex = tex;
         g_supervisor.d3dDevice->SetTexture(0, *tex);
     }
 
-    flushSprites();
+    flushSprites(This);
     g_supervisor.d3dDevice->SetRenderState(D3DRS_ZWRITEENABLE, 0);
-    g_supervisor.d3dDevice->SetTextureStageState(0, D3DTSS_ALPHAARG2,0);
-    g_supervisor.d3dDevice->SetTextureStageState(0, D3DTSS_COLORARG2,0);
+    g_supervisor.d3dDevice->SetTextureStageState(0, D3DTSS_ALPHAARG2, 0);
+    g_supervisor.d3dDevice->SetTextureStageState(0, D3DTSS_COLORARG2, 0);
     g_supervisor.d3dDevice->DrawPrimitiveUP(
         D3DPT_TRIANGLEFAN,
-        vertexCount - 2, 
+        vertexCount - 2,
         vertexBuffer,
         0x1c
     );
     return 0;
 }
 
-void AnmManager::drawVm(AnmVm *vm)
+// 0x4561e0
+AnmVm* AnmManager::getVmWithId(AnmManager* This, int anmId)
+{
+    if (anmId == 0)
+        return nullptr;
+
+    AnmVmList* primaryVmList = This->m_primaryGlobalNext;
+    while (primaryVmList)
+    {
+        if (primaryVmList->entry->m_id.id == anmId)
+            return primaryVmList->entry;
+        primaryVmList = primaryVmList->next;
+    }
+
+    AnmVmList* secondaryVmList = This->m_secondaryGlobalNext;
+    while (secondaryVmList)
+    {
+        if (secondaryVmList->entry->m_id.id == anmId)
+            return secondaryVmList->entry;
+        secondaryVmList = secondaryVmList->next;
+    }
+    return nullptr;
+}
+
+// 0x451ef0
+void AnmManager::drawVm(AnmManager* This, AnmVm* vm)
 {
     uint8_t alpha = (vm->m_color0 >> 24) & 0xff;
     if ((vm->m_flagsLow & 0x3) != 0x3 || alpha == 0)
         return;
 
-    switch(vm->m_flagsLow >> 0x16 & 0xf) 
+    switch (vm->m_flagsLow >> 0x16 & 0xf)
     {
     case 0:
         //writeSpriteCharacterWithoutRotAndDrawVmSprite2D(vm);
@@ -1035,7 +1028,7 @@ void AnmManager::drawVm(AnmVm *vm)
         //updateWorldMatrixAndProjectBoundingBoxAndDrawVmSprite2DAndSetFloats(This,vm);
         break;
     case 6:
-        drawVmWithFog(vm);
+        drawVmWithFog(This, vm);
         break;
     case 7:
         // transformAndDraw(vm);
@@ -1046,10 +1039,10 @@ void AnmManager::drawVm(AnmVm *vm)
     case 9:
     case 0xc:
     case 0xd:
-        drawVmTriangleStrip(vm, vm->m_specialRenderData,vm->m_intVars[0] * 2);
+        //drawVmTriangleStrip(This, vm, vm->m_specialRenderData, vm->m_intVars[0] * 2);
         break;
     case 0xb:
-        drawVmTriangleFan(vm, vm->m_specialRenderData,vm->m_intVars[0] * 2);
+        //drawVmTriangleFan(This, vm, vm->m_specialRenderData, vm->m_intVars[0] * 2);
         break;
     default:
         break;
@@ -1063,10 +1056,10 @@ void blitTextures()
 {
     for (int i = 0; i < 4; ++i)
     {
-        BlitParams* blitParams = &g_anmManager->blitParamsArray[i];
+        BlitParams* blitParams = &g_anmManager->m_blitParamsArray[i];
         if (blitParams->anmLoadedIndex >= 0)
         {
-            g_anmManager->blitTextureToSurface(blitParams);
+            AnmManager::blitTextureToSurface(g_anmManager, blitParams);
             blitParams->anmLoadedIndex = -1;
         }
     }
