@@ -1,7 +1,6 @@
 #include "Chain.h"
+#include "Globals.h"
 #include "Supervisor.h"
-
-Chain* g_chain;
 
 Chain::Chain()
 {
