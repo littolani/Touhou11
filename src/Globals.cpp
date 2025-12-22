@@ -1,4 +1,8 @@
 ﻿#include "Globals.h"
+#include "AnmManager.h"
+#include "Supervisor.h"
+#include "AsciiManager.h"
+#include "Chain.h"
 
 HANDLE g_app;
 HWND g_window;
@@ -9,8 +13,12 @@ DWORD g_mouseSpeed{};
 DWORD g_screenWorkingArea{};
 LARGE_INTEGER g_performanceFrequency{};
 LARGE_INTEGER g_performanceCount{};
-PbgArchive g_pbgArchive{};
+D3DFORMAT g_d3dFormats[] = { D3DFMT_UNKNOWN, D3DFMT_A8R8G8B8, D3DFMT_A1R5G5B5, D3DFMT_R5G6B5, D3DFMT_R8G8B8, D3DFMT_A4R4G4B4 };
+uint32_t g_bytesPerPixelLookupTable[] = { 4, 4, 2, 2, 3, 2, 0, 1, 2 };
 double g_time = 0.0;
+float g_gameSpeed = 1.0;
+RngContext g_anmRngContext;
+RngContext g_replayRngContext;
 
 double getDeltaTime()
 {
@@ -74,7 +82,7 @@ byte* openFile(const char* filename, size_t* outSize, BOOL isExternalResource)
         int i = g_pbgArchive.m_numEntries;
         while (i)
         {
-            if (stricmp(filename, entries->filename) == 0)
+            if (_stricmp(filename, entries->filename) == 0)
             {
                 foundArchive = true;
                 break;
@@ -103,7 +111,7 @@ byte* openFile(const char* filename, size_t* outSize, BOOL isExternalResource)
             *outSize = decompressedSize;
 
         // Decrypt entry
-        printf("%s Decode ...\n", filename);
+        printf("Decoding %s\n", filename);
         outBuffer = new byte[decompressedSize];
         if (!outBuffer)
         {
@@ -111,7 +119,7 @@ byte* openFile(const char* filename, size_t* outSize, BOOL isExternalResource)
             g_supervisor.leaveCriticalSection(2);
             return nullptr;
         }
-        g_pbgArchive.loadWithDecryptionKeyset(outBuffer, filename);
+        g_pbgArchive.readDecompressEntry(filename, outBuffer);
         g_supervisor.leaveCriticalSection(2);
         return outBuffer;
     }
@@ -132,7 +140,7 @@ byte* openFile(const char* filename, size_t* outSize, BOOL isExternalResource)
 
         if (file == INVALID_HANDLE_VALUE)
         {
-            printf("error : %s is not found.\n", filename);
+            printf("Error: %s was not found.\n", filename);
             g_supervisor.leaveCriticalSection(2);
             return nullptr;
         }
@@ -142,7 +150,7 @@ byte* openFile(const char* filename, size_t* outSize, BOOL isExternalResource)
 
         if (!outBuffer)
         {
-            printf("error: %s allocation error.\n", filename);
+            printf("Error: %s allocation error.\n", filename);
             CloseHandle(file);
             g_supervisor.leaveCriticalSection(2);
             return nullptr;
@@ -223,32 +231,6 @@ int writeToFile(LPCSTR fileName, DWORD numBytes, LPVOID bytes)
     printf("%s write ...\n",fileName);
     g_supervisor.leaveCriticalSection(2);
     return 0;
-}
-
-// 0x4420e0
-PbgArchive* findMatchingArchive(const char* filename)
-{
-    char filenameBuffer[260];
-    // Copy the input filename to buffer safely
-    strcpy_s(filenameBuffer, sizeof(filenameBuffer), filename);
-    
-    // Find last directory separator
-    const char* lastSlashPtr = strrchr(filename, '/');
-    if (lastSlashPtr)
-    {
-        // Calculate position after last '/'
-        size_t slashPos = lastSlashPtr - filename;
-        strcpy_s(filenameBuffer + slashPos, sizeof(filenameBuffer) - slashPos, ".dat");
-    }
-    
-    // Search for matching archive
-    for (int i = 0; i < g_numEntriesInDatFile; i++)
-    {
-        if (strcmp(g_pbgArchives[i].m_filename, filenameBuffer) == 0)
-            return &g_pbgArchives[i];
-    }
-
-    return nullptr;
 }
 
 // 0x460885
