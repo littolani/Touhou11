@@ -14,12 +14,14 @@ struct Camera
     D3DXMATRIX viewMatrix;
     D3DXMATRIX projectionMatrix;
     D3DVIEWPORT9 viewport;
-    uint32_t mystery[6];
-    float f0;
-    float f1;
+    uint32_t idk[3];
+    D3DXVECTOR3 interpAmt;
+    float fogEnd;
+    float fogStart;
     float fogB;
     float fogG;
     float fogR;
-    uint32_t mystery2[2];
+    DWORD renderStateValue0;
+    DWORD renderStateValue1;
 };
 ASSERT_SIZE(Camera, 0x118);
