@@ -1,5 +1,6 @@
 #pragma once
 #include "Chireiden.h"
+#include "Supervisor.h"
 #include "Globals.h"
 
 struct AnmHeader
@@ -51,7 +52,7 @@ struct AnmLoadedSprite
     D3DXVECTOR2 uvEnd;
     float spriteHeight;
     float spriteWidth;
-    D3DXVECTOR2 maybeScale;
+    D3DXVECTOR2 bitmapScale;
     uint32_t m_idk;
 };
 ASSERT_SIZE(AnmLoadedSprite, 0x48);
@@ -65,14 +66,13 @@ struct AnmLoaded
     int m_numScripts;
     int m_numSprites;
     AnmLoadedSprite* m_keyframeData;
-    void* m_spriteData;
+    uint32_t* m_spriteData;
     AnmLoadedD3D* m_anmLoadedD3D;
     int m_anmsLoading;
     int m_unknown;
     int m_texturesCreated;
     void* m_unknownHeapAllocated;
 
-    static void release(AnmLoaded* This);
     static void setupTextures(AnmLoaded* This);
     static int createTextureForEntry(AnmLoaded* This, int i, int numSprites, int numScripts, AnmHeader* anmHeader);
 };
@@ -82,8 +82,3 @@ struct SpriteData
 {
     float x, y, w, h;
 };
-
-/* Globals */
-
-extern const D3DFORMAT g_d3dFormats[];
-extern const uint32_t g_bytesPerPixelLookupTable[];

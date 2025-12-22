@@ -1,23 +1,21 @@
 #include "AnmLoaded.h"
-
-const D3DFORMAT g_d3dFormats[] = { D3DFMT_UNKNOWN, D3DFMT_A8R8G8B8, D3DFMT_A1R5G5B5, D3DFMT_R5G6B5, D3DFMT_R8G8B8, D3DFMT_A4R4G4B4 };
-const uint32_t g_bytesPerPixelLookupTable[] = { 4, 4, 2, 2, 3, 2, 0, 1, 2 };
+#include "Globals.h"
 
 // 0x4540f0
 int AnmLoadedD3D::createTextureFromAtR(AnmLoadedD3D* This)
 {
     This->m_flags |= 1;
     g_supervisor.d3dDevice->CreateTexture(
-        g_supervisor.d3dPresetParameters.BackBufferWidth,
-        g_supervisor.d3dPresetParameters.BackBufferHeight,
+        g_supervisor.m_d3dPresetParameters.BackBufferWidth,
+        g_supervisor.m_d3dPresetParameters.BackBufferHeight,
         1,
         1,
-        g_supervisor.d3dPresetParameters.BackBufferFormat,
+        g_supervisor.m_d3dPresetParameters.BackBufferFormat,
         D3DPOOL_DEFAULT,
         &This->m_texture,
         NULL
     );
-    This->m_bytesPerPixel = g_supervisor.d3dPresetParameters.BackBufferFormat == D3DFMT_X8R8G8B8 * 2 + 2;
+    This->m_bytesPerPixel = g_supervisor.m_d3dPresetParameters.BackBufferFormat == D3DFMT_X8R8G8B8 * 2 + 2;
     return 0;
 }
 
@@ -39,74 +37,18 @@ int AnmLoadedD3D::createTextureFromAt(AnmLoadedD3D* This, uint32_t width, uint32
     return width * height * g_bytesPerPixelLookupTable[i];
 }
 
-// 0x4549e0
-void AnmLoaded::release(AnmLoaded* This)
-{
-    if (!This->m_header)
-        return;
-    //g_anmManager->markAnmLoadedAsReleasedInVmList(This);
-
-    if (This->m_numAnmLoadedD3Ds > 0)
-    {
-        for (int i = 0; i < This->m_numAnmLoadedD3Ds; ++i)
-        {
-            AnmLoadedD3D* entry = &This->m_anmLoadedD3D[i];
-            if (entry->m_texture)
-            {
-                entry->m_texture->Release();
-                entry->m_texture = nullptr;
-            }
-            if (entry->m_srcData)
-            {
-                free(entry->m_srcData);
-                entry->m_srcData = nullptr;
-            }
-        }
-    }
-
-    if (This->m_anmLoadedD3D)
-    {
-        free(This->m_anmLoadedD3D);
-        This->m_anmLoadedD3D = nullptr;
-    }
-
-    if (This->m_keyframeData)
-    {
-        free(This->m_keyframeData);
-        This->m_keyframeData = nullptr;
-    }
-
-    if (This->m_spriteData)
-    {
-        free(This->m_spriteData);
-        This->m_spriteData = nullptr;
-    }
-
-    if (This->m_unknownHeapAllocated)
-    {
-        free(This->m_unknownHeapAllocated);
-        This->m_unknownHeapAllocated = nullptr;
-    }
-
-    if (This->m_header)
-    {
-        free(This->m_header);
-        This->m_header = nullptr;
-    }
-}
-
 // 0x4545a0
 int AnmLoaded::createTextureForEntry(AnmLoaded* This, int i, int globalSpriteOffset, int globalScriptOffset, AnmHeader* anmHeader)
 {
     if (anmHeader == nullptr)
     {
-        printf("\n");
+        printf("Anm header is null!\n");
         return -1;
     }
 
     if (anmHeader->version != 7)
     {
-        printf("\n");
+        printf("Anm version is incorrect!\n");
         return -1;
     }
 
@@ -207,8 +149,8 @@ int AnmLoaded::createTextureForEntry(AnmLoaded* This, int i, int globalSpriteOff
         sprite->uvEnd.y = uvEndY;
         sprite->spriteWidth = rawWidth;
         sprite->spriteHeight = rawHeight;
-        sprite->maybeScale.x = 1.0f;
-        sprite->maybeScale.y = 1.0f;
+        sprite->bitmapScale.x = 1.0f;
+        sprite->bitmapScale.y = 1.0f;
         sprite->m_idk = 0;
     }
 
