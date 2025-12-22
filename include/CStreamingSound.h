@@ -5,5 +5,5 @@
 
 class CStreamingSound : public CSound
 {
-
+    
 };
