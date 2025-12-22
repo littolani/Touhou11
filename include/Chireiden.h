@@ -31,4 +31,3 @@
 
 // Utilities
 #include "Macros.h"
-#include "TrampolineFactory.h"
