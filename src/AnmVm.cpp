@@ -1,10 +1,6 @@
 #include "AnmVm.h"
-
-/* Global Variables */
-RngContext g_anmRngContext;
-RngContext g_replayRngContext;
-RenderVertex144 g_renderQuad[4];
-float g_gameSpeed = 1.0;
+#include "Globals.h"
+#include "AnmLoaded.h"
 
 // 0x402270
 AnmVm::AnmVm()
@@ -77,15 +73,15 @@ int AnmVm::setupTextureQuadAndMatrices(AnmVm* This, uint32_t spriteNumber, AnmLo
     This->m_spriteSize.y = sprite->spriteHeight;
 
     D3DXMatrixIdentity(&This->m_baseScaleMatrix);
-    D3DXMatrixIdentity(&This->m_matrix37c);
+    D3DXMatrixIdentity(&This->m_textureMatrix);
 
     This->m_baseScaleMatrix._11 = This->m_spriteSize.x * (1.f / 256.f);
     This->m_baseScaleMatrix._22 = This->m_spriteSize.y * (1.f / 256.f);
 
     This->m_localTransformMatrix = This->m_baseScaleMatrix;
 
-    This->m_matrix37c._11 = (This->m_spriteSize.x / sprite->bitmapWidth) * sprite->maybeScale.x;
-    This->m_matrix37c._22 = (This->m_spriteSize.y / sprite->bitmapHeight) * sprite->maybeScale.y;
+    This->m_textureMatrix._11 = (This->m_spriteSize.x / sprite->bitmapWidth) * sprite->bitmapScale.x;
+    This->m_textureMatrix._22 = (This->m_spriteSize.y / sprite->bitmapHeight) * sprite->bitmapScale.y;
 
     return 0;
 }
@@ -233,7 +229,7 @@ float AnmVm::normalizeSigned(RngContext* rngContext)
     if (rng < 0)
         fRng += (1ULL << 32);
 
-    return fRng * (1.0 / (1ULL << 31)) - 1.0;
+    return fRng * (1.0f / (1ULL << 31)) - 1.0f;
 }
 
 /* 0x40b9f0
@@ -252,7 +248,7 @@ float AnmVm::getFloatVar(AnmVm* This, float id)
 {
     RngContext* rngContext;
     uint32_t rngValue;
-    int roundedId = static_cast<float>(id);
+    int roundedId = static_cast<int>(id);
     int index = roundedId - 10000;
     float fRng;
 
@@ -660,21 +656,21 @@ int AnmVm::projectQuadCornersThroughCameraViewport(AnmVm* This)
         offsetYTopRight = 0.0f;
     }
 
-    g_renderQuad[0].pos.x = screenPos.x + (cosZ * offsetXBottomLeft - sinZ * offsetYBottomLeft);
-    g_renderQuad[0].pos.y = screenPos.y + (cosZ * offsetYBottomLeft + sinZ * offsetXBottomLeft);
-    g_renderQuad[0].pos.z = screenPos.z;
+    g_renderQuad144[0].pos.x = screenPos.x + (cosZ * offsetXBottomLeft - sinZ * offsetYBottomLeft);
+    g_renderQuad144[0].pos.y = screenPos.y + (cosZ * offsetYBottomLeft + sinZ * offsetXBottomLeft);
+    g_renderQuad144[0].pos.z = screenPos.z;
 
-    g_renderQuad[1].pos.x = screenPos.x + (cosZ * offsetXBottomRight - sinZ * offsetYBottomRight);
-    g_renderQuad[1].pos.y = screenPos.y + (cosZ * offsetYBottomRight + sinZ * offsetXBottomRight);
-    g_renderQuad[1].pos.z = screenPos.z;
+    g_renderQuad144[1].pos.x = screenPos.x + (cosZ * offsetXBottomRight - sinZ * offsetYBottomRight);
+    g_renderQuad144[1].pos.y = screenPos.y + (cosZ * offsetYBottomRight + sinZ * offsetXBottomRight);
+    g_renderQuad144[1].pos.z = screenPos.z;
 
-    g_renderQuad[2].pos.x = screenPos.x + (cosZ * offsetXTopLeft - sinZ * offsetYTopLeft);
-    g_renderQuad[2].pos.y = screenPos.y + (cosZ * offsetYTopLeft + sinZ * offsetXTopLeft);
-    g_renderQuad[2].pos.z = screenPos.z;
+    g_renderQuad144[2].pos.x = screenPos.x + (cosZ * offsetXTopLeft - sinZ * offsetYTopLeft);
+    g_renderQuad144[2].pos.y = screenPos.y + (cosZ * offsetYTopLeft + sinZ * offsetXTopLeft);
+    g_renderQuad144[2].pos.z = screenPos.z;
 
-    g_renderQuad[3].pos.x = screenPos.x + (cosZ * offsetXTopRight - sinZ * offsetYTopRight);
-    g_renderQuad[3].pos.y = screenPos.y + (cosZ * offsetYTopRight + sinZ * offsetXTopRight);
-    g_renderQuad[3].pos.z = screenPos.z;
+    g_renderQuad144[3].pos.x = screenPos.x + (cosZ * offsetXTopRight - sinZ * offsetYTopRight);
+    g_renderQuad144[3].pos.y = screenPos.y + (cosZ * offsetYTopRight + sinZ * offsetXTopRight);
+    g_renderQuad144[3].pos.z = screenPos.z;
     return 0;
 }
 
@@ -719,7 +715,6 @@ int AnmVm::onTick(AnmVm* This)
     data->vertices[0].pos.y = totalZ;
     data->vertices[0].pos.z = totalX;
 
-    // ---------------------------------------------------------
     // UV Scrolling (U Coordinate)
     float scrollSpeed = data->uvScrollSpeedU;
 

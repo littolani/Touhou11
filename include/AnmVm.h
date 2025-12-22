@@ -1,28 +1,19 @@
 #pragma once
 #include "AnmId.h"
 #include "AnmVmList.h"
-#include "AnmLoaded.h"
 #include "RenderVertex.h"
 #include "Timer.h"
+#include "Globals.h"
 #include "Interp.h"
 #include "DistortionMesh.h"
 #include "Supervisor.h"
 #include "Chain.h"
+#include "Vectors.h"
+#include "Rng.h"
 
-struct Float3
-{
-    float x, y, z;
-};
-
-struct Float2
-{
-    float x, y;
-};
-
-struct Int3 
-{
-    int x, y, z;
-};
+struct AnmLoaded;
+struct DistortionMesh;
+struct AnmLoadedSprite;
 
 struct SpecialRenderData
 {
@@ -42,16 +33,6 @@ struct AnmRawInstruction
     uint16_t varMask;
     int args[10];
 };
-
-struct RngContext
-{
-    uint16_t time;
-    uint16_t padding;
-    int32_t counter;
-};
-ASSERT_SIZE(RngContext, 0x8);
-
-struct DistortionMesh;
 
 class AnmVm
 {
@@ -81,7 +62,7 @@ public:
     D3DXVECTOR2 m_uvScrollVel;                               // <0x2ac>
     D3DXMATRIX m_baseScaleMatrix;                            // <0x2b4>
     D3DXMATRIX m_localTransformMatrix;                       // <0x2f4>
-    D3DXMATRIX m_matrix37c;                                  // <0x334>
+    D3DXMATRIX m_textureMatrix;                              // <0x334>
     D3DCOLOR m_color0;                                       // <0x374>
     D3DCOLOR m_color1;                                       // <0x378>
     uint16_t m_pendingInterrupt;                             // <0x37c>
@@ -97,8 +78,8 @@ public:
     AnmRawInstruction* m_currentInstruction;                 // <0x3a8>
     AnmLoadedSprite* m_sprite;                               // <0x3ac>
     AnmLoaded* m_anmLoaded;                                  // <0x3b0>
-    int m_intVars[4];                                        // <0x3b4> Script variables
-    float m_floatVars[4];                                    // <0x3c4> Script variables
+    int m_intVars[4];                                        // <0x3b4>
+    float m_floatVars[4];                                    // <0x3c4>
     int m_intVar8;                                           // <0x3d4>
     int m_intVar9;                                           // <0x3d8>
     D3DXVECTOR3 m_pos;                                       // <0x3dc>
@@ -158,7 +139,14 @@ public:
         RenderVertex144* topRight
     );
 
-    static void writeSpriteCharactersWithoutRot(AnmVm* This, RenderVertex144* bottomLeft, RenderVertex144* bottomRight, RenderVertex144* topRight, RenderVertex144* topLeft);
+    static void writeSpriteCharactersWithoutRot(
+        AnmVm* This,
+        RenderVertex144* bottomLeft,
+        RenderVertex144* bottomRight,
+        RenderVertex144* topRight,
+        RenderVertex144* topLeft
+    );
+
     //static void onDrawRenderMesh();
     static int setupTextureQuadAndMatrices(AnmVm* This, uint32_t spriteNumber, AnmLoaded* anmLoaded);
     static int projectQuadCornersThroughCameraViewport(AnmVm* This);
@@ -191,10 +179,3 @@ private:
     }
 };
 ASSERT_SIZE(AnmVm, 0x434);
-
-/* Globals */
-
-extern RngContext g_anmRngContext;
-extern RngContext g_replayRngContext;
-extern RenderVertex144 g_renderQuad[4];
-extern float g_gameSpeed;
