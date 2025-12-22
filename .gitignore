@@ -11,6 +11,7 @@ cmake_install.cmake
 Makefile
 /resources/
 /sdk/
+/GameFiles
 
 # IDE / Editor files
 *.swp

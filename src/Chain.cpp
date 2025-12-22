@@ -1,7 +1,6 @@
 #include "Chain.h"
+#include "Globals.h"
 #include "Supervisor.h"
-
-Chain* g_chain;
 
 Chain::Chain()
 {
@@ -42,12 +41,12 @@ void Chain::releaseSingleChain(ChainElem* root)
     ChainElem* elem = (root->embeddedTracker).trackerNextNode;
     while (elem != nullptr)
     {
-        ChainElem* elem = elem->trackerJobNode;
-        elem = elem->nextNode;
-        if (elem != nullptr)
+        ChainElem* branch = elem->trackerJobNode;
+        branch = branch->nextNode;
+        if (branch != nullptr)
         {
             g_supervisor.enterCriticalSection(0);
-            cut(elem);
+            cut(branch);
             g_supervisor.leaveCriticalSection(0);
          }
     }

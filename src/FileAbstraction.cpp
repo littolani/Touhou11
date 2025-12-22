@@ -1,9 +1,10 @@
 #include "FileAbstrction.h"
-#include "Globals.h"
 
+PbgArchive g_pbgArchive{};
 int g_numEntriesInDatFile = 0;
 PbgArchive g_pbgArchives[20];
 
+#if 0
 void BitWriter::writeBit(int bit)
 {
     m_bitBuffer = (m_bitBuffer << 1) | (bit & 1);
@@ -79,127 +80,7 @@ int BitReader::readBits(int num_bits)
     }
     return value;
 }
-
-// 0x4426c0
-byte* FileUtils::lzssDecompress(byte* compressedData, int compressedSize, byte* outBuffer, size_t decompressedSize)
-{
-    byte lzssDict[LZSS_DICTSIZE] = {0};
-
-    if (!outBuffer)
-    {
-        outBuffer = new byte[decompressedSize];
-        if (!outBuffer)
-            return NULL;
-    }
-
-    byte* writePtr = outBuffer;
-    uint32_t ringBufferIndex = 1;
-    BitReader reader(compressedData, compressedSize);
-
-    while (true)
-    {
-        int flag = reader.readBit();
-        if (flag)
-        {
-            uint32_t byte_value = reader.readBits(8);
-            *writePtr++ = (byte)byte_value;
-            lzssDict[ringBufferIndex] = (byte)byte_value;
-            ringBufferIndex = (ringBufferIndex + 1) & 0x1fff;
-        }
-        else
-        {
-            uint32_t match_offset = reader.readBits(13);
-            if (match_offset == 0) {
-                break;
-            }
-            uint32_t length_bits = reader.readBits(4);
-            int length = length_bits + 3;
-            for (int i = 0; i < length; i++) {
-                byte b = lzssDict[(match_offset + i) & 0x1fff];
-                *writePtr++ = b;
-                lzssDict[ringBufferIndex] = b;
-                ringBufferIndex = (ringBufferIndex + 1) & 0x1fff;
-            }
-        }
-    }
-
-    byte bitBuffer = reader.getBitBuffer();
-    while (bitBuffer != 0x80 && bitBuffer != 0)
-        reader.shiftBitBuffer();
-
-    return outBuffer;
-}
-
-//0x4428d0
-void FileUtils::resetEncoderState(byte* lzssDict, LzssTree* lzssTree)
-{
-    memset(lzssDict, 0, LZSS_DICTSIZE);
-    memset(lzssTree, 0, sizeof(LzssTree) * LZSS_DICTSIZE);
-}
-
-//0x442b50
-void FileUtils::lzssTreeReplaceNode(LzssTree* lzssTree, uint32_t oldNode, int newNode)
-{
-    uint32_t parent = lzssTree[oldNode].parent;
-
-    if (lzssTree[parent].left == oldNode)
-        lzssTree[parent].left = newNode;
-    else
-        lzssTree[parent].right = newNode;
-
-    lzssTree[newNode].parent = lzssTree[oldNode].parent;
-    lzssTree[newNode].left = lzssTree[oldNode].left;
-    lzssTree[newNode].right = lzssTree[oldNode].right;
-    lzssTree[lzssTree[newNode].left].parent = newNode;
-    lzssTree[lzssTree[newNode].right].parent = newNode;
-    lzssTree[oldNode].parent = 0;
-}
-
-// 0x442910
-int FileUtils::lzssDictAddString(byte* lzssDict, LzssTree* lzssTree, uint32_t lzssTreeRoot, int* matchPosition, int newNode)
-{
-    if (newNode == 0)
-        return 0;
-
-    int matchLength = 0;
-    int testNode = lzssTreeRoot;
-    while (true)
-    {
-        int i;
-        int delta = 0;
-        for (i = 0; i < LZSS_MAX_MATCH; i++) {
-            int idx1 = (newNode + i) & LZSS_DICTSIZE_MASK;
-            int idx2 = (testNode + i) & LZSS_DICTSIZE_MASK;
-            delta = (uint8_t)lzssDict[idx1] - (uint8_t)lzssDict[idx2];
-            if (delta != 0) {
-                break;
-            }
-        }
-        if (i > matchLength) {
-            *matchPosition = testNode;
-            matchLength = i;
-            if (i > LZSS_MAX_MATCH - 1) {
-                lzssTreeReplaceNode(lzssTree, testNode, newNode);
-                return i;
-            }
-        }
-        int* child;
-        if (delta < 0) {
-            child = &lzssTree[testNode].left;
-        } else {
-            child = &lzssTree[testNode].right;
-        }
-        if (*child == 0) {
-            *child = newNode;
-            lzssTree[newNode].parent = testNode;
-            lzssTree[newNode].left = 0;
-            lzssTree[newNode].right = 0;
-            return matchLength;
-        } else {
-            testNode = *child;
-        }
-    }
-}
+#endif
 
 void FileUtils::encrypt(
     uint8_t* data,
@@ -247,13 +128,23 @@ void FileUtils::encrypt(
         memcpy(data, temp, block);
         data += block;
     }
-
-    free(temp);
+    delete[] temp;
 }
 
-// 0x4581c0
-void FileUtils::decrypt(uint8_t* data, uint32_t size, uint8_t key, const uint8_t step, uint32_t block, uint32_t limit)
+/**
+  * @brief Address: 0x4581c0
+  * @brief Decrypts game files (Imported from ThAnm)
+  * @param data:  Stack[0x4]:4
+  * @param size:  Stack[0x8]:4
+  * @param key:   AL:1
+  * @param step:  Stack[0xc]:1
+  * @param block: Stack[0x10]:4
+  * @param limit: Stack[0x14]:4
+  */
+void __cdecl FileUtils::decrypt(uint8_t* data, uint32_t size, uint8_t key, uint8_t step, uint32_t block, uint32_t limit)
 {
+    //printf("Decrypt: Key=%d, Step=%d, Block=%d, Limit=%d, Size=%d, DataPtr=%p\n",
+    //    key, step, block, limit, size, data);
     const uint8_t* end;
     uint8_t* temp = new uint8_t[block];
     uint32_t increment = (block >> 1) + (block & 1);
@@ -268,22 +159,26 @@ void FileUtils::decrypt(uint8_t* data, uint32_t size, uint8_t key, const uint8_t
 
     end = data + (size < limit ? size : limit);
 
-    while (data < end) {
+    while (data < end)
+    {
         uint8_t* in = data;
         uint8_t* out;
-        if (end - data < (ptrdiff_t)block) {
+        if (end - data < (ptrdiff_t)block)
+        {
             block = end - data;
             increment = (block >> 1) + (block & 1);
         }
 
-        for (out = temp + block - 1; out > temp;) {
+        for (out = temp + block - 1; out > temp;)
+        {
             *out-- = *in ^ key;
             *out-- = *(in + increment) ^ (key + step * increment);
             ++in;
             key += step;
         }
 
-        if (block & 1) {
+        if (block & 1)
+        {
             *out = *in ^ key;
             key += step;
         }
@@ -292,18 +187,46 @@ void FileUtils::decrypt(uint8_t* data, uint32_t size, uint8_t key, const uint8_t
         memcpy(data, temp, block);
         data += block;
     }
-
     delete[] temp;
 }
 
 // 0x441bd0
-LPSTR PbgArchive::copyFilename(LPCSTR filename)
+LPSTR PbgArchive::copyFileName(LPCSTR fileName)
 {
-    size_t size = strlen(filename) + 1;
+    size_t size = strlen(fileName) + 1;
     LPSTR buf = new char[size];
     if (buf)
-        strcpy_s(buf, size, filename);
+        strcpy_s(buf, size, fileName);
     return buf;
+}
+
+// 0x441cb0
+CPbgFile::CPbgFile()
+{
+    m_handle = INVALID_HANDLE_VALUE;
+    m_access = 0;
+}
+
+CPbgFile::~CPbgFile()
+{
+    close();
+}
+
+void CPbgFile::getFullFilePath(char* buffer, const char* filename)
+{
+    if (strchr(filename, ':') != NULL)
+        strcpy_s(buffer, MAX_PATH, filename);
+    else
+    {
+        GetModuleFileNameA(NULL, buffer, MAX_PATH);
+
+        char* endOfModulePath = strrchr(buffer, '\\');
+        if (endOfModulePath == NULL)
+            *buffer = '\0';
+        else
+            endOfModulePath[1] = '\0';
+        strcat_s(buffer, MAX_PATH, filename);
+    }
 }
 
 // 0x441d50
@@ -470,6 +393,19 @@ void PbgArchive::release()
     m_numEntries = 0;
 }
 
+PbgArchive::PbgArchive()
+{
+    m_entries = NULL;
+    m_numEntries = 0;
+    m_filename = NULL;
+    m_fileAbstraction = NULL;
+}
+
+PbgArchive::~PbgArchive()
+{
+    release();
+}
+
 // 0x4418d0
 PbgArchiveEntry* PbgArchive::findEntry(LPCSTR filename)
 {
@@ -498,13 +434,7 @@ PbgArchiveEntry* PbgArchive::findEntry(LPCSTR filename)
 
 // 0x4415c0
 bool PbgArchive::load(LPCSTR filename)
-{
-    bool loadFileResult;
-    CPbgFile *file;
-    LPSTR name;
-    int status;
-    char *outFileName;
-  
+{ 
     release();
     printf("info : %s open arcfile\n", filename);
     m_fileAbstraction = new CPbgFile();
@@ -513,7 +443,7 @@ bool PbgArchive::load(LPCSTR filename)
 
     if (parseHeader(filename))
     { 
-        m_filename = copyFilename(filename);
+        m_filename = copyFileName(filename);
         if (m_filename)
         {
             m_fileAbstraction->open(m_filename, "r");
@@ -529,6 +459,12 @@ bool PbgArchive::load(LPCSTR filename)
 bool PbgArchive::parseHeader(LPCSTR filename)
 {
     byte* decompressedFile;
+    byte* archive;
+    int decompressedSize = 0;
+    int fileTableOffset = 0;
+    int numEntries = 0;
+    uint32_t length = 0;
+    DWORD seekOffset = 0;
 
     union {
         PbgArchiveHeader asHeader;
@@ -548,15 +484,15 @@ bool PbgArchive::parseHeader(LPCSTR filename)
         goto ParseError;
 
     // ZUN's amazing magic numbers
-    int decompressedSize = header.asHeader.decompressedSize - 123456789;
-    int fileTableOffset = header.asHeader.fileTableOffset - 987654321;
-    int numEntries = header.asHeader.numEntries + 135792468;
+    decompressedSize = header.asHeader.decompressedSize - 123456789;
+    fileTableOffset = header.asHeader.fileTableOffset - 987654321;
+    numEntries = header.asHeader.numEntries + 135792468;
     m_numEntries = numEntries;
 
-    DWORD seekOffset = m_fileAbstraction->getSize() - fileTableOffset;
+    seekOffset = m_fileAbstraction->getSize() - fileTableOffset;
     m_fileAbstraction->seek(seekOffset, 0);
-    uint32_t length = header.asHeader.fileTableOffset;
-    byte* archive = new byte[header.asHeader.fileTableOffset];
+    length = header.asHeader.fileTableOffset;
+    archive = new byte[header.asHeader.fileTableOffset];
     if (!archive)
         goto ParseError;
 
@@ -568,7 +504,7 @@ bool PbgArchive::parseHeader(LPCSTR filename)
 
     FileUtils::decrypt(archive, length, 0x3e, 0x9b, 0x80, length);
 
-    decompressedFile = FileUtils::lzssDecompress(archive,
+    decompressedFile = Lzss::decompress(archive,
         length,
         nullptr,
         decompressedSize
@@ -576,7 +512,7 @@ bool PbgArchive::parseHeader(LPCSTR filename)
     
     if (decompressedFile)
     {
-        PbgArchiveEntry* entries = loadEntries(decompressedFile, m_numEntries,seekOffset);
+        PbgArchiveEntry* entries = allocEntries(decompressedFile, m_numEntries, seekOffset);
         m_entries = entries;
 
         // All good
@@ -601,6 +537,57 @@ ParseError:
 }
 
 // 0x441a60
+PbgArchiveEntry* PbgArchive::allocEntries(LPVOID entryBuffer, int count, uint32_t dataOffset)
+{
+    LPVOID entryData;
+    int i;
+    PbgArchiveEntry* buffer = nullptr;
+
+    buffer = new PbgArchiveEntry[count + 1]();
+    if (buffer == nullptr)
+    {
+        goto buffer_alloc_error;
+    }
+
+    entryData = entryBuffer;
+    for (i = 0; i < count; i++)
+    {
+        buffer[i].filename = copyFileName((char*)entryData);
+        seekPastString(&entryData);
+        buffer[i].dataOffset = *(uint32_t*)entryData;
+        seekPastInt(&entryData);
+        buffer[i].decompressedSize = *(uint32_t*)entryData;
+        seekPastInt(&entryData);
+        buffer[i].unk = *(uint32_t*)entryData;
+        seekPastInt(&entryData);
+    }
+
+    buffer[count].dataOffset = dataOffset;
+    buffer[count].decompressedSize = 0;
+    return buffer;
+
+buffer_alloc_error:
+    if (buffer)
+    {
+        delete[] buffer;
+        buffer = nullptr;
+    }
+    return nullptr;
+}
+
+int PbgArchive::seekPastInt(LPVOID* ptr)
+{
+    *ptr = (int*)*ptr + 1;
+    return *(int*)*ptr;
+}
+
+LPVOID PbgArchive::seekPastString(LPVOID* ptr)
+{
+    *ptr = (char*)*ptr + (strlen((char*)*ptr) + 1);
+    return *ptr;
+}
+
+#if 0
 PbgArchiveEntry* PbgArchive::loadEntries(byte* bytes, int numEntries, uint32_t seekOffset)
 {
     uint32_t entriesToAllocate = numEntries + 1;
@@ -613,7 +600,7 @@ PbgArchiveEntry* PbgArchive::loadEntries(byte* bytes, int numEntries, uint32_t s
         bufferSize = 0xfffffffb;
     }
     else
-        bufferSize = sizeInBytes;
+        bufferSize = static_cast<uint32_t>(sizeInBytes);
 
     uint32_t* buffer = new uint32_t[bufferSize / 4 + 1]; // Adjusted for uint32_t array
     if (!buffer)
@@ -668,28 +655,34 @@ PbgArchiveEntry* PbgArchive::loadEntries(byte* bytes, int numEntries, uint32_t s
     entryPtr->decompressedSize = 0;
     return entries;
 }
+#endif
 
 // 0x441760
-byte* PbgArchive::loadWithDecryptionKeyset(byte* destBuffer, LPCSTR requestedFilename)
+byte* PbgArchive::readDecompressEntry(LPCSTR filename, byte* outBuffer)
 {
     byte* fileBuffer = nullptr;
+    size_t compressedSize= 0;
+    size_t decompressedSize = 0;
+    uint8_t sum = 0;
+    uint32_t keyIndex = 0;
+    byte* decompressedFile = 0;
 
     // Check if file abstraction exists
     if (!m_fileAbstraction)
         return nullptr;
 
     // Find the archive entry for the requested file
-    PbgArchiveEntry* fileEntry = findEntry(requestedFilename);
+    PbgArchiveEntry* fileEntry = findEntry(filename);
     if (!fileEntry)
         goto LoadError;
 
     // Calculate sizes (sentinel entry ensures bounds safety)
-    size_t compressedSize = fileEntry[1].dataOffset - fileEntry->dataOffset;
-    size_t decompressedSize = fileEntry->decompressedSize;
+    compressedSize = fileEntry[1].dataOffset - fileEntry->dataOffset;
+    decompressedSize = fileEntry->decompressedSize;
 
     // Use destBuffer if no decompression is needed and it’s provided; otherwise, allocate
-    if (compressedSize == decompressedSize && destBuffer != nullptr)
-        fileBuffer = destBuffer;
+    if (compressedSize == decompressedSize && outBuffer != nullptr)
+        fileBuffer = outBuffer;
     else
         fileBuffer = new byte[compressedSize];
 
@@ -705,11 +698,10 @@ byte* PbgArchive::loadWithDecryptionKeyset(byte* destBuffer, LPCSTR requestedFil
         goto LoadError;
 
     // Calculate filename checksum for decryption key selection
-    uint8_t sum = 0;
     for (const char* p = fileEntry->filename; *p != '\0'; ++p) {
         sum += static_cast<uint8_t>(*p);
     }
-    uint32_t keyIndex = sum & 7; // Selects key index (0-7)
+    keyIndex = sum & 7; // Selects key index (0-7)
 
     // Decrypt the data in place
     FileUtils::decrypt(
@@ -722,18 +714,18 @@ byte* PbgArchive::loadWithDecryptionKeyset(byte* destBuffer, LPCSTR requestedFil
     );
 
     // Handle decompression if necessary
-    byte* decompressedFile = fileBuffer;
+    decompressedFile = fileBuffer;
     if (compressedSize != decompressedSize) {
-        decompressedFile = FileUtils::lzssDecompress(
+        decompressedFile = Lzss::decompress(
             fileBuffer,
             compressedSize,
-            destBuffer,
+            outBuffer,
             decompressedSize
         );
     }
 
     // Free fileBuffer if it was allocated (not destBuffer)
-    if (fileBuffer != destBuffer && fileBuffer)
+    if (fileBuffer != outBuffer && fileBuffer)
         delete[] fileBuffer;
 
     return decompressedFile;
@@ -742,5 +734,39 @@ LoadError:
     printf("PbgArchive: error loading archive\n");
     if (fileBuffer)
         delete[] fileBuffer;
+    return nullptr;
+}
+
+DWORD PbgArchive::getEntryDecompressedSize(LPCSTR filename)
+{
+    PbgArchiveEntry* entry = findEntry(filename);
+    if (entry != NULL)
+        return entry->decompressedSize;
+    return 0;
+}
+
+// 0x4420e0
+PbgArchive* findMatchingArchive(const char* filename)
+{
+    char filenameBuffer[260];
+    // Copy the input filename to buffer safely
+    strcpy_s(filenameBuffer, sizeof(filenameBuffer), filename);
+
+    // Find last directory separator
+    const char* lastSlashPtr = strrchr(filename, '/');
+    if (lastSlashPtr)
+    {
+        // Calculate position after last '/'
+        size_t slashPos = lastSlashPtr - filename;
+        strcpy_s(filenameBuffer + slashPos, sizeof(filenameBuffer) - slashPos, ".dat");
+    }
+
+    // Search for matching archive
+    for (int i = 0; i < g_numEntriesInDatFile; i++)
+    {
+        if (strcmp(g_pbgArchives[i].m_filename, filenameBuffer) == 0)
+            return &g_pbgArchives[i];
+    }
+
     return nullptr;
 }

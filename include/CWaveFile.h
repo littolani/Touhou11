@@ -4,5 +4,6 @@
 
 struct CWaveFile
 {
-
+    MMCKINFO a;
+    WAVEFORMATEX* waveFormat;
 };

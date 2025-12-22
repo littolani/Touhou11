@@ -1,6 +1,6 @@
 #pragma once
 #include "Chireiden.h"
-#include "AnmVm.h"
+#include "AnmManager.h"
 #include "Chain.h"
 #include "Macros.h"
 
@@ -24,7 +24,7 @@ class AsciiManager
 public:
     static constexpr size_t STRING_ARRAY_SIZE = 320;
 
-    void* vtable; // Vtable referenced in ghidra but seems unused so far
+    void* vtable;
     uint32_t flag;
     uint32_t a;
     ChainElem* onTick;
@@ -48,7 +48,9 @@ public:
     int anmId;
     ChainElem* chain2b;
     
-    AsciiManager();
+    //AsciiManager();
     void loadAsciiStrings(const char* str, D3DXVECTOR3* position);
+    void spawnAnm(AnmLoaded* anmLoaded, AnmId* outAnmId, int scriptNumber, int vmLayer, D3DXVECTOR3* spawnPosition);
+    void spawnUnknownEffect(float x, float y);
 };
 ASSERT_SIZE(AsciiManager, 0x184bc);

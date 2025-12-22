@@ -1,8 +1,6 @@
 #pragma once
-
-#include "Chireiden.h"
+#include <cstdint>
 #include "Macros.h"
-#include "Globals.h"
 
 enum ChainCallbackResult
 {

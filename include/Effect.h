@@ -3,7 +3,9 @@
 #include "Chireiden.h"
 #include "Macros.h"
 
-class Enemy
+class Effect
 {
+public:
     
+private:
 };

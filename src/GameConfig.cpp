@@ -1,5 +1,6 @@
 #include "GameConfig.h"
 
+#if 1
 GameConfig g_defaultGameConfig;
 
 GameConfig::GameConfig()
@@ -31,3 +32,4 @@ GameConfig::GameConfig()
 	windowPosX    = 0x80000000;
 	windowPosY    = 0x80000000;
 }
+#endif

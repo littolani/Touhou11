@@ -1,57 +1,93 @@
 #pragma once
 #include "Chireiden.h"
+#include "AnmVm.h"
+#include "Globals.h"
 #include "Camera.h"
 #include "GameConfig.h"
-#include "Globals.h"
-#include "Macros.h"
-#include <d3d9types.h>
+#include "LoadingThread.h"
+
+struct AnmLoaded;
 
 class Supervisor
 {
 public:
-    HINSTANCE hInstance;            // <0x0>
-    IDirect3D9* d3dInterface0;      // <0x4>
-    IDirect3DDevice9* d3dDevice;    // <0x8>
-    IDirectInput8A* dInputInterface; // <0xc>
-    RECT windowDimensions;          // <0x10>
-    IDirectInputDevice8A* keyboard;  // <0x20>
-    IDirectInputDevice8A* joystick;  // <0x24>
-    // Unknown 0x4
-    uint32_t controllerCaps;  // <0x2c>
-    HWND appWindow;           // <0x58>
-    D3DMATRIX d3dMatrix1;     // <0x5c>
-    D3DMATRIX d3dMatrix2;     // <0x9c>
-    D3DVIEWPORT9 d3dViewport; // <0xdc>
-    D3DPRESENT_PARAMETERS d3dPresetParameters; // <0xf4>
-    // Unknown Stuff
-    IDirect3D9* d3dInterface1; // <0x174>
-    IDirect3D9* d3dInterface2; // <0x178>
-    IDirect3D9* d3dInterface3; // <0x17c>
-
-    uint32_t criticalSectionFlag;
-    RTL_CRITICAL_SECTION criticalSections[12]; // <0x810>
-    uint8_t criticalSectionCounters[12]; // <0x930>
-    size_t th11DatSize; // <0x9a0>
-    byte* th11DatBytes; // <0x9a4>
-
-    HINSTANCE hInst;
-    GameConfig m_gameConfig;
-    Camera cam0;
-    Camera cam1;
-    Camera stageCam;
-    Camera* currentCam;
-    int camIndex;
-    int gameMode;
-    uint32_t m_noVerticalSyncFlag;
-    D3DPRESENT_PARAMETERS m_d3dPresetParameters;
-
+    HINSTANCE hInstance;                         // <0x0>
+    IDirect3D9* d3dInterface0;                   // <0x4>
+    IDirect3DDevice9* d3dDevice;                 // <0x8>
+    IDirectInput8A* dInputInterface;             // <0xc>
+    RECT windowDimensions;                       // <0x10>
+    IDirectInputDevice8A* keyboard;              // <0x20>
+    IDirectInputDevice8A* joystick;              // <0x24>
+    int idk1;                                    // <0x28>
+    uint32_t controllerCaps;                     // <0x2c>
+    int idk2[10];                                // <0x30>
+    HWND appWindow;                              // <0x58>
+    D3DMATRIX d3dMatrix1;                        // <0x5c>
+    D3DMATRIX d3dMatrix2;                        // <0x9c>
+    D3DVIEWPORT9 d3dViewport;                    // <0xdc>
+    D3DPRESENT_PARAMETERS m_d3dPresetParameters; // <0xf4>
+    uint32_t idk3[18];                           // <0x12c>
+    IDirect3D9* d3dInterface1;                   // <0x174>
+    IDirect3D9* d3dInterface2;                   // <0x178>
+    IDirect3D9* d3dInterface3;                   // <0x17c>
+    uint32_t idk4[9];                            // <0x180>
+    uint32_t d3dPresentationIntervalFlag;        // <0x1a4>
+    uint32_t d3dPresentBackBuferFormat;          // <0x1a8>
+    IDirect3DSurface9* surfaceR0;                // <0x1ac>
+    IDirect3DSurface9* surfaceR1;                // <0x1b0>
+    IDirect3DDevice9* backBuffer;                // <0x1b4>
+    uint32_t unknown;                            // <0x1b8>
+    AnmVm* arcadeVm0;                            // <0x1bc>
+    AnmVm* arcadeVm1;                            // <0x1c0>
+    AnmVm* arcadeVm2;                            // <0x1c4>
+    GameConfig m_gameConfig;                     // <0x1c8>
+    Camera cam0;                                 // <0x204>
+    Camera cam1;                                 // <0x31c>
+    Camera stageCam;                             // <0x434>
+    Camera* currentCam;                          // <0x54c>
+    int camIndex;                                // <0x550>
+    int gameMode;                                // <0x554>
+    int gameModeToSwitchTo;                      // <0x558>
+    int idk5;                                    // <0x55c>
+    int idk6;                                    // <0x560>
+    uint32_t frameSkipFlagProbably;              // <0x564>
+    int idk7[5];                                 // <0x568>
+    uint32_t m_noVerticalSyncFlag;               // <0x57c>
+    int idk8[2];                                 // <0x580>
+    AnmLoaded* someAnmLoaded;                    // <0x588>
+    int idk9;                                    // <0x58c>
+    uint32_t criticalSectionFlag;                // <0c590>
+    DWORD currentTime;                           // <0x594>
+    uint32_t idk10[78];                          // <0x598>
+    uint32_t snapshotFlag;                       // <0x6d0>
+    uint16_t snapshotBuffer;                     // <0x6d4>
+    uint16_t idk11[7];                           // <0x6d6>
+    void* snapshotRelated;                       // <0x6e4>
+    uint32_t* snapshotDataProbably;              // <0x6e8>
+    char snapshotFilename[MAX_PATH];             // <0x6ec>
+    LoadingThread* loadingThread;                // <0x7f0>
+    HANDLE gameThread;                           // <0x7f4>
+    DWORD gameThreadId;                          // <0x7f8>
+    uint32_t someFlag;                           // <0x7fc>
+    uint32_t someFlag2;                          // <0x800>
+    int idk12;                                   // <0x804>
+    void* gameThreadStartFunc;                   // <0x808>
+    uint32_t timeToSwitchGameMode;               // <0x80c>
+    RTL_CRITICAL_SECTION criticalSections[12];   // <0x810>
+    uint8_t criticalSectionCounters[12];         // <0x930>
+    int anmManagerInterruptFlag;                 // <0x93c>
+    uint32_t idk13[20];                          // <0x940>
+    uint32_t d3dDisableFogFlag;                  // <0x990>
+    int idk14[3];                                // <0x994>
+    size_t th11DatSize;                          // <0x9a0>
+    byte* th11DatBytes;                          // <0x9a4>
+    int idk15[6];                                // <0x9a8>
+    D3DCOLOR clearColor;                         // <0x9c0>
+    
     int initializeDevices();
     void releaseDinputIface();
     int verifyGameConfig();
     void enterCriticalSection(size_t criticalSectionNumber);
     void leaveCriticalSection(size_t criticalSectionNumber);
-
 };
-ASSERT_SIZE(Supervisor, 0x9c0);
-
-extern Supervisor g_supervisor;
+ASSERT_SIZE(Supervisor, 0x9c4);

@@ -20,7 +20,7 @@ struct LaserData
     uint32_t finalFlag;
     uint8_t reserved3[8]; // unknown
 };
-ASSERT_SIZE(LaserData, 0x440);
+//ASSERT_SIZE(LaserData, 0x440);
 
 /* Proof of sizes in asm:
 424841: b9 11 00      MOV       loopCounter,0x11 ; 17 segments

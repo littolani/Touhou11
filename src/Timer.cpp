@@ -40,8 +40,6 @@ void Timer::setCurrent(int time)
     }
     m_current = time;
     m_previous = time - 1;
-    m_currentF = time;
+    m_currentF = static_cast<float>(time);
     return;
 }
-
-

@@ -15,214 +15,264 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="AnmLoaded.cpp">
+    <ClCompile Include="src\AnmLoaded.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="AnmManager.cpp">
+    <ClCompile Include="src\AnmManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="AnmVm.cpp">
+    <ClCompile Include="src\AnmVm.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="AsciiManager.cpp">
+    <ClCompile Include="src\AsciiManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Bomb.cpp">
+    <ClCompile Include="src\Bomb.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Bullet.cpp">
+    <ClCompile Include="src\Bullet.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="BulletManager.cpp">
+    <ClCompile Include="src\BulletManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Chain.cpp">
+    <ClCompile Include="src\Chain.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Chireiden.cpp">
+    <ClCompile Include="src\Chireiden.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="EclVm.cpp">
+    <ClCompile Include="src\EclVm.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="EffectManager.cpp">
+    <ClCompile Include="src\EffectManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Enemy.cpp">
+    <ClCompile Include="src\Effect.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="EnemyManager.cpp">
+    <ClCompile Include="src\Enemy.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="FileAbstraction.cpp">
+    <ClCompile Include="src\EnemyManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="GameConfig.cpp">
+    <ClCompile Include="src\FileAbstraction.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Globals.cpp">
+    <ClCompile Include="src\GameConfig.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Interp.cpp">
+    <ClCompile Include="src\Globals.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="LaserManager.cpp">
+    <ClCompile Include="src\Interp.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Player.cpp">
+    <ClCompile Include="src\LaserManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Supervisor.cpp">
+    <ClCompile Include="src\Lzss.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Timer.cpp">
+    <ClCompile Include="src\Player.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="RenderMesh.cpp">
+    <ClCompile Include="src\DistortionMesh.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Supervisor.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Timer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\SoundManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="AnmLoaded.h">
+    <ClInclude Include="src\StdVm.cpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AnmLoaded.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="AnmManager.h">
+    <ClInclude Include="include\AnmManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="AnmVm.h">
+    <ClInclude Include="include\AnmVm.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="AsciiManager.h">
+    <ClInclude Include="include\AsciiManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Bomb.h">
+    <ClInclude Include="include\Bomb.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Bullet.h">
+    <ClInclude Include="include\Bullet.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="BulletManager.h">
+    <ClInclude Include="include\BulletManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Camera.h">
+    <ClInclude Include="include\Camera.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Chain.h">
+    <ClInclude Include="include\Chain.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Chireiden.h">
+    <ClInclude Include="include\Chireiden.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="CSound.h">
+    <ClInclude Include="include\CSound.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="CWaveFile.h">
+    <ClInclude Include="include\CStreamingSound.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="CStreamingSound.h">
+    <ClInclude Include="include\CWaveFile.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="EclVm.h">
+    <ClInclude Include="include\EclVm.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="EffectManager.h">
+    <ClInclude Include="include\EffectManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Ending.h">
+    <ClInclude Include="include\Effect.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Enemy.h">
+    <ClInclude Include="include\Ending.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="EnemyManager.h">
+    <ClInclude Include="include\Enemy.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="FileAbstrction.h">
+    <ClInclude Include="include\EnemyData.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="FpsCounter.h">
+    <ClInclude Include="include\EnemyDrop.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="GameConfig.h">
+    <ClInclude Include="include\EnemyManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="GameThread.h">
+    <ClInclude Include="include\FileAbstraction.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Globals.h">
+    <ClInclude Include="include\FpsCounter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Gui.h">
+    <ClInclude Include="include\GameConfig.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="HintManager.h">
+    <ClInclude Include="include\GameThread.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Interp.h">
+    <ClInclude Include="include\Globals.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Item.h">
+    <ClInclude Include="include\Gui.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ItemManager.h">
+    <ClInclude Include="include\HintManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="LaserData.h">
+    <ClInclude Include="include\TrampolineFactory.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="LaserInfinite.h">
+    <ClInclude Include="include\Interp.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="LaserLine.h">
+    <ClInclude Include="include\Item.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="LaserSegment.h">
+    <ClInclude Include="include\ItemManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="LaserManager.h">
+    <ClInclude Include="include\LaserData.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="LoadingThread.h">
+    <ClInclude Include="include\LaserInfinite.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Macros.h">
+    <ClInclude Include="include\LaserLine.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="MainMenu.h">
+    <ClInclude Include="include\LaserManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="PauseMenu.h">
+    <ClInclude Include="include\LaserSegment.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Player.h">
+    <ClInclude Include="include\LoadingThread.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ReplayManager.h">
+    <ClInclude Include="include\Lzss.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="SoundManager.h">
+    <ClInclude Include="include\Macros.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Spellcard.h">
+    <ClInclude Include="include\MainMenu.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Stage.h">
+    <ClInclude Include="include\PauseMenu.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Supervisor.h">
+    <ClInclude Include="include\Player.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Timer.h">
+    <ClInclude Include="include\PopupManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Window.h">
+    <ClInclude Include="include\DistortionMesh.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ZunResult.h">
+    <ClInclude Include="include\ReplayManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="RenderMesh.h">
+    <ClInclude Include="include\ReplayStageData.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\SoundManager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Spellcard.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\StdVm.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Supervisor.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Timer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Window.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AnmId.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AnmVmList.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\RenderVertex.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Vectors.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Rng.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <MASM Include="Symbols.asm">
+      <Filter>Resource Files</Filter>
+    </MASM>
   </ItemGroup>
 </Project>

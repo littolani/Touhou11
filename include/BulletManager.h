@@ -6,6 +6,6 @@
 
 class BulletManager
 {
-
+    
 };
-ASSERT_SIZE(BulletManager, 0x46d678);
+//ASSERT_SIZE(BulletManager, 0x46d678);

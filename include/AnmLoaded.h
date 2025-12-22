@@ -1,32 +1,7 @@
+#pragma once
 #include "Chireiden.h"
+#include "Supervisor.h"
 #include "Globals.h"
-#include "Macros.h"
-
-
-// INCORRECT STRUCTURE
-// // Structure for an ANM file chunk (based on Touhou Toolkit's anm_header11_t)
-// struct AnmHeader
-// {
-//     uint32_t version;        // Offset 0x00
-//     uint16_t numSprites;     // Offset 0x04
-//     uint16_t numScripts;     // Offset 0x06
-//     uint16_t zero1;          // Offset 0x08
-//     uint16_t w;              // Offset 0x0A
-//     uint16_t h;              // Offset 0x0C
-//     uint16_t formatIndex;    // Offset 0x0E
-//     uint32_t nameOffset;     // Offset 0x10
-//     uint16_t x;              // Offset 0x14
-//     uint16_t y;              // Offset 0x16
-//     uint32_t memoryPriority; // Offset 0x18
-//     uint32_t thtxOffset;     // Offset 0x1C
-//     uint16_t hasData;        // Offset 0x20
-//     uint16_t lowresScale;    // Offset 0x22
-//     // uint16_t jpeg_quality;   // Offset 0x24 (Note: nextoffset is at 0x24 in assembly, adjusting here)
-//     uint32_t nextOffset;     // Offset 0x24
-//     uint16_t wMax;          // Offset 0x28
-//     uint16_t hMax;          // Offset 0x2A
-// };
-
 
 struct AnmHeader
 {
@@ -40,7 +15,6 @@ struct AnmHeader
     uint32_t nameOffset;
     uint16_t x;
     uint16_t y;
-    /* As of TH16.5, unused in every game that uses this stucture, but still present in the files. */
     uint32_t memoryPriority;
     uint32_t thtxOffset;
     uint16_t hasData;
@@ -50,27 +24,26 @@ struct AnmHeader
 };
 ASSERT_SIZE(AnmHeader, 0x40);
 
-// Structure for chunk data stored in AnmLoaded offset 0x120 (20 bytes per entry)
 struct AnmLoadedD3D
 {
-    IDirect3DTexture9* m_texture; // 0x0
-    void* m_srcData; // 0x4
-    uint32_t m_srcDataSize; // 0x8
-    int m_bytesPerPixel; // 0xc
+    IDirect3DTexture9* m_texture;
+    void* m_srcData;
+    uint32_t m_srcDataSize;
+    int m_bytesPerPixel;
     int m_flags;
 
-    int createTextureFromAtR();
-    int createTextureFromAt(uint32_t width, uint32_t height, int formatIndex);
-    int createTextureFromThtx(uint32_t texWidth, uint32_t texHeight, int formatIndex, void* thtxData);
-    int createTextureFromImage(int textureWidthOffset, uint32_t width, uint32_t height, int formatIndex);
+    static int createTextureFromAtR(AnmLoadedD3D* This);
+    static int createTextureFromAt(AnmLoadedD3D* This, uint32_t width, uint32_t height, int formatIndex);
+    static int createTextureFromThtx(AnmLoadedD3D* This, uint32_t texWidth, uint32_t texHeight, int formatIndex, void* thtxData);
+    static int createTextureFromImage(AnmLoadedD3D* This, int textureWidthOffset, uint32_t width, uint32_t height, int formatIndex);
 };
 ASSERT_SIZE(AnmLoadedD3D, 0x14);
 
 struct AnmLoadedSprite
 {
-    int anmSlot; // or multisample type??
+    int anmSlot;
     int spriteNumber;
-    AnmLoadedD3D* anmLoadedD3D; // <0x8>
+    AnmLoadedD3D* anmLoadedD3D;
     D3DXVECTOR2 startPixelInclusive;
     D3DXVECTOR2 endPixelExclusive;
     float bitmapHeight;
@@ -79,30 +52,29 @@ struct AnmLoadedSprite
     D3DXVECTOR2 uvEnd;
     float spriteHeight;
     float spriteWidth;
-    D3DXVECTOR2 maybeScale;
-    uint32_t idk;
+    D3DXVECTOR2 bitmapScale;
+    uint32_t m_idk;
 };
 ASSERT_SIZE(AnmLoadedSprite, 0x48);
 
 struct AnmLoaded
 {
-    int anmSlotIndex;               // Offset 0x00
-    char filePath[260];             // Offset 0x04  (assuming typical MAX_PATH size)
-    AnmHeader* header;              // Offset 0x108
-    int numAnmLoadedD3Ds;           // Offset 0x10c (numHeaders)
-    int numScripts;                 // Offset 0x110 (numScripts)
-    int numSprites;                 // Offset 0x114 (numSprites)
-    AnmLoadedSprite* keyframeData;  // Offset 0x118 (keyframeData) originally void*
-    void* spriteData;               // Offset 0x11c (spriteData)
-    AnmLoadedD3D* anmLoadedD3D;     // Offset 0x120 (AnmLoadedD3DBuffer)
-    int anmsLoading;                // Offset 0x124
-    int unknown;
-    int texturesCreated;
-    void* unknownHeapAllocated;
+    int m_anmSlotIndex;
+    char m_filePath[260];
+    AnmHeader* m_header;
+    int m_numAnmLoadedD3Ds;
+    int m_numScripts;
+    int m_numSprites;
+    AnmLoadedSprite* m_keyframeData;
+    uint32_t* m_spriteData;
+    AnmLoadedD3D* m_anmLoadedD3D;
+    int m_anmsLoading;
+    int m_unknown;
+    int m_texturesCreated;
+    void* m_unknownHeapAllocated;
 
-    void release();
-    void setupTextures();
-    int createTextureForEntry(int i, int numSprites, int numScripts, AnmHeader* anmHeader);
+    static void setupTextures(AnmLoaded* This);
+    static int createTextureForEntry(AnmLoaded* This, int i, int numSprites, int numScripts, AnmHeader* anmHeader);
 };
 ASSERT_SIZE(AnmLoaded, 0x134);
 
@@ -110,8 +82,3 @@ struct SpriteData
 {
     float x, y, w, h;
 };
-
-/* Globals */
-
-extern D3DFORMAT g_d3dFormats[];
-extern uint32_t g_bytesPerPixelLookupTable[];
