@@ -1,7 +1,6 @@
 #include "AnmManager.h"
-
-AnmManager* g_anmManager;
-RenderVertex144 g_renderQuad144[4];
+#include "AnmLoaded.h"
+#include "Globals.h"
 
 // 0x454360
 AnmLoaded* AnmManager::preloadAnm(AnmManager* This, int anmIdx, const char* anmFileName)
@@ -119,7 +118,7 @@ AnmLoaded* AnmManager::preloadAnmFromMemory(AnmManager* This, const char* anmFil
     anmLoaded->m_numAnmLoadedD3Ds = processedCount;
     anmLoaded->m_header = new AnmHeader[processedCount]();
     anmLoaded->m_keyframeData = new AnmLoadedSprite[numSprites]();
-    anmLoaded->m_spriteData = new char[numScripts * 4]();
+    anmLoaded->m_spriteData = new uint32_t[numScripts]();
     anmLoaded->m_numScripts = numScripts;
     anmLoaded->m_numSprites = numSprites;
 
@@ -332,17 +331,17 @@ void AnmManager::createD3DTextures(AnmManager* This)
             {
                 anmLoadedD3D->m_flags |= 1;
                 g_supervisor.d3dDevice->CreateTexture(
-                    g_supervisor.d3dPresetParameters.BackBufferWidth,
-                    g_supervisor.d3dPresetParameters.BackBufferHeight,
+                    g_supervisor.m_d3dPresetParameters.BackBufferWidth,
+                    g_supervisor.m_d3dPresetParameters.BackBufferHeight,
                     1,
                     1,
-                    g_supervisor.d3dPresetParameters.BackBufferFormat,
+                    g_supervisor.m_d3dPresetParameters.BackBufferFormat,
                     D3DPOOL_DEFAULT,
                     &anmLoadedD3D->m_texture,
                     NULL
                 );
 
-                anmLoadedD3D->m_bytesPerPixel = (g_supervisor.d3dPresetParameters.BackBufferFormat == D3DFMT_X8R8G8B8) * 2 + 2;
+                anmLoadedD3D->m_bytesPerPixel = (g_supervisor.m_d3dPresetParameters.BackBufferFormat == D3DFMT_X8R8G8B8) * 2 + 2;
             }
         }
     }
@@ -606,7 +605,7 @@ int AnmManager::writeSprite(AnmManager* This, RenderVertex144* someVertices)
 }
 
 // 0x44f880
-void AnmManager::drawVmSprite2D(AnmManager* This, uint32_t layer, AnmVm* anmVm)
+void AnmManager::drawVmSprite2D(AnmManager* This, uint32_t layer, AnmVm* vm)
 {
     // Store original layer for later use
     uint32_t originalLayer = layer;
@@ -638,8 +637,8 @@ void AnmManager::drawVmSprite2D(AnmManager* This, uint32_t layer, AnmVm* anmVm)
     // Apply UVs with scroll offset
     for (int i = 0; i < 4; ++i)
     {
-        g_renderQuad144[i].uv.x = anmVm->m_spriteUvQuad[i].x + anmVm->m_uvScrollPos.x;
-        g_renderQuad144[i].uv.y = anmVm->m_spriteUvQuad[i].y + anmVm->m_uvScrollPos.y;
+        g_renderQuad144[i].uv.x = vm->m_spriteUvQuad[i].x + vm->m_uvScrollPos.x;
+        g_renderQuad144[i].uv.y = vm->m_spriteUvQuad[i].y + vm->m_uvScrollPos.y;
     }
 
     // Compute bounding box max x
@@ -678,12 +677,11 @@ void AnmManager::drawVmSprite2D(AnmManager* This, uint32_t layer, AnmVm* anmVm)
         return;
 
     // Handle texture change
-    IDirect3DTexture9** newTex = &anmVm->m_sprite->anmLoadedD3D->m_texture;
-    if (This->m_tex != newTex)
+    IDirect3DTexture9* tex = vm->m_sprite->anmLoadedD3D->m_texture;
+    if (This->m_tex->m_texture != tex)
     {
-        This->m_tex = newTex;
-        flushSprites(This);
-        g_supervisor.d3dDevice->SetTexture(0, *This->m_tex);
+        This->m_tex->m_texture = tex;
+        g_supervisor.d3dDevice->SetTexture(0, tex);
     }
 
     // Flush if needed
@@ -701,7 +699,7 @@ void AnmManager::drawVmSprite2D(AnmManager* This, uint32_t layer, AnmVm* anmVm)
 
     if ((originalLayer & 2) == 0)
     {
-        c0 = (anmVm->m_flagsLow & 0x8000) ? anmVm->m_color0 : anmVm->m_color1;
+        c0 = (vm->m_flagsLow & 0x8000) ? vm->m_color0 : vm->m_color1;
         c1 = c0;
         c2 = c0;
         c3 = c0;
@@ -735,7 +733,7 @@ void AnmManager::drawVmSprite2D(AnmManager* This, uint32_t layer, AnmVm* anmVm)
     g_renderQuad144[2].diffuse = c2;
     g_renderQuad144[3].diffuse = c3;
 
-    setupRenderStateForVm(This, anmVm);
+    setupRenderStateForVm(This, vm);
     writeSprite(This, g_renderQuad144);
 }
 
@@ -754,9 +752,9 @@ int AnmManager::drawVmWithFog(AnmManager* This, AnmVm* vm)
     if (vm->projectQuadCornersThroughCameraViewport(vm) != 0)
         return -1;
 
-    float fogStart = g_supervisor.currentCam->f0;
-    float fogEnd = g_supervisor.currentCam->f1;
-    float cullDistance = g_supervisor.cam0.f0;  // Assuming this is the fog start or end, but based on logic it's the fog start for comparison
+    float fogStart = g_supervisor.currentCam->fogStart;
+    float fogEnd = g_supervisor.currentCam->fogEnd;
+    float cullDistance = g_supervisor.cam0.fogStart;
 
     D3DCOLOR color = (vm->m_flagsLow & 0x8000) ? vm->m_color1 : vm->m_color0;
 
@@ -766,16 +764,17 @@ int AnmManager::drawVmWithFog(AnmManager* This, AnmVm* vm)
 
     float dist = sqrtf(x * x + y * y + z * z);
 
-    if (This->m_rebuildColorFlag != 0) {
+    if (This->m_rebuildColorFlag != 0)
+    {
         uint8_t r = (color >> 16) & 0xFF;
         uint8_t g = (color >> 8) & 0xFF;
         uint8_t b = color & 0xFF;
         uint8_t a = (color >> 24) & 0xFF;
 
-        r = std::min(static_cast<uint32_t>(This->m_scaleR * r) >> 7, 255u);
-        g = std::min(static_cast<uint32_t>(This->m_scaleG * g) >> 7, 255u);
-        b = std::min(static_cast<uint32_t>(This->m_scaleB * b) >> 7, 255u);
-        a = std::min(static_cast<uint32_t>(This->m_scaleA * a) >> 7, 255u);
+        r = scaleChannel(This->m_scaleR, r);
+        g = scaleChannel(This->m_scaleG, g);
+        b = scaleChannel(This->m_scaleB, b);
+        a = scaleChannel(This->m_scaleA, a);
 
         color = (a << 24) | (r << 16) | (g << 8) | b;
     }
@@ -909,7 +908,7 @@ void AnmManager::applyRenderStateForVm(AnmManager* This, AnmVm* vm)
     This->m_someCounter++;
 }
 
-int AnmManager::drawVmTriangleStrip(AnmManager* This, AnmVm* vm, RenderVertex144* vertexBuffer, uint32_t vertexCount)
+int AnmManager::drawVmTriangleStrip(AnmManager* This, AnmVm* vm, SpecialRenderData* specialRenderData, uint32_t vertexCount)
 {
     uint8_t alpha = (vm->m_color0 >> 24) & 0xff;
     if ((vm->m_flagsLow & 0x3) != 0x3 || alpha == 0)
@@ -918,11 +917,11 @@ int AnmManager::drawVmTriangleStrip(AnmManager* This, AnmVm* vm, RenderVertex144
     if (This->m_anmVertexBuffers.leftoverSpriteCount != 0)
         flushSprites(This);
 
-    IDirect3DTexture9** tex = &vm->m_sprite->anmLoadedD3D->m_texture;
-    if (This->m_tex != tex)
+    IDirect3DTexture9* tex = vm->m_sprite->anmLoadedD3D->m_texture;
+    if (This->m_tex->m_texture != tex)
     {
-        This->m_tex = tex;
-        g_supervisor.d3dDevice->SetTexture(0, *tex);
+        This->m_tex->m_texture = tex;
+        g_supervisor.d3dDevice->SetTexture(0, tex);
     }
 
     if (This->m_haveFlushedSprites != 3)
@@ -937,14 +936,14 @@ int AnmManager::drawVmTriangleStrip(AnmManager* This, AnmVm* vm, RenderVertex144
     g_supervisor.d3dDevice->DrawPrimitiveUP(
         D3DPT_TRIANGLESTRIP,
         vertexCount - 2,
-        vertexBuffer,
-        0x1c
+        specialRenderData->vertices,
+        sizeof(RenderVertex144)
     );
     return 0;
 }
 
 // 0x451e10
-int AnmManager::drawVmTriangleFan(AnmManager* This, AnmVm* vm, RenderVertex144* vertexBuffer, uint32_t vertexCount)
+int AnmManager::drawVmTriangleFan(AnmManager* This, AnmVm* vm, SpecialRenderData* specialRenderData, uint32_t vertexCount)
 {
     if (This->m_anmVertexBuffers.leftoverSpriteCount != 0)
         flushSprites(This);
@@ -956,11 +955,11 @@ int AnmManager::drawVmTriangleFan(AnmManager* This, AnmVm* vm, RenderVertex144* 
     }
     setupRenderStateForVm(This, vm);
 
-    IDirect3DTexture9** tex = &vm->m_sprite->anmLoadedD3D->m_texture;
-    if (This->m_tex != tex)
+    IDirect3DTexture9* tex = vm->m_sprite->anmLoadedD3D->m_texture;
+    if (This->m_tex->m_texture != tex)
     {
-        This->m_tex = tex;
-        g_supervisor.d3dDevice->SetTexture(0, *tex);
+        This->m_tex->m_texture = tex;
+        g_supervisor.d3dDevice->SetTexture(0, tex);
     }
 
     flushSprites(This);
@@ -970,8 +969,8 @@ int AnmManager::drawVmTriangleFan(AnmManager* This, AnmVm* vm, RenderVertex144* 
     g_supervisor.d3dDevice->DrawPrimitiveUP(
         D3DPT_TRIANGLEFAN,
         vertexCount - 2,
-        vertexBuffer,
-        0x1c
+        specialRenderData->vertices,
+        sizeof(RenderVertex144)
     );
     return 0;
 }
@@ -1000,6 +999,346 @@ AnmVm* AnmManager::getVmWithId(AnmManager* This, int anmId)
     return nullptr;
 }
 
+void AnmManager::loadIntoAnmVm(AnmVm* vm, AnmLoaded* anmLoaded, int scriptNumber)
+{
+    AnmRawInstruction* instr;
+    uint32_t isInitialized;
+
+    if (anmLoaded->m_spriteData[scriptNumber] != 0 && anmLoaded->m_anmsLoading == 0)
+    {
+        vm->initialize(vm);
+        vm->m_scriptNumber = static_cast<uint16_t>(scriptNumber);
+        vm->m_flagsLow &= 0xfffff9ff;
+        vm->m_anmFileIndex = static_cast<uint16_t>(anmLoaded->m_anmSlotIndex);
+        vm->m_anmLoaded = anmLoaded;
+
+        instr = (AnmRawInstruction*)anmLoaded->m_spriteData[scriptNumber];
+        vm->m_beginningOfScript = instr;
+        vm->m_currentInstruction = instr;
+
+        isInitialized = (vm->m_timeInScript).m_isInitialized;
+        if ((isInitialized & 1) == 0)
+        {
+            vm->m_timeInScript.m_currentF = 0.0;
+            vm->m_timeInScript.m_current = 0;
+            vm->m_timeInScript.m_previous = -999999;
+            vm->m_timeInScript.m_gameSpeed = &g_gameSpeed;
+            vm->m_timeInScript.m_isInitialized = isInitialized | 1;
+        }
+        vm->m_timeInScript.m_currentF = 0.0;
+        vm->m_timeInScript.m_current = 0;
+        vm->m_timeInScript.m_previous = -1;
+        vm->m_flagsLow &= 0xfffffffe;
+        vm->run(vm);
+        ++g_anmManager->m_allocatedVmCountMaybe;
+        return;
+    }
+    memset(vm, 0, 0x434);
+}
+
+void AnmManager::putInVmList(AnmManager* This, AnmVm* vm, AnmId* anmId)
+{
+    AnmVmList* curVm = &vm->m_nodeInGlobalList;
+    curVm->entry = vm;
+    vm->m_nodeInGlobalList.next = nullptr;
+    vm->m_nodeInGlobalList.prev = nullptr;
+    if (This->m_primaryGlobalNext == nullptr)
+        This->m_primaryGlobalNext = curVm;
+
+    else
+    {
+        AnmVmList* primaryVms = This->m_primaryGlobalPrev;
+        if (primaryVms->next != nullptr)
+        {
+            (vm->m_nodeInGlobalList).next = primaryVms->next;
+            primaryVms->next->prev = curVm;
+        }
+        primaryVms->next = curVm;
+        vm->m_nodeInGlobalList.prev = primaryVms;
+    }
+    This->m_primaryGlobalPrev = curVm;
+
+    // Strange but correct game logic
+    ++This->m_id;
+    if (This->m_id == 0)
+        ++This->m_id;
+
+    vm->m_id.id = This->m_id;
+    anmId->id = This->m_id;
+}
+
+// 0x4549e0
+void AnmManager::releaseAnmLoaded(AnmManager* This, AnmLoaded* anmLoaded)
+{
+    if (!anmLoaded->m_header)
+        return;
+    This->markAnmLoadedAsReleasedInVmList(This, anmLoaded);
+
+    if (anmLoaded->m_numAnmLoadedD3Ds > 0)
+    {
+        for (int i = 0; i < anmLoaded->m_numAnmLoadedD3Ds; ++i)
+        {
+            AnmLoadedD3D* entry = &anmLoaded->m_anmLoadedD3D[i];
+            if (entry->m_texture)
+            {
+                entry->m_texture->Release();
+                entry->m_texture = nullptr;
+            }
+            if (entry->m_srcData)
+            {
+                free(entry->m_srcData);
+                entry->m_srcData = nullptr;
+            }
+        }
+    }
+
+    if (anmLoaded->m_anmLoadedD3D)
+    {
+        free(anmLoaded->m_anmLoadedD3D);
+        anmLoaded->m_anmLoadedD3D = nullptr;
+    }
+
+    if (anmLoaded->m_keyframeData)
+    {
+        free(anmLoaded->m_keyframeData);
+        anmLoaded->m_keyframeData = nullptr;
+    }
+
+    if (anmLoaded->m_spriteData)
+    {
+        free(anmLoaded->m_spriteData);
+        anmLoaded->m_spriteData = nullptr;
+    }
+
+    if (anmLoaded->m_unknownHeapAllocated)
+    {
+        free(anmLoaded->m_unknownHeapAllocated);
+        anmLoaded->m_unknownHeapAllocated = nullptr;
+    }
+
+    if (anmLoaded->m_header)
+    {
+        free(anmLoaded->m_header);
+        anmLoaded->m_header = nullptr;
+    }
+}
+
+void AnmManager::transformAndDraw(AnmManager* This, AnmVm* vm)
+{
+    // Pre-calculate world matrix and setup quad corners (likely in This->m_someBuffer or similar)
+    updateWorldMatrixAndProjectQuadCorners(This, vm);
+
+    float fogEnd = g_supervisor.currentCam->fogEnd;
+    float fogStart = g_supervisor.currentCam->fogStart;
+    float fogRange = fogEnd - fogStart;
+
+    // Determine base color (Normal or Blend color)
+    D3DCOLOR baseColor;
+    if ((vm->m_flagsLow & 0x8000) == 0)
+        baseColor = vm->m_color0;
+    else
+        baseColor = vm->m_color1;
+
+    // Extract base color components
+    int a = (baseColor >> 24) & 0xFF;
+    int r = (baseColor >> 16) & 0xFF;
+    int g = (baseColor >> 8) & 0xFF;
+    int b = baseColor & 0xFF;
+
+    // Pointer to the source positions calculated by updateWorldMatrix...
+    // In the assembly, this source array seems to be contiguous to primitive0Position or similar.
+    D3DXVECTOR3* srcPos = &This->m_primitive0Position;
+
+    // Loop over the 4 vertices of the global render quad
+    for (int i = 0; i < 4; i++)
+    {
+        D3DXVECTOR4 pOut;
+
+        // Transform vertex position by the current world matrix
+        D3DXVec3Transform(&pOut, &srcPos[i], &This->m_currentWorldMatrix);
+
+        // Calculate vector from Camera to Vertex
+        float dy = pOut.x - g_supervisor.cam0.offset.x;
+        float dz = pOut.y - g_supervisor.cam0.offset.y;
+        float dx = pOut.z - g_supervisor.cam0.offset.z;
+
+        // Calculate distance (hypotenuse)
+        float dist = sqrtf(dx * dx + dy * dy + dz * dz);
+
+        // Calculate Fog Factor
+        // If distance <= fogEnd (renderStateValue2), we might be fully inside or outside depending on logic
+        // The assembly logic is: if (dist <= fogEnd) -> Use Full Color.
+        if (dist <= g_supervisor.cam0.fogEnd)
+            g_renderQuad144[i].diffuse = baseColor;
+        else
+        {
+            // Calculate interpolation factor 'y' (0.0 to 1.0)
+            float fogFactor = (g_supervisor.cam0.fogEnd - dist) / fogRange;
+
+            // Clamp and apply fog
+            if (fogFactor >= 1.0f)
+            {
+                // This branch seems to set a specific render state value as color 
+                // possibly indicating "full fog" or "no fog" depending on blend mode.
+                // Based on asm: mov renderStateValue1 -> d[-1].uv.y+1 (likely color)
+                g_renderQuad144[i].diffuse = g_supervisor.currentCam->renderStateValue1;
+
+                // The assembly also sets the 'rhw' or 'x' position byte to 'c' (Alpha of base color)?
+                // *(undefined1 *)&(d->pos).x = c; 
+                // This part implies a specific hack for fully fogged items or Z-sorting.
+            }
+            else
+            {
+                // Interpolate RGB channels towards the Fog Color (fogR, fogG, fogB)
+                // The assembly calculates: Base - (Base - Fog) * Factor
+                // Or: (Base - FogBase) * Factor?
+
+                // Reconstructing the byte math from assembly:
+                // cStack_54 = ROUND(((float)(color & 0xff) - g_supervisor.cam0.fogB) * y);
+                // finalBlue = (char)color - cStack_54;
+
+                // Blue
+                int deltaB = (int)roundf(((float)b - g_supervisor.cam0.fogB) * fogFactor);
+                int finalB = b - deltaB;
+
+                // Green
+                int deltaG = (int)roundf(((float)g - g_supervisor.cam0.fogG) * fogFactor);
+                int finalG = g - deltaG;
+
+                // Red
+                int deltaR = (int)roundf(((float)r - g_supervisor.cam0.fogR) * fogFactor);
+                int finalR = r - deltaR;
+
+                // Reassemble color
+                g_renderQuad144[i].diffuse = D3DCOLOR_ARGB(a, finalR, finalG, finalB);
+            }
+        }
+    }
+    drawVmSprite2D(This, 2, vm);
+
+    // Reset RHW to 1.0 for all vertices after drawing
+    g_renderQuad144[3].rhw = 1.0f;
+    g_renderQuad144[2].rhw = 1.0f;
+    g_renderQuad144[1].rhw = 1.0f;
+    g_renderQuad144[0].rhw = 1.0f;
+}
+
+// 0x4513a0
+int AnmManager::drawVmWithTextureTransform(AnmManager* This, AnmVm* vm)
+{
+    if ((vm->m_flagsLow & 1) && (vm->m_flagsLow & 2) && (vm->m_color0 >> 24) != 0)
+    {
+        // 0x435620: Check if there are batched sprites waiting to be drawn
+        if (This->m_anmVertexBuffers.leftoverSpriteCount != 0)
+        {
+            // 0x44fd10: Flush existing sprites to maintain draw order
+            flushSprites(This);
+        }
+
+        uint32_t flags = vm->m_flagsLow;
+        if (!(flags & 0x4000) && (flags & 0xC))
+        {
+            vm->m_localTransformMatrix = vm->m_baseScaleMatrix;
+            vm->m_localTransformMatrix._11 *= vm->m_scale.x;
+            vm->m_localTransformMatrix._22 *= vm->m_scale.y;
+            vm->m_flagsLow &= ~0x8; // Clear scale dirty flag (Bit 3 / 0x8)
+
+            D3DXMATRIX tempMatrix;
+            if (vm->m_rotation.x != 0.0f)
+            {
+                D3DXMatrixRotationX(&tempMatrix, vm->m_rotation.x);
+                D3DXMatrixMultiply(&vm->m_localTransformMatrix, &vm->m_localTransformMatrix, &tempMatrix);
+            }
+
+            if (vm->m_rotation.y != 0.0f)
+            {
+                D3DXMatrixRotationY(&tempMatrix, vm->m_rotation.y);
+                D3DXMatrixMultiply(&vm->m_localTransformMatrix, &vm->m_localTransformMatrix, &tempMatrix);
+            }
+
+            if (vm->m_rotation.z != 0.0f)
+            {
+                D3DXMatrixRotationZ(&tempMatrix, vm->m_rotation.z);
+                D3DXMatrixMultiply(&vm->m_localTransformMatrix, &vm->m_localTransformMatrix, &tempMatrix);
+            }
+
+            vm->m_flagsLow &= ~0x4; // Clear rotation dirty flag (Bit 2 / 0x4)
+        }
+
+        // Initialize World Matrix from Local Matrix
+        D3DXMATRIX worldMatrix = vm->m_localTransformMatrix;
+
+        // Position & Anchor Calculation
+        int anchorX = (vm->m_flagsLow >> 18) & 3;
+        float finalX = vm->m_entityPos.x + vm->m_pos.x + vm->m_offsetPos.x;
+
+        if (anchorX == 1)
+            finalX -= fabsf(vm->m_spriteSize.x * vm->m_scale.x * 0.5f);
+
+        else if (anchorX == 2)
+            finalX += fabsf(vm->m_spriteSize.x * vm->m_scale.x * 0.5f);
+
+        worldMatrix._41 = finalX;
+
+        int anchorY = (vm->m_flagsLow >> 20) & 3;
+        float finalY = vm->m_entityPos.y + vm->m_pos.y + vm->m_offsetPos.y;
+
+        if (anchorY == 1)
+            finalY -= fabsf(vm->m_spriteSize.y * vm->m_scale.y * 0.5f);
+        else if (anchorY == 2)
+            finalY += fabsf(vm->m_spriteSize.y * vm->m_scale.y * 0.5f);
+        worldMatrix._42 = finalY;
+        worldMatrix._43 = vm->m_entityPos.z + vm->m_pos.z + vm->m_offsetPos.z;
+
+        // 0x44f4b0: Apply material/colors/render states
+        applyRenderStateForVm(This, vm);
+
+        // Set World Transform (State 256 / 0x100)
+        g_supervisor.d3dDevice->SetTransform(D3DTS_WORLD, &worldMatrix);
+
+        // Texture Setup
+        AnmLoadedD3D* spriteD3D = vm->m_sprite->anmLoadedD3D;
+
+        // Check cached texture pointer
+        if (This->m_tex != spriteD3D)
+        {
+            This->m_tex = spriteD3D;
+            g_supervisor.d3dDevice->SetTexture(0, spriteD3D->m_texture);
+        }
+
+        // Texture Transform (Scroll/Matrix)
+        float scrollX = vm->m_uvScrollPos.x;
+
+        // Check if texture matrix needs update (different sprite or non-zero scroll)
+        if (This->m_cachedSprite != vm->m_sprite || scrollX != 0.0f || vm->m_uvScrollPos.y != 0.0f)
+        {
+            This->m_cachedSprite = vm->m_sprite;
+
+            // Start with the VM's texture matrix (0x334)
+            D3DXMATRIX texMatrix = vm->m_textureMatrix;
+
+            // Apply UV scrolling/offset to the matrix
+            texMatrix._31 = vm->m_uvScrollPos.x + vm->m_spriteUvQuad[0].x;
+            texMatrix._32 = vm->m_uvScrollPos.y + vm->m_spriteUvQuad[0].y;
+
+            // Set Texture Transform (State 16 / D3DTS_TEXTURE0)
+            g_supervisor.d3dDevice->SetTransform(D3DTS_TEXTURE0, &texMatrix);
+        }
+
+        if (This->m_haveFlushedSprites != 2)
+        {
+            g_supervisor.d3dDevice->SetStreamSource(0, This->m_d3dVertexBuffer, 0, sizeof(RenderVertex144));
+            g_supervisor.d3dDevice->SetFVF(D3DFVF_XYZ | D3DFVF_TEX1);
+            g_supervisor.d3dDevice->SetTextureStageState(0, D3DTSS_COLORARG2, D3DTA_CURRENT);
+            g_supervisor.d3dDevice->SetTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_CURRENT);
+            This->m_haveFlushedSprites = 2;
+        }
+        g_supervisor.d3dDevice->DrawPrimitive(D3DPT_TRIANGLESTRIP, 0, 2);
+        return 0;
+    }
+    return -1;
+}
+
 // 0x451ef0
 void AnmManager::drawVm(AnmManager* This, AnmVm* vm)
 {
@@ -1010,56 +1349,127 @@ void AnmManager::drawVm(AnmManager* This, AnmVm* vm)
     switch (vm->m_flagsLow >> 0x16 & 0xf)
     {
     case 0:
-        //writeSpriteCharacterWithoutRotAndDrawVmSprite2D(vm);
+    {
+        vm->writeSpriteCharactersWithoutRot(
+            vm,
+            &g_renderQuad144[0],
+            &g_renderQuad144[1],
+            &g_renderQuad144[2],
+            &g_renderQuad144[3]
+        );
+        drawVmSprite2D(This, 1, vm);
         break;
+    }
     case 1:
-        //writeSpriteCharactersWithoutRotAndApplyZRotationToQuadCorners(vm);
+    {
+        if (vm->m_rotation.z == 0.0)
+        {
+            vm->writeSpriteCharactersWithoutRot(
+                vm,
+                &g_renderQuad144[0],
+                &g_renderQuad144[1],
+                &g_renderQuad144[2],
+                &g_renderQuad144[3]);
+            drawVmSprite2D(This, 1, vm);
+        }
+        else
+        {
+            vm->applyZRotationToQuadCorners(
+                vm,
+                &g_renderQuad144[0],
+                &g_renderQuad144[1],
+                &g_renderQuad144[2],
+                &g_renderQuad144[3]
+            );
+            drawVmSprite2D(This, 0, vm);
+        }
         break;
+    }
     case 2:
-        //writeSpriteCharactersAndDrawVmSprite2D(This,vm);
+    {
+        vm->writeSpriteCharacters(
+            vm,
+            &g_renderQuad144[0],
+            &g_renderQuad144[1],
+            &g_renderQuad144[2],
+            &g_renderQuad144[3]
+        );
+        drawVmSprite2D(This, 0, vm);
         break;
+    }
     case 3:
-        //writeSpriteCharactersAndDrawVmSprite2DAndApplyZRotationToQuadCorners(This,vm);
+    {
+        if (vm->m_rotation.z == 0.0)
+        {
+            vm->writeSpriteCharacters(
+                vm,
+                &g_renderQuad144[0],
+                &g_renderQuad144[1],
+                &g_renderQuad144[2],
+                &g_renderQuad144[3]
+            );
+            drawVmSprite2D(This, 0, vm);
+        }
+        else
+        {
+            vm->applyZRotationToQuadCorners(
+                vm,
+                &g_renderQuad144[0],
+                &g_renderQuad144[1],
+                &g_renderQuad144[2],
+                &g_renderQuad144[3]
+            );
+            drawVmSprite2D(This, 0, vm);
+        }
         break;
+    }
     case 4:
-        //projectQuadCornersThroughCameraViewportAndDrawVmSprite2D(This,vm);
+    {
+        vm->projectQuadCornersThroughCameraViewport(vm);
+        drawVmSprite2D(This, 0, vm);
         break;
+    }
     case 5:
-        //updateWorldMatrixAndProjectBoundingBoxAndDrawVmSprite2DAndSetFloats(This,vm);
+    {
+        updateWorldMatrixAndProjectQuadCorners(This, vm);
+        drawVmSprite2D(This, 0, vm);
+        g_renderQuad144[0].rhw = 1.0;
+        g_renderQuad144[1].rhw = 1.0;
+        g_renderQuad144[2].rhw = 1.0;
+        g_renderQuad144[3].rhw = 1.0;
         break;
+    }
     case 6:
         drawVmWithFog(This, vm);
         break;
     case 7:
-        // transformAndDraw(vm);
+        transformAndDraw(This, vm);
         break;
     case 8:
-        //sub_004513a0(vm);
+        drawVmWithTextureTransform(This, vm);
         break;
     case 9:
     case 0xc:
     case 0xd:
-        //drawVmTriangleStrip(This, vm, vm->m_specialRenderData, vm->m_intVars[0] * 2);
+        drawVmTriangleStrip(This, vm, vm->m_specialRenderData, vm->m_intVars[0] * 2);
         break;
     case 0xb:
-        //drawVmTriangleFan(This, vm, vm->m_specialRenderData, vm->m_intVars[0] * 2);
+        drawVmTriangleFan(This, vm, vm->m_specialRenderData, vm->m_intVars[0] * 2);
         break;
     default:
         break;
     }
 }
 
-/* Global Functions */
-
 // 0x445460
-void blitTextures()
+void blitTextures(AnmManager* This)
 {
     for (int i = 0; i < 4; ++i)
     {
-        BlitParams* blitParams = &g_anmManager->m_blitParamsArray[i];
+        BlitParams* blitParams = &This->m_blitParamsArray[i];
         if (blitParams->anmLoadedIndex >= 0)
         {
-            AnmManager::blitTextureToSurface(g_anmManager, blitParams);
+            This->blitTextureToSurface(This, blitParams);
             blitParams->anmLoadedIndex = -1;
         }
     }

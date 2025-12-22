@@ -4,6 +4,9 @@
 #include "AnmVm.h"
 #include "FileAbstrction.h"
 
+struct AnmLoaded;
+struct AnmLoadedD3D;
+
 struct BlitParams
 {
     int anmLoadedIndex;
@@ -41,13 +44,14 @@ public:
     AnmVm m_primaryVm;                          // <0x435180>
     uint32_t m_u0;                              // <0x4355bc>
     D3DCOLOR m_color;                           // <0x4355b8>
-    IDirect3DTexture9** m_tex;                  // <0x4355bc>
+    AnmLoadedD3D* m_tex;                        // <0x4355bc>
     uint8_t m_renderStateMode;                  // <0x4355c0>
     uint8_t m_l;                                // <0x4355c1>
     uint8_t m_haveFlushedSprites;               // <0x4355c2>
     uint8_t m_stuff[3];
-    bool m_usePointFilter;                      // <0x4355c7>
-    uint8_t m_stuff2[5];
+    bool m_usePointFilter;                      // <0x4355c6>
+    uint8_t m_idk2;                             // <0x4355c7>
+    AnmLoadedSprite* m_cachedSprite;            // <0x4355c8>
     IDirect3DVertexBuffer9* m_d3dVertexBuffer;  // <0x4355cc>
     D3DXVECTOR3 m_primitive0Position;           // <0x4355d0>
     D3DXVECTOR2 m_primitive0Uv;                 // <0x4355dc>
@@ -79,25 +83,36 @@ public:
     static void applyRenderStateForVm(AnmManager* This, AnmVm* vm);
     static void drawVmSprite2D(AnmManager* This, uint32_t layer, AnmVm* anmVm);
     static void drawVm(AnmManager* This, AnmVm* vm);
+    static void transformAndDraw(AnmManager* This, AnmVm* vm);
+    static void loadIntoAnmVm(AnmVm* vm, AnmLoaded* anmLoaded, int scriptNumber);
+    static void putInVmList(AnmManager* This, AnmVm* vm, AnmId* anmId);
+    static void releaseAnmLoaded(AnmManager* This, AnmLoaded* anmLoaded);
+    static int drawVmWithTextureTransform(AnmManager* This, AnmVm* vm);
     static int updateWorldMatrixAndProjectQuadCorners(AnmManager* This, AnmVm* vm);
     static int writeSprite(AnmManager* This, RenderVertex144* vertexBuffer);
     static int drawVmWithFog(AnmManager* This, AnmVm* vm);
-    static int drawVmTriangleStrip(AnmManager* This, AnmVm* vm, RenderVertex144* vertexBuffer, uint32_t vertexCount);
-    static int drawVmTriangleFan(AnmManager* This, AnmVm* vm, RenderVertex144* vertexBuffer, uint32_t vertexCount);
+    static int drawVmTriangleStrip(AnmManager* This, AnmVm* vm, SpecialRenderData* specialRenderData, uint32_t vertexCount);
+    static int drawVmTriangleFan(AnmManager* This, AnmVm* vm, SpecialRenderData* specialRenderData, uint32_t vertexCount);
     static AnmLoaded* preloadAnm(AnmManager* This, int anmIdx, const char* anmFileName);
     static AnmLoaded* preloadAnmFromMemory(AnmManager* This, const char* anmFilePath, int m_anmSlotIndex);
     static AnmVm* allocateVm(AnmManager* This);
     static AnmVm* getVmWithId(AnmManager* This, int anmId);
+    static void blitTextures(AnmManager* This);
 private:
     static constexpr int NUM_BULK_VMS = 4096;
     static constexpr int NUM_ANM_LOADEDS = 32;
     static uint32_t modulateColorComponent(uint16_t base, uint16_t factor);
-    inline int getNextBulkVmIndex(int current) { return (current + 1) & (NUM_BULK_VMS - 1); }
+
+    static inline int getNextBulkVmIndex(int current)
+    {
+        return (current + 1) & (NUM_BULK_VMS - 1);
+    }
+
+    static inline uint8_t scaleChannel(uint32_t scale, uint8_t v)
+    {
+        uint32_t x = (scale * v) >> 7;
+        x = std::min(x, uint32_t{ 255 });
+        return static_cast<uint8_t>(x);
+    }
 };
 ASSERT_SIZE(AnmManager, 0x7bd894);
-
-/* Globals */
-
-extern AnmManager* g_anmManager;
-
-void blitTextures();
