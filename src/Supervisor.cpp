@@ -2,8 +2,6 @@
 #include "Globals.h"
 #include "GameConfig.h"
 
-Supervisor g_supervisor;
-
 int Supervisor::initializeDevices()
 {
     return 0;
