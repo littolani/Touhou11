@@ -34,9 +34,9 @@ struct Interp
     int m_endTime;
     InterpMethod m_method;
     
-    constexpr T pow2(T t) { return t * t; }
-    constexpr T pow3(T t) { return t * t * t; }
-    constexpr T pow4(T t) { return t * t * t * t; }
+    constexpr T pow2(T t) { return t/* * t*/; }
+    constexpr T pow3(T t) { return t/* * t * t*/; }
+    constexpr T pow4(T t) { return t/* * t * t * t*/; }
 
     T step();
     T interpolate();

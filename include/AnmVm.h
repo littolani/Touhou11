@@ -107,12 +107,12 @@ public:
 
     /**
      * 0x4503d0
-     * @brief Used for a spinning animations such as the rocks in stage 1 and "SUBTERRANEAN ANIMISM" title screen text
-     * @param  ECX:4        This
-     * @param  Stack[0x4]:4 bottomLeft
-     * @param  EBX:4        bottomRight
-     * @param  EDI:4        topLeft
-     * @param  ESI:4        topRight
+     * @brief Used for a spinning animations such as the rocks in stage 1 and "SUBTERRANEAN ANIMISM" title screen text (identical to writeSpriteCharacters)
+     * @param  This        ECX:4
+     * @param  bottomLeft  Stack[0x4]:4
+     * @param  bottomRight EBX:4
+     * @param  topLeft     EDI:4
+     * @param  topRight    ESI:4
      */
     static void applyZRotationToQuadCorners(
         AnmVm* This,
@@ -124,12 +124,12 @@ public:
 
     /**
      * 0x4503d0
-     * @brief Used for the Tou Hou Chi Rei Den characters on the title screen
-     * @param  Stack[0x4]:4 This
-     * @param  EBX:4        bottomLeft
-     * @param  EDI:4        bottomRight
-     * @param  EDX:4        topLeft
-     * @param  ESI:4        topRight
+     * @brief Used for the Tou Hou Chi Rei Den characters on the title screen (identical to applyZRotationToQuadCorners)
+     * @param This        Stack[0x4]:4
+     * @param bottomLeft  EBX:4
+     * @param bottomRight EDI:4
+     * @param topLeft     EDX:4
+     * @param topRight    ESI:4
      */
     static void writeSpriteCharacters(
         AnmVm* This,

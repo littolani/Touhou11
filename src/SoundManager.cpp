@@ -1,6 +1,6 @@
 #include "SoundManager.h"
 
-char* __cdecl SoundManager::findRiffChunk(char* searchPtr, const char* targetId, int remainingSize, int* outChunkSize)
+char* SoundManager::findRiffChunk(char* searchPtr, const char* targetId, int remainingSize, int* outChunkSize)
 {
     //printf("findRiffChunk searching for %s at %p with remaining size %d\n", targetId, searchPtr, remainingSize);
     if (remainingSize != 0)
