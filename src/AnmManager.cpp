@@ -221,10 +221,9 @@ void AnmManager::releaseTextures(AnmManager* This)
     }
 }
 
-// 0x44fd10
 void AnmManager::flushSprites(AnmManager* This)
 {
-    if ((This->m_anmVertexBuffers).leftoverSpriteCount == 0)
+    if (This->m_anmVertexBuffers.leftoverSpriteCount == 0)
         return;
 
     g_supervisor.d3dDevice->SetTextureStageState(0, D3DTSS_ALPHAARG2, 0);
@@ -235,7 +234,7 @@ void AnmManager::flushSprites(AnmManager* This)
         D3DPT_TRIANGLELIST,
         This->m_anmVertexBuffers.leftoverSpriteCount * 2,
         This->m_anmVertexBuffers.spriteRenderCursor,
-        0x1c
+        sizeof(RenderVertex144)
     );
 
     ++This->m_refreshCounter;
@@ -530,7 +529,6 @@ int AnmManager::updateWorldMatrixAndProjectQuadCorners(AnmManager* This, AnmVm* 
     return 0;
 }
 
-// 0x44f710
 void AnmManager::setupRenderStateForVm(AnmManager* This, AnmVm* vm)
 {
     uint8_t mode = (vm->m_flagsLow >> 4) & 0x7;
@@ -551,11 +549,11 @@ void AnmManager::setupRenderStateForVm(AnmManager* This, AnmVm* vm)
             srcBlend = D3DBLEND_SRCALPHA;
             destBlend = D3DBLEND_ONE;
             break;
-        case 2:  // Subtract blending?
+        case 2:  // Subtract blending
             srcBlend = D3DBLEND_ZERO;
             destBlend = D3DBLEND_INVSRCCOLOR;
             break;
-        case 3:  // Replace?
+        case 3:  // Replace
             srcBlend = D3DBLEND_ONE;
             destBlend = D3DBLEND_ZERO;
             break;
@@ -589,152 +587,151 @@ void AnmManager::setupRenderStateForVm(AnmManager* This, AnmVm* vm)
     This->m_someCounter++;
 }
 
-// 0x44fda0
-int AnmManager::writeSprite(AnmManager* This, RenderVertex144* someVertices)
+void AnmManager::writeSprite(AnmManager* This, RenderVertex144* srcVertices)
 {
-    RenderVertex144* cursor = This->m_anmVertexBuffers.spriteWriteCursor;
-    cursor[0] = someVertices[0];
-    cursor[1] = someVertices[1];
-    cursor[2] = someVertices[2];
-    cursor[3] = someVertices[1];
-    cursor[4] = someVertices[2];
-    cursor[5] = someVertices[3];
+    RenderVertex144* dest = This->m_anmVertexBuffers.spriteWriteCursor;
+
+    // Quad (0,1,2,3) -> Triangle List (0,1,2) + (1,3,2)
+    // The specific order depends on the cull mode (CW vs CCW).
+    // Dest[0] = Src[0]
+    // Dest[1] = Src[1]
+    // Dest[2] = Src[2]
+    // Dest[3] = Src[1]
+    // Dest[4] = Src[3]
+    // Dest[5] = Src[2]
+
+    // Tri 1: TL, TR, BL
+    dest[0] = srcVertices[0];
+    dest[1] = srcVertices[1];
+    dest[2] = srcVertices[2];
+
+    // Tri 2: TR, BR, BL
+    dest[3] = srcVertices[1];
+    dest[4] = srcVertices[3];
+    dest[5] = srcVertices[2];
+
+    // Advance cursor by 6 vertices
     This->m_anmVertexBuffers.spriteWriteCursor += 6;
-    This->m_anmVertexBuffers.leftoverSpriteCount += 1;
-    return 0;
+    This->m_anmVertexBuffers.leftoverSpriteCount++;
 }
 
-// 0x44f880
-void AnmManager::drawVmSprite2D(AnmManager* This, uint32_t layer, AnmVm* vm)
+void AnmManager::drawVmSprite2D(AnmManager* This, uint32_t layer, AnmVm* anmVm)
 {
-    // Store original layer for later use
-    uint32_t originalLayer = layer;
-
-    // Apply offsets to all quad positions
-    for (int i = 0; i < 4; ++i)
+    // Apply global offset
+    for (int i = 0; i < 4; i++)
     {
-        g_renderQuad144[i].pos.x += static_cast<float>(This->m_globalRenderQuadOffsetX);
-        g_renderQuad144[i].pos.y += static_cast<float>(This->m_globalRenderQuadOffsetY);
+        g_renderQuad144[i].pos.x += This->m_globalRenderQuadOffsetX;
+        g_renderQuad144[i].pos.y += This->m_globalRenderQuadOffsetY;
     }
 
-    // Pixel alignment if layer is odd
+    // Pixel Alignment (Round to nearest pixel - 0.5 for texel center mapping in DX9)
     if (layer & 1)
     {
-        // Round and offset x coordinates for bottom-left and bottom-right
-        g_renderQuad144[0].pos.x = static_cast<float>(g_renderQuad144[0].pos.x) - 0.5f;
-        g_renderQuad144[1].pos.x = static_cast<float>(g_renderQuad144[1].pos.x) - 0.5f;
-        // Round and offset y coordinates for bottom-left and top-left
-        g_renderQuad144[0].pos.y = static_cast<float>(g_renderQuad144[0].pos.y) - 0.5f;
-        g_renderQuad144[2].pos.y = static_cast<float>(g_renderQuad144[2].pos.y) - 0.5f;
-        // Copy adjusted y to bottom-right and top-right
+        // ASM: 44f92c fsubs 0x4973f8 (0.5) after rounding
+        g_renderQuad144[0].pos.x = roundf(g_renderQuad144[0].pos.x) - 0.5f;
+        g_renderQuad144[1].pos.x = roundf(g_renderQuad144[1].pos.x) - 0.5f;
+        g_renderQuad144[0].pos.y = roundf(g_renderQuad144[0].pos.y) - 0.5f;
+        g_renderQuad144[2].pos.y = roundf(g_renderQuad144[2].pos.y) - 0.5f;
+
+        // Propagate aligned positions to form the rect
         g_renderQuad144[1].pos.y = g_renderQuad144[0].pos.y;
-        g_renderQuad144[3].pos.y = g_renderQuad144[2].pos.y;
-        // Copy adjusted x to top-left and top-right
         g_renderQuad144[2].pos.x = g_renderQuad144[0].pos.x;
         g_renderQuad144[3].pos.x = g_renderQuad144[1].pos.x;
+        g_renderQuad144[3].pos.y = g_renderQuad144[2].pos.y;
     }
 
-    // Apply UVs with scroll offset
-    for (int i = 0; i < 4; ++i)
+    // Apply UV Scrolling
+    for (int i = 0; i < 4; i++)
     {
-        g_renderQuad144[i].uv.x = vm->m_spriteUvQuad[i].x + vm->m_uvScrollPos.x;
-        g_renderQuad144[i].uv.y = vm->m_spriteUvQuad[i].y + vm->m_uvScrollPos.y;
+        g_renderQuad144[i].uv.x = anmVm->m_spriteUvQuad[i].x + anmVm->m_uvScrollPos.x;
+        g_renderQuad144[i].uv.y = anmVm->m_spriteUvQuad[i].y + anmVm->m_uvScrollPos.y;
     }
 
-    // Compute bounding box max x
-    float maxX = g_renderQuad144[0].pos.x;
-    maxX = std::max(maxX, g_renderQuad144[1].pos.x);
-    maxX = std::max(maxX, g_renderQuad144[2].pos.x);
-    maxX = std::max(maxX, g_renderQuad144[3].pos.x);
+    // Bounding Box Calculation
+    float maxX = g_renderQuad144[1].pos.x;
+    if (g_renderQuad144[0].pos.x > maxX) maxX = g_renderQuad144[0].pos.x;
+    if (g_renderQuad144[2].pos.x > maxX) maxX = g_renderQuad144[2].pos.x;
+    if (g_renderQuad144[3].pos.x > maxX) maxX = g_renderQuad144[3].pos.x;
 
-    // Compute bounding box max y
-    float maxY = g_renderQuad144[0].pos.y;
-    maxY = std::max(maxY, g_renderQuad144[1].pos.y);
-    maxY = std::max(maxY, g_renderQuad144[2].pos.y);
-    maxY = std::max(maxY, g_renderQuad144[3].pos.y);
+    float minX = g_renderQuad144[1].pos.x;
+    if (g_renderQuad144[0].pos.x < minX) minX = g_renderQuad144[0].pos.x;
+    if (g_renderQuad144[2].pos.x < minX) minX = g_renderQuad144[2].pos.x;
+    if (g_renderQuad144[3].pos.x < minX) minX = g_renderQuad144[3].pos.x;
 
-    // Compute bounding box min x
-    float minX = g_renderQuad144[0].pos.x;
-    minX = std::min(minX, g_renderQuad144[1].pos.x);
-    minX = std::min(minX, g_renderQuad144[2].pos.x);
-    minX = std::min(minX, g_renderQuad144[3].pos.x);
+    float maxY = g_renderQuad144[1].pos.y;
+    if (g_renderQuad144[0].pos.y > maxY) maxY = g_renderQuad144[0].pos.y;
+    if (g_renderQuad144[2].pos.y > maxY) maxY = g_renderQuad144[2].pos.y;
+    if (g_renderQuad144[3].pos.y > maxY) maxY = g_renderQuad144[3].pos.y;
 
-    // Compute bounding box min y
-    float minY = g_renderQuad144[0].pos.y;
-    minY = std::min(minY, g_renderQuad144[1].pos.y);
-    minY = std::min(minY, g_renderQuad144[2].pos.y);
-    minY = std::min(minY, g_renderQuad144[3].pos.y);
+    float minY = g_renderQuad144[1].pos.y;
+    if (g_renderQuad144[0].pos.y < minY) minY = g_renderQuad144[0].pos.y;
+    if (g_renderQuad144[2].pos.y < minY) minY = g_renderQuad144[2].pos.y;
+    if (g_renderQuad144[3].pos.y < minY) minY = g_renderQuad144[3].pos.y;
 
-    // Get viewport dimensions
-    const D3DVIEWPORT9& viewport = g_supervisor.currentCam->viewport;
-    float viewportLeft = static_cast<float>(viewport.X);
-    float viewportTop = static_cast<float>(viewport.Y);
-    float viewportRight = viewportLeft + static_cast<float>(viewport.Width);
-    float viewportBottom = viewportTop + static_cast<float>(viewport.Height);
+    // Viewport Culling
+    D3DVIEWPORT9* vp = &g_supervisor.currentCam->viewport;
+    float vpX = (float)vp->X;
+    float vpY = (float)vp->Y;
+    float vpW = (float)vp->Width;
+    float vpH = (float)vp->Height;
 
-    // Cull if outside viewport
-    if (viewportLeft > maxX || viewportTop > maxY || viewportRight < minX || viewportBottom < minY)
-        return;
-
-    // Handle texture change
-    IDirect3DTexture9* tex = vm->m_sprite->anmLoadedD3D->m_texture;
-    if (This->m_tex->m_texture != tex)
+    if (vpX <= maxX && (vpX + vpW) >= minX && vpY <= maxY && (vpY + vpH) >= minY)
     {
-        This->m_tex->m_texture = tex;
-        g_supervisor.d3dDevice->SetTexture(0, tex);
-    }
-
-    // Flush if needed
-    if (This->m_haveFlushedSprites != 1)
-    {
-        flushSprites(This);
-        This->m_haveFlushedSprites = 1;
-    }
-
-    // Set colors
-    D3DCOLOR c0 = g_renderQuad144[0].diffuse;
-    D3DCOLOR c1 = g_renderQuad144[1].diffuse;
-    D3DCOLOR c2 = g_renderQuad144[2].diffuse;
-    D3DCOLOR c3 = g_renderQuad144[3].diffuse;
-
-    if ((originalLayer & 2) == 0)
-    {
-        c0 = (vm->m_flagsLow & 0x8000) ? vm->m_color0 : vm->m_color1;
-        c1 = c0;
-        c2 = c0;
-        c3 = c0;
-
-        if (This->m_rebuildColorFlag != 0)
+        AnmLoadedD3D* tex = anmVm->m_sprite->anmLoadedD3D;
+        if (This->m_tex != tex)
         {
-            // Extract channels (assuming ARGB format?)
-            //FIXME: Confirm this??
-            uint8_t a = (c0 >> 24) & 0xFF;
-            uint8_t r = (c0 >> 16) & 0xFF;
-            uint8_t g = (c0 >> 8) & 0xFF;
-            uint8_t b = c0 & 0xFF;
-
-            // Clamp each channel
-            r = modulateColorComponent(r, This->m_scaleR);
-            g = modulateColorComponent(g, This->m_scaleG);
-            b = modulateColorComponent(b, This->m_scaleB);
-            a = modulateColorComponent(a, This->m_scaleA);
-
-            // Rebuild color
-            c0 = (a << 24) | (r << 16) | (g << 8) | b;
-            c1 = c0;
-            c2 = c0;
-            c3 = c0;
+            This->m_tex = tex;
+            flushSprites(This);
+            g_supervisor.d3dDevice->SetTexture(0, This->m_tex->m_texture);
         }
+
+        if (This->m_haveFlushedSprites != 1)
+        {
+            flushSprites(This);
+            This->m_haveFlushedSprites = 1;
+        }
+
+        D3DCOLOR c0 = g_renderQuad144[0].diffuse;
+        D3DCOLOR c1 = g_renderQuad144[1].diffuse;
+        D3DCOLOR c2 = g_renderQuad144[2].diffuse;
+        D3DCOLOR c3 = g_renderQuad144[3].diffuse;
+
+        if ((layer & 2) == 0)
+        {
+            if ((anmVm->m_flagsLow & 0x8000) == 0)
+                c0 = anmVm->m_color0;
+            else
+                c0 = anmVm->m_color1;
+
+            c1 = c0; c2 = c0; c3 = c0;
+
+            if (This->m_rebuildColorFlag)
+            {
+                // Extract ARGB from c0
+                uint32_t a = (c0 >> 24) & 0xFF;
+                uint32_t r = (c0 >> 16) & 0xFF;
+                uint32_t g = (c0 >> 8) & 0xFF;
+                uint32_t b = c0 & 0xFF;
+
+                // Modulate
+                r = modulateColorComponent(r, This->m_scaleR);
+                g = modulateColorComponent(g, This->m_scaleG);
+                b = modulateColorComponent(b, This->m_scaleB);
+                a = modulateColorComponent(a, This->m_scaleA);
+
+                c0 = (a << 24) | (r << 16) | (g << 8) | b;
+                c1 = c0; c2 = c0; c3 = c0;
+            }
+        }
+
+        g_renderQuad144[0].diffuse = c0;
+        g_renderQuad144[1].diffuse = c1;
+        g_renderQuad144[2].diffuse = c2;
+        g_renderQuad144[3].diffuse = c3;
+
+        setupRenderStateForVm(This, anmVm);
+        writeSprite(This, g_renderQuad144);
     }
-
-    // Assign colors back to vertices
-    g_renderQuad144[0].diffuse = c0;
-    g_renderQuad144[1].diffuse = c1;
-    g_renderQuad144[2].diffuse = c2;
-    g_renderQuad144[3].diffuse = c3;
-
-    setupRenderStateForVm(This, vm);
-    writeSprite(This, g_renderQuad144);
 }
 
 // 0x44f490
@@ -820,7 +817,6 @@ int AnmManager::drawVmWithFog(AnmManager* This, AnmVm* vm)
     return 0;
 }
 
-// 0x44f4b0
 void AnmManager::applyRenderStateForVm(AnmManager* This, AnmVm* vm)
 {
     IDirect3DDevice9* device = g_supervisor.d3dDevice;
@@ -917,11 +913,11 @@ int AnmManager::drawVmTriangleStrip(AnmManager* This, AnmVm* vm, SpecialRenderDa
     if (This->m_anmVertexBuffers.leftoverSpriteCount != 0)
         flushSprites(This);
 
-    IDirect3DTexture9* tex = vm->m_sprite->anmLoadedD3D->m_texture;
-    if (This->m_tex->m_texture != tex)
+    AnmLoadedD3D* tex = vm->m_sprite->anmLoadedD3D;
+    if (This->m_tex != tex)
     {
-        This->m_tex->m_texture = tex;
-        g_supervisor.d3dDevice->SetTexture(0, tex);
+        This->m_tex = tex;
+        g_supervisor.d3dDevice->SetTexture(0, tex->m_texture);
     }
 
     if (This->m_haveFlushedSprites != 3)
@@ -955,11 +951,11 @@ int AnmManager::drawVmTriangleFan(AnmManager* This, AnmVm* vm, SpecialRenderData
     }
     setupRenderStateForVm(This, vm);
 
-    IDirect3DTexture9* tex = vm->m_sprite->anmLoadedD3D->m_texture;
-    if (This->m_tex->m_texture != tex)
+    AnmLoadedD3D* tex = vm->m_sprite->anmLoadedD3D;
+    if (This->m_tex != tex)
     {
-        This->m_tex->m_texture = tex;
-        g_supervisor.d3dDevice->SetTexture(0, tex);
+        This->m_tex = tex;
+        g_supervisor.d3dDevice->SetTexture(0, tex->m_texture);
     }
 
     flushSprites(This);

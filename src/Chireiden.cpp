@@ -1,12 +1,95 @@
 #include "Chireiden.h"
-#include "AnmManager.h"
 #include "AnmVm.h"
-#include "Chain.h"
+#include "AnmManager.h"
+#include "TrampolineFactory.h"
 #include "FileAbstrction.h"
-#include "Globals.h"
+#include "SoundManager.h"
+#include <conio.h> // Required for _kbhit() and _getch()
 
-#define MAX_PATH_LEN 260
+void __cdecl logfThunk(const char* format, ...)
+{
+    // Get current time
+    time_t now = time(NULL);
+    struct tm tm_now;
+    localtime_s(&tm_now, &now);
 
+    // Print timestamp
+    char timeBuf[32];
+    strftime(timeBuf, sizeof(timeBuf), "[%Y-%m-%d %H:%M:%S] ", &tm_now);
+    fputs(timeBuf, stdout);
+
+    // Print formatted message
+    va_list args;
+    va_start(args, format);
+    vprintf(format, args);
+    va_end(args);
+}
+
+void __cdecl logThunk(const char* str)
+{
+    logfThunk("%s", str);
+}
+
+void waitForDebugger()
+{
+    if (!IsDebuggerPresent()) {
+        printf("Waiting for debugger to attach to th11.exe (or press any key to skip)...\n");
+
+        while (!IsDebuggerPresent())
+        {
+            // Check if a key has been pressed in the console
+            if (_kbhit())
+            {
+                _getch(); // Consume the key so it doesn't appear in the next input
+                printf("Key pressed. Continuing without debugger.\n");
+                return;
+            }
+            Sleep(100);
+        }
+
+        // If the loop exited because a debugger attached
+        printf("Debugger attached!\n");
+        Sleep(500);
+    }
+}
+BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID lpvReserved)
+{
+    if (fdwReason == DLL_PROCESS_ATTACH)
+    {
+        AllocConsole();
+        FILE* fp;
+        errno_t err = freopen_s(&fp, "CONOUT$", "w", stdout);
+        if (err != 0) {
+            printf("freopen_s error");
+            exit(1);
+        }
+
+        waitForDebugger();
+
+        installHook(0x459bc0, createLtoThunk<Stack<0x4>, Stack<0x8>>(logfThunk, 0));
+        installHook(0x441c80, createLtoThunk<Stack<0x4>, Stack<0x8>>(logfThunk, 0));
+        installHook(0x44ab00, createLtoThunk<Stack<0x4>, Stack<0x8>>(logfThunk, 0));
+        installHook(0x456ad0, createLtoThunk<Stack<0x4>, Stack<0x8>>(logfThunk, 0));
+        installHook(0x45b5a0, createLtoThunk<Stack<0x4>, Stack<0x8>>(logfThunk, 0));
+        installHook(0x458a10, createLtoThunk<Stack<0x4>>(logThunk, 0));
+        installHook(0x458af0, createLtoThunk<Stack<0x4>>(logThunk, 0));
+
+        installHook(0x4581c0, createLtoThunk<Stack<0x4>, Stack<0x8>, AL, Stack<0xc>, Stack<0x10>, Stack<0x14>>(FileUtils::decrypt, 0x14));
+        installHook(0x449660, createLtoThunk<Returns<RegCode::EAX>, ECX, Stack<0x4>, EAX, EDI>(SoundManager::findRiffChunk, 0x4));
+        installHook(0x452420, createLtoThunk<Returns<RegCode::EAX>, ECX>(AnmVm::onTick, 0));
+
+        installHook(0x4503d0, createLtoThunk<EAX, Stack<0x4>, EBX, EDI, ESI>(AnmVm::applyZRotationToQuadCorners, 0x4));
+        installHook(0x4500f0, createLtoThunk<Stack<0x4>, EBX, EDI, EDX, ESI>(AnmVm::writeSpriteCharacters, 0x4));
+        installHook(0x44fd10, createLtoThunk<ESI>(AnmManager::flushSprites, 0));
+        installHook(0x44f710, createLtoThunk<EAX, EDI>(AnmManager::setupRenderStateForVm, 0));
+        installHook(0x44f4b0, createLtoThunk<EAX, Stack<0x4>>(AnmManager::applyRenderStateForVm, 0x4));
+        installHook(0x44fda0, createLtoThunk<EAX, EDX>(AnmManager::writeSprite, 0));
+        installHook(0x44f880, createLtoThunk<ECX, Stack<0x4>, EAX>(AnmManager::drawVmSprite2D, 0x4));
+    }
+    return TRUE;
+}
+
+#if 0
 void resolveLnkShortcut(LPCSTR shortcutPath, LPSTR targetPath)
 {
     if (targetPath == nullptr)
@@ -17,9 +100,9 @@ void resolveLnkShortcut(LPCSTR shortcutPath, LPSTR targetPath)
     if (FAILED(hr))
         return;
 
-    IShellLinkA *shellLink = nullptr;
-    IPersistFile *persistFile = nullptr;
-    WCHAR *wideShortcutPath = nullptr;
+    IShellLinkA* shellLink = nullptr;
+    IPersistFile* persistFile = nullptr;
+    WCHAR* wideShortcutPath = nullptr;
 
     // Set targetPath to empty string initially to indicate failure if not filled
     targetPath[0] = '\0';
@@ -93,7 +176,7 @@ int getLaunchInfo()
                     resolveLnkShortcut(startupInfo.lpTitle, resolvedPath);
                     fileExtensionString = strrchr(resolvedPath, '.');
                 } while (_stricmp(fileExtensionString, ".lnk") == 0);
-            } 
+            }
             else
                 strcpy_s(resolvedPath, startupInfo.lpTitle);
 
@@ -107,14 +190,14 @@ int getLaunchInfo()
 
 void retrieveSystemStats()
 {
-  SystemParametersInfoA(0x10, 0, &g_primaryScreenWorkingArea, 0);
-  SystemParametersInfoA(0x53, 0, &g_mouseSpeed, 0);
-  SystemParametersInfoA(0x54, 0, &g_screenWorkingArea, 0);
-  SystemParametersInfoA(0x11, 0, nullptr, 2);
-  SystemParametersInfoA(0x55, 0, nullptr, 2);
-  SystemParametersInfoA(0x56, 0, nullptr, 2);
-  QueryPerformanceFrequency(&g_performanceFrequency);
-  QueryPerformanceCounter(&g_performanceCount);
+    SystemParametersInfoA(0x10, 0, &g_primaryScreenWorkingArea, 0);
+    SystemParametersInfoA(0x53, 0, &g_mouseSpeed, 0);
+    SystemParametersInfoA(0x54, 0, &g_screenWorkingArea, 0);
+    SystemParametersInfoA(0x11, 0, nullptr, 2);
+    SystemParametersInfoA(0x55, 0, nullptr, 2);
+    SystemParametersInfoA(0x56, 0, nullptr, 2);
+    QueryPerformanceFrequency(&g_performanceFrequency);
+    QueryPerformanceCounter(&g_performanceCount);
 }
 
 // 0x445510
@@ -142,23 +225,21 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
     g_supervisor.criticalSectionFlag |= 0x8000;
 
     // Initialize critical sections
-    for (i = 0; i < 12; ++i) {
+    for (i = 0; i < 12; ++i)
         InitializeCriticalSection(&g_supervisor.criticalSections[i]);
-    }
-
-    printf("東方動作記録 ---------------------------------------------\n");
 
     // Create app mutex to prevent multiple instances
     g_app = CreateMutexA(nullptr, TRUE, "Touhou 11 App");
     error = GetLastError();
-    if (error == ERROR_ALREADY_EXISTS) {
-        printf("二つは起動できません\n");
-        return 0;  // Exit early
+    if (error == ERROR_ALREADY_EXISTS)
+    {
+        printf("Another instance of the app is already running.\n");
+        return 0;
     }
 
     launchInfo = getLaunchInfo();
     if (launchInfo == -1) {
-        return 0;  // Exit early on failure
+        return 0;
     }
 
     g_supervisor.hInst = hInstance;
@@ -167,7 +248,7 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
     if (g_supervisor.processGameConfig() != 0)
     {
         printf("Game config error!");
-        return 0;  // Exit on config failure
+        return 0;
     }
 
     GetKeyboardState(keyboardState);
@@ -206,17 +287,20 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
             g_supervisor.surfaceR1 = nullptr;
         }
 
-        if (g_supervisor.backBuffer) {
+        if (g_supervisor.backBuffer)
+        {
             g_supervisor.backBuffer->Release();
             g_supervisor.backBuffer = nullptr;
         }
 
-        if (g_supervisor.d3dDevice) {
+        if (g_supervisor.d3dDevice)
+        {
             g_supervisor.d3dDevice->Release();
             g_supervisor.d3dDevice = nullptr;
         }
 
-        if (g_supervisor.d3dInterface0) {
+        if (g_supervisor.d3dInterface0)
+        {
             g_supervisor.d3dInterface0->Release();
             g_supervisor.d3dInterface0 = nullptr;
         }
@@ -255,7 +339,7 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
         }
 
         // Restart preparation
-        printf("再起動を要するオプションが変更されたので再起動します\n");
+        printf("Restart preparation\n");
 
         if (!g_supervisor.d3dPresetParameters.Windowed)
             WINNLSEnableIME(nullptr, TRUE);
@@ -282,7 +366,7 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
         normalizeKeyboardState();
         g_supervisor.criticalSectionFlag &= ~0xC00;
 
-        Supervisor::initializeDevices(&g_supervisor);
+        g_supervisor.initializeDevices();
 
         g_supervisor.criticalSectionFlag = (g_supervisor.criticalSectionFlag & ~0x400) | ((g_supervisor.keyboard != nullptr) << 10);
         g_supervisor.criticalSectionFlag = (g_supervisor.criticalSectionFlag & ~0x800) | ((g_supervisor.joystick != nullptr) << 11);
@@ -292,7 +376,7 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
         // Create D3D interface
         g_supervisor.d3dInterface0 = Direct3DCreate9(D3D_SDK_VERSION);
         if (!g_supervisor.d3dInterface0) {
-            printf("Direct3D オブジェクトは何故か作成出来なかった\n");
+            printf("Direct3D reinitializing\n");
             continue;  // Retry init
         }
 
@@ -352,20 +436,20 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
                     {
                         if (g_supervisor.d3dPresetParameters.PresentationInterval == D3DPRESENT_INTERVAL_ONE && g_supervisor.gameCfg.frameSkip == 0)
                             frameIdkWhatVariationThisIs(&g_window, 0, nullptr, 1, D3DFMT_UNKNOWN);
-    
+
                         else
                             Window::frameFrameskip(&g_window);
-                    } 
+                    }
                     else
                         Window::frame(&g_window);
-                
+
                     g_supervisor.criticalSectionFlag &= ~0x10;
                 }
-            } 
+            }
             else if (hr != D3DERR_INVALIDCALL)
             {
                 continue;
-            } 
+            }
             else
             {
                 INT_004c3dc4 = 10;
@@ -379,7 +463,8 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
                         g_supervisor.d3dPresetParameters.FullScreen_RefreshRateInHz = 60;
                         g_supervisor.d3dPresetParameters.Windowed = FALSE;
                         g_supervisor.d3dPresetParameters.BackBufferFormat = (g_supervisor.gameCfg.idk6 != 0) ? D3DFMT_X8R8G8B8 : D3DFMT_R5G6B5;  // Assuming based on context
-                    } else {
+                    }
+                    else {
                         g_supervisor.d3dPresetParameters.BackBufferFormat = g_supervisor.d3dPresentBackBuferFormat;
                         g_supervisor.d3dPresetParameters.FullScreen_RefreshRateInHz = 0;
                         g_supervisor.d3dPresetParameters.PresentationInterval = ((g_windowConfigFlags & 0x10) == 0 && g_supervisor.d3dPresentationIntervalRelatedFlag == 60) ? D3DPRESENT_INTERVAL_ONE : D3DPRESENT_INTERVAL_IMMEDIATE;
@@ -423,7 +508,8 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
                                 {
                                     width = GetSystemMetrics(SM_CXSCREEN) * 2 + 960;
                                     height = GetSystemMetrics(SM_CYSCREEN) * 2 + 720;
-                                } else
+                                }
+                                else
                                 {
                                     width = GetSystemMetrics(SM_CXSCREEN) * 2 + 640;
                                     height = GetSystemMetrics(SM_CYSCREEN) * 2 + 480;
@@ -480,3 +566,4 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
 
     return 0;
 }
+#endif

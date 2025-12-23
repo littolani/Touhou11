@@ -33,8 +33,8 @@ public:
     int m_idk;                                  // <0xa4>
     int m_someCounter;                          // <0xa8>
     int m_refreshCounter;                       // <0xac>
-    int m_globalRenderQuadOffsetX;              // <0xb0>
-    int m_globalRenderQuadOffsetY;              // <0xb4>
+    float m_globalRenderQuadOffsetX;            // <0xb0>
+    float m_globalRenderQuadOffsetY;            // <0xb4>
     int m_unk3;                                 // <0xb8>
     AnmVm m_bulkVms[4096];                      // <0xbc>
     uint8_t m_bulkVmsIsAlive[4096];             // <0x4340bc>
@@ -77,11 +77,49 @@ public:
     static void createD3DTextures(AnmManager* This);
     static void markAnmLoadedAsReleasedInVmList(AnmManager* This, AnmLoaded* anmLoaded);
     static void releaseTextures(AnmManager* This);
+
+    /**
+     * 0x44fd10
+     * @brief Renders any batched sprites that have been queued up but not yet drawn, then resets the batch state.
+     * @param This ESI:4
+     */
     static void flushSprites(AnmManager* This);
+
     static void blitTextureToSurface(AnmManager* This, BlitParams* blitParams);
+
+    /**
+     * 0x44f710
+     * @brief Extracts render state parameters from vm flags and synchronizes them with D3D (Identical to applyRenderStateForVm)
+     * @param This EAX:4
+     * @param vm   EDI:4
+     */
     static void setupRenderStateForVm(AnmManager* This, AnmVm* vm);
+
+    /**
+     * 0x44f4b0
+     * @brief Extracts render state parameters from VM flags and synchronizes them with D3D (Identical to setupRenderStateForVm)
+     * @param This EAX:4
+     * @param vm   Stack<0x4>:4
+     */
     static void applyRenderStateForVm(AnmManager* This, AnmVm* vm);
+
+    /**
+     * 0x44f880
+     * @brief Draws VM sprite on a layer
+     * @param This  ECX:4
+     * @param layer Stack<0x4>:4
+     * @param vm    EAX:4
+     */
     static void drawVmSprite2D(AnmManager* This, uint32_t layer, AnmVm* anmVm);
+
+    /**
+     * 0x44fda0
+     * @brief Writes sprite vertex buffers
+     * @param This         EAX:4
+     * @param vertexBuffer EDX:4
+     */
+    static void writeSprite(AnmManager* This, RenderVertex144* vertexBuffer);
+
     static void drawVm(AnmManager* This, AnmVm* vm);
     static void transformAndDraw(AnmManager* This, AnmVm* vm);
     static void loadIntoAnmVm(AnmVm* vm, AnmLoaded* anmLoaded, int scriptNumber);
@@ -89,7 +127,7 @@ public:
     static void releaseAnmLoaded(AnmManager* This, AnmLoaded* anmLoaded);
     static int drawVmWithTextureTransform(AnmManager* This, AnmVm* vm);
     static int updateWorldMatrixAndProjectQuadCorners(AnmManager* This, AnmVm* vm);
-    static int writeSprite(AnmManager* This, RenderVertex144* vertexBuffer);
+    
     static int drawVmWithFog(AnmManager* This, AnmVm* vm);
     static int drawVmTriangleStrip(AnmManager* This, AnmVm* vm, SpecialRenderData* specialRenderData, uint32_t vertexCount);
     static int drawVmTriangleFan(AnmManager* This, AnmVm* vm, SpecialRenderData* specialRenderData, uint32_t vertexCount);
