@@ -232,7 +232,7 @@ void ProcessArgsReverse(TrampolineFactory& e)
 }
 
 template <typename... Args>
-void* CreateLtoThunk(void* targetFunction, int retPopSize)
+void* createLtoThunk(void* targetFunction, int retPopSize)
 {
     TrampolineFactory e;
 

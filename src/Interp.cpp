@@ -1,5 +1,6 @@
 #include "Interp.h"
 
+#if 0
 template <typename T>
 T Interp<T>::step()
 {
@@ -57,3 +58,4 @@ float Interp<float>::interpolate()
         return t;
     }
 }
+#endif
