@@ -1,293 +1,280 @@
 #include "Chireiden.h"
+#include "Globals.h"
 #include "Lzss.h"
 
+void BitWriter::writeBit(int bit)
+{
+    m_bitBuffer = (m_bitBuffer << 1) | (bit & 1);
+    m_bitCount++;
+    if (m_bitCount == 8)
+    {
+        m_buffer.push_back(m_bitBuffer);
+        m_bitBuffer = 0;
+        m_bitCount = 0;
+    }
+}
+
+void BitWriter::writeBits(int value, int numBits)
+{
+    for (int i = numBits - 1; i >= 0; i--)
+        writeBit((value >> i) & 1);
+}
+
+void BitWriter::flush()
+{
+    if (m_bitCount > 0)
+    {
+        m_bitBuffer <<= (8 - m_bitCount);
+        m_buffer.push_back(m_bitBuffer);
+        m_bitBuffer = 0;
+        m_bitCount = 0;
+    }
+}
+
+size_t BitWriter::getBytesWritten() const
+{
+    return m_buffer.size();
+}
+
+const byte* BitWriter::getBuffer() const
+{
+    return m_buffer.data();
+}
+
+void BitReader::shiftBitBuffer()
+{
+    m_bitBuffer >>= 1;
+}
+
+byte BitReader::getBitBuffer()
+{
+    return m_bitBuffer;
+}
+
+int BitReader::readBit()
+{
+    if (m_bitBuffer == 0x80)
+    {
+        if ((int)(m_ptr - m_data) < m_size)
+        {
+            m_currentByte = *m_ptr;
+            m_ptr++;
+        }
+        else
+            m_currentByte = 0;
+    }
+
+    int bit = (m_currentByte & m_bitBuffer) ? 1 : 0;
+
+    m_bitBuffer >>= 1;
+    if (m_bitBuffer == 0)
+        m_bitBuffer = 0x80;
+
+    return bit;
+}
+
+// Reads numBits, building the value MSB to LSB
+int BitReader::readBits(int numBits) {
+    int value = 0;
+    for (int i = 0; i < numBits; i++)
+        value = (value << 1) | readBit();
+
+    return value;
+}
+
+byte* Lzss::decompress(byte* in, int compressedSize, byte* out, size_t decompressedSize)
+{
+    if (out == nullptr)
+    {
+        out = (byte*)game_malloc(decompressedSize);
+        if (out == nullptr)
+            return nullptr;
+    }
+
+    BitReader reader(in, compressedSize);
+    byte* writePtr = out;
+    uint32_t ringBufferIndex = 1;
+    byte* outEnd = out + decompressedSize;
+
+    while (true)
+    {
+        int controlBit = reader.readBit();
+
+        if (controlBit == 1)
+        {
+            byte literal = (byte)reader.readBits(8);
+            if (writePtr >= outEnd)
+                break;
+
+            *writePtr = literal;
+            writePtr++;
+
+            // Update Dictionary
+            g_lzssDict[ringBufferIndex] = literal;
+            ringBufferIndex = (ringBufferIndex + 1) & 0x1fff;
+        }
+        else
+        {
+            int matchOffset = reader.readBits(13);
+
+            // Offset 0 indicates End of Stream
+            if (matchOffset == 0)
+                break;
+
+            int lengthBits = reader.readBits(4);
+            int copyCount = lengthBits + 3;
+
+            for (int i = 0; i < copyCount; i++)
+            {
+                if (writePtr >= outEnd)
+                    break;
+
+                int srcIndex = (matchOffset + i) & 0x1fff;
+                byte val = g_lzssDict[srcIndex];
+
+                *writePtr = val;
+                writePtr++;
+
+                g_lzssDict[ringBufferIndex] = val;
+                ringBufferIndex = (ringBufferIndex + 1) & 0x1fff;
+            }
+        }
+    }
+    return out;
+}
+
+#define LZSS_OFFSET_BITS 13
+#define LZSS_LENGTH_BITS 4
+#define LZSS_DICTSIZE (1 << LZSS_OFFSET_BITS)
 #define LZSS_LOOKAHEAD_SIZE ((1 << LZSS_LENGTH_BITS) + 2)
 #define LZSS_DICTSIZE_MASK (LZSS_DICTSIZE - 1)
 #define LZSS_DICTPOS_MOD(pos, amount) ((pos + amount) & LZSS_DICTSIZE_MASK)
 
-Lzss::TreeNode Lzss::m_Tree[LZSS_DICTSIZE + 1];
-uint8_t Lzss::m_Dict[LZSS_DICTSIZE];
-
-#define ENC_NEXT_BIT()                                                                                                 \
-inBitMask >>= 1;                                                                                                   \
-if (inBitMask == 0)                                                                                                \
-{                                                                                                                  \
-    *outCursor++ = currByte;                                                                                       \
-    checksum += currByte;                                                                                          \
-    currByte = 0;                                                                                                  \
-    inBitMask = 0x80;                                                                                              \
-}
-
-#define ENC_WRITE_FLAG_BIT(bit)                                                                                        \
-if (bit)                                                                                                           \
-{                                                                                                                  \
-    currByte |= inBitMask;                                                                                         \
-}                                                                                                                  \
-ENC_NEXT_BIT();
-
-#define ENC_WRITE_BITS(bitCount, condition)                                                                            \
-bitfieldMask = 0x1 << (bitCount - 1);                                                                              \
-while (bitfieldMask != 0)                                                                                          \
-{                                                                                                                  \
-    if (condition)                                                                                                 \
-    {                                                                                                              \
-        currByte |= inBitMask;                                                                                     \
-    }                                                                                                              \
-    ENC_NEXT_BIT();                                                                                                \
-    bitfieldMask >>= 1;                                                                                            \
-}
-
 LPBYTE Lzss::compress(LPBYTE in, int uncompressedSize, int* compressedSize)
 {
-    int i;
-    int bytesToCopyToDict;
-    int lookAheadBytes;
-    int dictValue;
-    uint32_t bitfieldMask;
+    printf("Called compress\n");
 
-    uint8_t inBitMask = 0x80;
-    uint32_t currByte = 0;
-    uint32_t checksum = 0;
+    if (!in || uncompressedSize < 0)
+        return nullptr;
 
-    LPBYTE out = (LPBYTE)GlobalAlloc(GMEM_FIXED, uncompressedSize * 2);
-    if (out == NULL)
-    {
-        return NULL;
-    }
-
-    LPBYTE inCursor = in;
-    LPBYTE outCursor = out;
-    *compressedSize = 0;
-
-    InitEncoderState();
-
-    uint32_t dictHead = 1;
-    for (i = 0; i < LZSS_LOOKAHEAD_SIZE; i++)
-    {
-        if (inCursor - in >= uncompressedSize)
-        {
-            dictValue = -1;
-        }
-        else
-        {
-            dictValue = *inCursor++;
-        }
-
-        if (dictValue == -1)
-        {
-            break;
-        }
-
-        m_Dict[dictHead + i] = dictValue;
-    }
-
-    lookAheadBytes = i;
-    InitTree(dictHead);
+    BitWriter writer;
+    int lookAheadBytes = 0;
+    int dictValue = 0;
     int matchLength = 0;
     int matchOffset = 0;
+    LPBYTE inCursor = in;
+    uint32_t dictHead = 1;
+
+    initEncoderState();
+
+    int i;
+    for (i = 0; i < LZSS_LOOKAHEAD_SIZE; i++)
+    {
+        if ((int)(inCursor - in) >= uncompressedSize)
+            dictValue = -1; // EOF
+        else
+            dictValue = *inCursor++;
+
+        if (dictValue == -1)
+            break;
+
+        g_lzssDict[dictHead + i] = (byte)dictValue;
+    }
+    lookAheadBytes = i;
+
+    initTree(dictHead);
 
     while (lookAheadBytes > 0)
     {
+        // matchLength is updated by AddString inside the update loop below,
+        // but for the first iteration or if lookahead shrinks, clamp it.
         if (matchLength > lookAheadBytes)
-        {
             matchLength = lookAheadBytes;
-        }
 
+        // Matches must be > 2 bytes to be worth the bit cost
         if (matchLength <= 2)
         {
-            bytesToCopyToDict = 1;
+            writer.writeBit(1);
 
-            ENC_WRITE_FLAG_BIT(1);
-            ENC_WRITE_BITS(8, (bitfieldMask & m_Dict[dictHead]) != 0);
+            byte literalByte = g_lzssDict[dictHead];
+            writer.writeBits(literalByte, 8);
+
+            matchLength = 1; // We consumed 1 byte
         }
         else
         {
-            ENC_WRITE_FLAG_BIT(0);
-            ENC_WRITE_BITS(LZSS_OFFSET_BITS, (bitfieldMask & matchOffset) != 0);
-            ENC_WRITE_BITS(LZSS_LENGTH_BITS, (bitfieldMask & (matchLength - 3)) != 0);
 
-            bytesToCopyToDict = matchLength;
+            writer.writeBit(0);
+            writer.writeBits(matchOffset, LZSS_OFFSET_BITS);
+            writer.writeBits(matchLength - 3, LZSS_LENGTH_BITS);
         }
 
-        for (i = 0; i < bytesToCopyToDict; i++)
+        int bytesProcessed = matchLength;
+        for (i = 0; i < bytesProcessed; i++)
         {
-            DeleteString(LZSS_DICTPOS_MOD(dictHead, LZSS_LOOKAHEAD_SIZE));
+            // Remove the old entry at current position
+            deleteString(LZSS_DICTPOS_MOD(dictHead, LZSS_LOOKAHEAD_SIZE));
 
-            if (inCursor - in >= uncompressedSize)
-            {
+            // Read next byte from input
+            if ((int)(inCursor - in) >= uncompressedSize)
                 dictValue = -1;
-            }
             else
-            {
                 dictValue = *inCursor++;
-            }
 
+            // Handle buffer refill / EOF
             if (dictValue == -1)
-            {
                 lookAheadBytes--;
-            }
             else
-            {
-                m_Dict[LZSS_DICTPOS_MOD(dictHead, LZSS_LOOKAHEAD_SIZE)] = dictValue;
-            }
+                g_lzssDict[LZSS_DICTPOS_MOD(dictHead, LZSS_LOOKAHEAD_SIZE)] = (byte)dictValue;
 
+            // Advance ring buffer head
             dictHead = LZSS_DICTPOS_MOD(dictHead, 1);
 
+            // Find match for the *next* iteration
             if (lookAheadBytes != 0)
-            {
-                matchLength = AddString(dictHead, &matchOffset);
-            }
+                matchLength = addString(dictHead, &matchOffset);
         }
     }
 
-    ENC_WRITE_FLAG_BIT(0);
-    ENC_WRITE_BITS(LZSS_OFFSET_BITS, FALSE);
+    
+    writer.writeBit(0); // Bit 0: Match Flag
+    writer.writeBits(0, LZSS_OFFSET_BITS); // Offset 0: Indicates EOS
+    writer.flush();
 
-    *compressedSize = outCursor - out;
+    size_t finalSize = writer.getBytesWritten();
+    *compressedSize = (int)finalSize;
+
+    LPBYTE out = (LPBYTE)game_malloc(finalSize);
+    if (out == nullptr)
+        return nullptr;
+
+    memcpy(out, writer.getBuffer(), finalSize);
     return out;
 }
 
-#define DEC_NEXT_BIT()                                                                                                 \
-inBitMask >>= 1;                                                                                                   \
-if (inBitMask == 0)                                                                                                \
-{                                                                                                                  \
-    inBitMask = 0x80;                                                                                              \
+void Lzss::initTree(int root)
+{
+    g_lzssTree[LZSS_DICTSIZE].right = root;
+    g_lzssTree[root].parent = LZSS_DICTSIZE;
+    g_lzssTree[root].right = 0;
+    g_lzssTree[root].left = 0;
 }
 
-#define DEC_WRITE_BYTE(data)                                                                                           \
-*outCursor++ = data;                                                                                               \
-m_Dict[dictHead] = data;                                                                                           \
-dictHead = LZSS_DICTPOS_MOD(dictHead, 1);
-
-#define DEC_HANDLE_FETCH_NEW_BYTE()                                                                                    \
-if (inBitMask == 0x80)                                                                                             \
-{                                                                                                                  \
-    currByte = *inCursor;                                                                                          \
-    if (inCursor - in >= size)                                                                                     \
-    {                                                                                                              \
-        currByte = 0;                                                                                              \
-    }                                                                                                              \
-    else                                                                                                           \
-    {                                                                                                              \
-        inCursor++;                                                                                                \
-    }                                                                                                              \
-    checksum += currByte;                                                                                          \
-}
-
-#define DEC_READ_FLAG_BIT()                                                                                            \
-DEC_HANDLE_FETCH_NEW_BYTE();                                                                                       \
-inBits = currByte & inBitMask;                                                                                     \
-DEC_NEXT_BIT();
-
-#define DEC_READ_BITS(bitsCount)                                                                                       \
-outBitMask = 0x01 << (bitsCount - 1);                                                                              \
-inBits = 0;                                                                                                        \
-while (outBitMask != 0)                                                                                            \
-{                                                                                                                  \
-    DEC_HANDLE_FETCH_NEW_BYTE();                                                                                   \
-    if ((currByte & inBitMask) != 0)                                                                               \
-    {                                                                                                              \
-        inBits |= outBitMask;                                                                                      \
-    }                                                                                                              \
-                                                                                                                    \
-    outBitMask >>= 1;                                                                                              \
-    DEC_NEXT_BIT();                                                                                                \
-}
-
-LPBYTE Lzss::decompress(LPBYTE in, int compressedSize, LPBYTE out, int decompressedSize)
+void Lzss::initEncoderState()
 {
     int i;
-    uint32_t matchOffset;
-    uint32_t inBits;
-    int matchLength;
-    uint32_t dictValue;
-    uint32_t outBitMask;
-
-    uint8_t inBitMask = 0x80;
-    uint32_t currByte = 0;
-    uint32_t checksum = 0;
-    int size = compressedSize;
-
-    if (out == NULL)
-    {
-        out = (uint8_t*)GlobalAlloc(GMEM_FIXED, decompressedSize);
-        if (out == NULL)
-        {
-            return NULL;
-        }
-    }
-
-    LPBYTE inCursor = in;
-    LPBYTE outCursor = out;
-    uint32_t dictHead = 1;
-
-    for (;;)
-    {
-        DEC_READ_FLAG_BIT();
-
-        // Read literal byte from next 8 bits
-        if (inBits != 0)
-        {
-            DEC_READ_BITS(8);
-            DEC_WRITE_BYTE(inBits);
-        }
-        // Copy from dictionary, 13 bit offset, then 4 bit length
-        else
-        {
-            DEC_READ_BITS(13);
-
-            matchOffset = inBits;
-            if (matchOffset == 0)
-            {
-                break;
-            }
-
-            DEC_READ_BITS(4);
-
-            // Value encoded in 4 bit length is 3 less than the actual length
-            matchLength = inBits + 2;
-            for (i = 0; i <= matchLength; i++)
-            {
-                dictValue = m_Dict[LZSS_DICTPOS_MOD(matchOffset, i)];
-                DEC_WRITE_BYTE(dictValue);
-            }
-        }
-    }
-
-    // Read any trailing bits in the data
-    while (inBitMask != 0x80)
-    {
-        DEC_READ_FLAG_BIT();
-    }
-
-    return out;
-}
-
-void Lzss::InitTree(int root)
-{
-    m_Tree[LZSS_DICTSIZE].right = root;
-    m_Tree[root].parent = LZSS_DICTSIZE;
-    m_Tree[root].right = 0;
-    m_Tree[root].left = 0;
-}
-
-void Lzss::InitEncoderState()
-{
-    int i;
-
     for (i = 0; i < LZSS_DICTSIZE; i++)
-    {
-        m_Dict[i] = 0;
-    }
+        g_lzssDict[i] = 0;
+
     for (i = 0; i < LZSS_DICTSIZE + 1; i++)
     {
-        m_Tree[i].parent = 0;
-        m_Tree[i].left = 0;
-        m_Tree[i].right = 0;
+        g_lzssTree[i].parent = 0;
+        g_lzssTree[i].left = 0;
+        g_lzssTree[i].right = 0;
     }
 }
 
-int Lzss::AddString(int newNode, int* matchPosition)
+int Lzss::addString(int newNode, int* matchPosition)
 {
     int i;
     int* child;
@@ -298,14 +285,14 @@ int Lzss::AddString(int newNode, int* matchPosition)
         return 0;
     }
 
-    int testNode = m_Tree[LZSS_DICTSIZE].right;
+    int testNode = g_lzssTree[LZSS_DICTSIZE].right;
     int matchLength = 0;
 
     for (;;)
     {
         for (i = 0; i < LZSS_LOOKAHEAD_SIZE; i++)
         {
-            delta = m_Dict[LZSS_DICTPOS_MOD(newNode, i)] - m_Dict[LZSS_DICTPOS_MOD(testNode, i)];
+            delta = g_lzssDict[LZSS_DICTPOS_MOD(newNode, i)] - g_lzssDict[LZSS_DICTPOS_MOD(testNode, i)];
 
             if (delta != 0)
             {
@@ -320,26 +307,22 @@ int Lzss::AddString(int newNode, int* matchPosition)
 
             if (matchLength >= LZSS_LOOKAHEAD_SIZE)
             {
-                ReplaceNode(testNode, newNode);
+                replaceNode(testNode, newNode);
                 return matchLength;
             }
         }
 
         if (delta >= 0)
-        {
-            child = &m_Tree[testNode].right;
-        }
+            child = &g_lzssTree[testNode].right;
         else
-        {
-            child = &m_Tree[testNode].left;
-        }
+            child = &g_lzssTree[testNode].left;
 
         if (*child == 0)
         {
             *child = newNode;
-            m_Tree[newNode].parent = testNode;
-            m_Tree[newNode].right = 0;
-            m_Tree[newNode].left = 0;
+            g_lzssTree[newNode].parent = testNode;
+            g_lzssTree[newNode].right = 0;
+            g_lzssTree[newNode].left = 0;
             return matchLength;
         }
 
@@ -347,69 +330,56 @@ int Lzss::AddString(int newNode, int* matchPosition)
     }
 }
 
-void Lzss::DeleteString(int p)
+void Lzss::deleteString(int p)
 {
-    if (m_Tree[p].parent == 0)
-    {
+    if (g_lzssTree[p].parent == 0)
         return;
-    }
 
-    if (m_Tree[p].right == 0)
-    {
-        ContractNode(p, m_Tree[p].left);
-    }
-    else if (m_Tree[p].left == 0)
-    {
-        ContractNode(p, m_Tree[p].right);
-    }
+    if (g_lzssTree[p].right == 0)
+        contractNode(p, g_lzssTree[p].left);
+
+    else if (g_lzssTree[p].left == 0)
+        contractNode(p, g_lzssTree[p].right);
+
     else
     {
-        int replacement = FindNextNode(p);
-        DeleteString(replacement);
-        ReplaceNode(p, replacement);
+        int replacement = findNextNode(p);
+        deleteString(replacement);
+        replaceNode(p, replacement);
     }
 }
 
-void Lzss::ContractNode(int oldNode, int newNode)
+void Lzss::contractNode(int oldNode, int newNode)
 {
-    m_Tree[newNode].parent = m_Tree[oldNode].parent;
+    g_lzssTree[newNode].parent = g_lzssTree[oldNode].parent;
 
-    if (m_Tree[m_Tree[oldNode].parent].right == oldNode)
-    {
-        m_Tree[m_Tree[oldNode].parent].right = newNode;
-    }
+    if (g_lzssTree[g_lzssTree[oldNode].parent].right == oldNode)
+        g_lzssTree[g_lzssTree[oldNode].parent].right = newNode;
     else
-    {
-        m_Tree[m_Tree[oldNode].parent].left = newNode;
-    }
-    m_Tree[oldNode].parent = 0;
+        g_lzssTree[g_lzssTree[oldNode].parent].left = newNode;
+
+    g_lzssTree[oldNode].parent = 0;
 }
 
-void Lzss::ReplaceNode(int oldNode, int newNode)
+void Lzss::replaceNode(int oldNode, int newNode)
 {
-    int parent = m_Tree[oldNode].parent;
+    int parent = g_lzssTree[oldNode].parent;
 
-    if (m_Tree[parent].left == oldNode)
-    {
-        m_Tree[parent].left = newNode;
-    }
+    if (g_lzssTree[parent].left == oldNode)
+        g_lzssTree[parent].left = newNode;
     else
-    {
-        m_Tree[parent].right = newNode;
-    }
-    m_Tree[newNode] = m_Tree[oldNode];
-    m_Tree[m_Tree[newNode].left].parent = newNode;
-    m_Tree[m_Tree[newNode].right].parent = newNode;
-    m_Tree[oldNode].parent = 0;
+        g_lzssTree[parent].right = newNode;
+
+    g_lzssTree[newNode] = g_lzssTree[oldNode];
+    g_lzssTree[g_lzssTree[newNode].left].parent = newNode;
+    g_lzssTree[g_lzssTree[newNode].right].parent = newNode;
+    g_lzssTree[oldNode].parent = 0;
 }
 
-int Lzss::FindNextNode(int node)
+int Lzss::findNextNode(int node)
 {
-    int next = m_Tree[node].left;
-
-    while (m_Tree[next].right != 0)
-    {
-        next = m_Tree[next].right;
-    }
+    int next = g_lzssTree[node].left;
+    while (g_lzssTree[next].right != 0)
+        next = g_lzssTree[next].right;
     return next;
 }

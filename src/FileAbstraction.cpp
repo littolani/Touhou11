@@ -1,87 +1,5 @@
 #include "FileAbstrction.h"
 
-PbgArchive g_pbgArchive{};
-int g_numEntriesInDatFile = 0;
-PbgArchive g_pbgArchives[20];
-
-#if 0
-void BitWriter::writeBit(int bit)
-{
-    m_bitBuffer = (m_bitBuffer << 1) | (bit & 1);
-    m_bitCount++;
-    if (m_bitCount == 8)
-    {
-        m_buffer.push_back(m_bitBuffer);
-        m_bitBuffer = 0;
-        m_bitCount = 0;
-    }
-}
-
-void BitWriter::writeBits(int value, int numBits)
-{
-    for (int i = numBits - 1; i >= 0; i--)
-        writeBit((value >> i) & 1);
-}
-
-void BitWriter::flush()
-{
-    if (m_bitCount > 0)
-    {
-        m_bitBuffer <<= (8 - m_bitCount);
-        m_buffer.push_back(m_bitBuffer);
-        m_bitBuffer = 0;
-        m_bitCount = 0;
-    }
-}
-
-size_t BitWriter::getBytesWritten() const
-{
-    return m_buffer.size();
-}
-
-const byte* BitWriter::getBuffer() const
-{ 
-    return m_buffer.data();
-}
-
-void BitReader::shiftBitBuffer()
-{
-    m_bitBuffer >>= 1;
-}
-
-byte BitReader::getBitBuffer()
-{
-    return m_bitBuffer;
-}
-
-int BitReader::readBit()
-{
-    // Need a new byte
-    if (m_bitBuffer == 0x80)
-    {
-        if (m_ptr < m_data + m_size)
-            m_currentByte = *m_ptr++;
-        else
-            m_currentByte = 0; // Beyond data, pad with zeros
-    }
-    int bit = (m_currentByte & m_bitBuffer) != 0;
-    m_bitBuffer >>= 1;
-    if (m_bitBuffer == 0)
-        m_bitBuffer = 0x80; // Reset to MSB after 8 shifts
-
-    return bit;
-}
-
-int BitReader::readBits(int num_bits)
-{
-    int value = 0;
-    for (int i = 0; i < num_bits; i++) {
-        value = (value << 1) | readBit(); // Build value MSB to LSB
-    }
-    return value;
-}
-#endif
-
 void FileUtils::encrypt(
     uint8_t* data,
     uint32_t size,
@@ -141,7 +59,7 @@ void FileUtils::encrypt(
   * @param block: Stack[0x10]:4
   * @param limit: Stack[0x14]:4
   */
-void __cdecl FileUtils::decrypt(uint8_t* data, uint32_t size, uint8_t key, uint8_t step, uint32_t block, uint32_t limit)
+void FileUtils::decrypt(uint8_t* data, uint32_t size, uint8_t key, uint8_t step, uint32_t block, uint32_t limit)
 {
     //printf("Decrypt: Key=%d, Step=%d, Block=%d, Limit=%d, Size=%d, DataPtr=%p\n",
     //    key, step, block, limit, size, data);
@@ -406,24 +324,23 @@ PbgArchive::~PbgArchive()
     release();
 }
 
-// 0x4418d0
-PbgArchiveEntry* PbgArchive::findEntry(LPCSTR filename)
+PbgArchiveEntry* PbgArchive::findEntry(PbgArchive* This, LPCSTR filename)
 {
     int filesMatch;
     int length;
     PbgArchiveEntry* entries;
     
-    entries = m_entries;
+    entries = This->m_entries;
     if (!entries)
         return nullptr;
 
-    length = m_numEntries;
+    length = This->m_numEntries;
     while (true)
     {
         if (length < 1) {
             return nullptr;
         }
-        filesMatch = _stricmp(filename, m_filename);
+        filesMatch = _stricmp(filename, entries->filename);
         if (filesMatch == 0) 
             break;
         --length;
@@ -657,8 +574,7 @@ PbgArchiveEntry* PbgArchive::loadEntries(byte* bytes, int numEntries, uint32_t s
 }
 #endif
 
-// 0x441760
-byte* PbgArchive::readDecompressEntry(LPCSTR filename, byte* outBuffer)
+byte* PbgArchive::readDecompressEntry(PbgArchive* This, byte* outBuffer, LPCSTR filename)
 {
     byte* fileBuffer = nullptr;
     size_t compressedSize= 0;
@@ -668,11 +584,11 @@ byte* PbgArchive::readDecompressEntry(LPCSTR filename, byte* outBuffer)
     byte* decompressedFile = 0;
 
     // Check if file abstraction exists
-    if (!m_fileAbstraction)
+    if (!This->m_fileAbstraction)
         return nullptr;
 
     // Find the archive entry for the requested file
-    PbgArchiveEntry* fileEntry = findEntry(filename);
+    PbgArchiveEntry* fileEntry = This->findEntry(This, filename);
     if (!fileEntry)
         goto LoadError;
 
@@ -684,17 +600,17 @@ byte* PbgArchive::readDecompressEntry(LPCSTR filename, byte* outBuffer)
     if (compressedSize == decompressedSize && outBuffer != nullptr)
         fileBuffer = outBuffer;
     else
-        fileBuffer = new byte[compressedSize];
+        fileBuffer = (byte*)game_malloc(compressedSize); //fileBuffer = new byte[compressedSize];
 
     if (!fileBuffer)
         goto LoadError;
 
     // Seek to the data position in the archive
-    if (!m_fileAbstraction->seek(fileEntry->dataOffset, 0))
+    if (!This->m_fileAbstraction->seek(fileEntry->dataOffset, 0))
         goto LoadError;
 
     // Read the compressed data
-    if (!m_fileAbstraction->read(fileBuffer, compressedSize))
+    if (!This->m_fileAbstraction->read(fileBuffer, compressedSize))
         goto LoadError;
 
     // Calculate filename checksum for decryption key selection
@@ -715,7 +631,8 @@ byte* PbgArchive::readDecompressEntry(LPCSTR filename, byte* outBuffer)
 
     // Handle decompression if necessary
     decompressedFile = fileBuffer;
-    if (compressedSize != decompressedSize) {
+    if (compressedSize != decompressedSize)
+    {
         decompressedFile = Lzss::decompress(
             fileBuffer,
             compressedSize,
@@ -726,27 +643,27 @@ byte* PbgArchive::readDecompressEntry(LPCSTR filename, byte* outBuffer)
 
     // Free fileBuffer if it was allocated (not destBuffer)
     if (fileBuffer != outBuffer && fileBuffer)
-        delete[] fileBuffer;
+        game_free(fileBuffer); // delete[] fileBuffer;
 
     return decompressedFile;
 
 LoadError:
     printf("PbgArchive: error loading archive\n");
     if (fileBuffer)
-        delete[] fileBuffer;
+        game_free(fileBuffer); // delete[] fileBuffer;
     return nullptr;
 }
 
 DWORD PbgArchive::getEntryDecompressedSize(LPCSTR filename)
 {
-    PbgArchiveEntry* entry = findEntry(filename);
+    PbgArchiveEntry* entry = findEntry(this, filename);
     if (entry != NULL)
         return entry->decompressedSize;
     return 0;
 }
 
 // 0x4420e0
-PbgArchive* findMatchingArchive(const char* filename)
+PbgArchive* PbgArchive::findMatchingArchive(const char* filename)
 {
     char filenameBuffer[260];
     // Copy the input filename to buffer safely
