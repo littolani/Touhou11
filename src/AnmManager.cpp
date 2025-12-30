@@ -8,7 +8,7 @@ AnmLoaded* AnmManager::preloadAnm(AnmManager* This, int anmIdx, const char* anmF
     // Return existing animation if already loaded
     if (This->m_loadedAnms[anmIdx] != nullptr)
     {
-        printf("::preloadAnm already loaded: %s\n", anmFileName);
+        printf("preloadAnm: already loaded %s\n", anmFileName);
         return This->m_loadedAnms[anmIdx];
     }
 
@@ -21,7 +21,7 @@ AnmLoaded* AnmManager::preloadAnm(AnmManager* This, int anmIdx, const char* anmF
     while (anmLoaded->m_anmsLoading != 0 && (g_supervisor.criticalSectionFlag & 0x180) == 0) // Wait until animation loading is complete
         Sleep(1);
 
-    printf("::preloadAnmEnd: %s\n", anmFileName);
+    printf("preloadAnm: %s\n", anmFileName);
     return anmLoaded;
 }
 
@@ -31,7 +31,7 @@ int openAnmLoaded(AnmLoaded* anmLoaded, AnmHeader* chunk, int chunkIndex)
     // Check if the version is 7 (specific to this ANM format)
     if (chunk->version != 7)
     {
-        printf("\n");
+        printf("ANM version is incorrect\n");
         return -1;
     }
 
@@ -65,7 +65,7 @@ int openAnmLoaded(AnmLoaded* anmLoaded, AnmHeader* chunk, int chunkIndex)
 AnmLoaded* AnmManager::preloadAnmFromMemory(AnmManager* This, const char* anmFilePath, int m_anmSlotIndex)
 {
     // Log the preload action
-    printf("::preloadAnim : %s\n", anmFilePath);
+    printf("preloadAnmFromMemory: %s\n", anmFilePath);
 
     // Check if the slot index is within bounds (0-31)
     if (m_anmSlotIndex >= 32)
@@ -116,9 +116,16 @@ AnmLoaded* AnmManager::preloadAnmFromMemory(AnmManager* This, const char* anmFil
 
     // Allocate buffers for chunk data, keyframes, and sprites
     anmLoaded->m_numAnmLoadedD3Ds = processedCount;
-    anmLoaded->m_header = new AnmHeader[processedCount]();
-    anmLoaded->m_keyframeData = new AnmLoadedSprite[numSprites]();
-    anmLoaded->m_spriteData = new uint32_t[numScripts]();
+
+    //anmLoaded->m_header = new AnmHeader[processedCount]();
+    anmLoaded->m_header = (AnmHeader*)malloc(processedCount * sizeof(AnmHeader));
+
+    //anmLoaded->m_keyframeData = new AnmLoadedSprite[numSprites]();
+    anmLoaded->m_keyframeData = (AnmLoadedSprite*)malloc(numSprites * sizeof(AnmLoadedSprite));
+
+    //anmLoaded->m_spriteData = new uint32_t[numScripts]();
+    anmLoaded->m_spriteData = (uint32_t*)malloc(numScripts * sizeof(uint32_t));
+
     anmLoaded->m_numScripts = numScripts;
     anmLoaded->m_numSprites = numSprites;
 
@@ -130,7 +137,7 @@ AnmLoaded* AnmManager::preloadAnmFromMemory(AnmManager* This, const char* anmFil
         int result = openAnmLoaded(anmLoaded, currentChunk, chunkIndex);
         if (result < 0)
         {
-            printf("\n");
+            printf("Could not read ANM data.\n");
             free(anmLoaded->m_header);
             free(anmLoaded->m_keyframeData);
             free(anmLoaded->m_spriteData);
@@ -670,19 +677,19 @@ void AnmManager::drawVmSprite2D(AnmManager* This, uint32_t layer, AnmVm* anmVm)
 
     // Viewport Culling
     D3DVIEWPORT9* vp = &g_supervisor.currentCam->viewport;
-    float vpX = (float)vp->X;
-    float vpY = (float)vp->Y;
-    float vpW = (float)vp->Width;
-    float vpH = (float)vp->Height;
+    float vpX = static_cast<float>(vp->X);
+    float vpY = static_cast<float>(vp->Y);
+    float vpW = static_cast<float>(vp->Width);
+    float vpH = static_cast<float>(vp->Height);
 
     if (vpX <= maxX && (vpX + vpW) >= minX && vpY <= maxY && (vpY + vpH) >= minY)
     {
         AnmLoadedD3D* tex = anmVm->m_sprite->anmLoadedD3D;
-        if (This->m_tex != tex)
+        if (This->m_anmLoadedD3D != tex)
         {
-            This->m_tex = tex;
+            This->m_anmLoadedD3D = tex;
             flushSprites(This);
-            g_supervisor.d3dDevice->SetTexture(0, This->m_tex->m_texture);
+            g_supervisor.d3dDevice->SetTexture(0, This->m_anmLoadedD3D->m_texture);
         }
 
         if (This->m_haveFlushedSprites != 1)
@@ -914,9 +921,9 @@ int AnmManager::drawVmTriangleStrip(AnmManager* This, AnmVm* vm, SpecialRenderDa
         flushSprites(This);
 
     AnmLoadedD3D* tex = vm->m_sprite->anmLoadedD3D;
-    if (This->m_tex != tex)
+    if (This->m_anmLoadedD3D != tex)
     {
-        This->m_tex = tex;
+        This->m_anmLoadedD3D = tex;
         g_supervisor.d3dDevice->SetTexture(0, tex->m_texture);
     }
 
@@ -952,9 +959,9 @@ int AnmManager::drawVmTriangleFan(AnmManager* This, AnmVm* vm, SpecialRenderData
     setupRenderStateForVm(This, vm);
 
     AnmLoadedD3D* tex = vm->m_sprite->anmLoadedD3D;
-    if (This->m_tex != tex)
+    if (This->m_anmLoadedD3D != tex)
     {
-        This->m_tex = tex;
+        This->m_anmLoadedD3D = tex;
         g_supervisor.d3dDevice->SetTexture(0, tex->m_texture);
     }
 
@@ -1293,13 +1300,13 @@ int AnmManager::drawVmWithTextureTransform(AnmManager* This, AnmVm* vm)
         g_supervisor.d3dDevice->SetTransform(D3DTS_WORLD, &worldMatrix);
 
         // Texture Setup
-        AnmLoadedD3D* spriteD3D = vm->m_sprite->anmLoadedD3D;
+        AnmLoadedD3D* anmLoadedD3D = vm->m_sprite->anmLoadedD3D;
 
         // Check cached texture pointer
-        if (This->m_tex != spriteD3D)
+        if (This->m_anmLoadedD3D != anmLoadedD3D)
         {
-            This->m_tex = spriteD3D;
-            g_supervisor.d3dDevice->SetTexture(0, spriteD3D->m_texture);
+            This->m_anmLoadedD3D = anmLoadedD3D;
+            g_supervisor.d3dDevice->SetTexture(0, anmLoadedD3D->m_texture);
         }
 
         // Texture Transform (Scroll/Matrix)

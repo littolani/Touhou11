@@ -5,5 +5,8 @@
 
 class Window
 {
-
+public:
+    HWND hwnd;
+    DWORD timeForCleanup;
+    HINSTANCE hInstance;
 };

@@ -1,6 +1,7 @@
 #include "AnmVm.h"
 #include "Globals.h"
 #include "AnmLoaded.h"
+#include <iomanip>
 
 // 0x402270
 AnmVm::AnmVm()
@@ -555,21 +556,16 @@ void AnmVm::applyZRotationToQuadCorners(
     bottomLeft->pos.z = effectiveZ;
 }
 
-// 0x450700
 int AnmVm::projectQuadCornersThroughCameraViewport(AnmVm* This)
 {
     float rotZ = This->m_rotation.z;
     float cosZ = cosf(rotZ);
     float sinZ = sinf(rotZ);
 
-    D3DXVECTOR3 localOrigin = { 0.0f, 0.0f, 0.0f };
+    D3DXVECTOR3 localOrigin{};
     D3DXMATRIX worldMatrix;
-    // Initialize worldMatrix to identity
-    memset(&worldMatrix, 0, sizeof(worldMatrix));
-    worldMatrix._11 = 1.0f;
-    worldMatrix._22 = 1.0f;
-    worldMatrix._33 = 1.0f;
-    worldMatrix._44 = 1.0f;
+    D3DXMatrixIdentity(&worldMatrix);
+
     // Set translation
     worldMatrix._41 = This->m_entityPos.x + This->m_pos.x + This->m_offsetPos.x;
     worldMatrix._42 = This->m_entityPos.y + This->m_pos.y + This->m_offsetPos.y;
@@ -786,6 +782,37 @@ int AnmVm::onTick(AnmVm* This)
     // Close the Loop
     data->vertices[32] = data->vertices[1];
     return 0;
+}
+
+void AnmVm::printD3DMatrix(const D3DMATRIX& m)
+{
+    std::cout << std::fixed << std::setprecision(4);
+
+    std::cout
+        << "[ "
+        << std::setw(9) << m._11 << " "
+        << std::setw(9) << m._12 << " "
+        << std::setw(9) << m._13 << " "
+        << std::setw(9) << m._14 << " ]\n"
+
+        << "[ "
+        << std::setw(9) << m._21 << " "
+        << std::setw(9) << m._22 << " "
+        << std::setw(9) << m._23 << " "
+        << std::setw(9) << m._24 << " ]\n"
+
+        << "[ "
+        << std::setw(9) << m._31 << " "
+        << std::setw(9) << m._32 << " "
+        << std::setw(9) << m._33 << " "
+        << std::setw(9) << m._34 << " ]\n"
+
+        << "[ "
+        << std::setw(9) << m._41 << " "
+        << std::setw(9) << m._42 << " "
+        << std::setw(9) << m._43 << " "
+        << std::setw(9) << m._44 << " ]\n";
+    std::cout << "\n\n";
 }
 
 // 0x44b4b0

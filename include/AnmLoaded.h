@@ -32,7 +32,13 @@ struct AnmLoadedD3D
     int m_bytesPerPixel;
     int m_flags;
 
-    static int createTextureFromAtR(AnmLoadedD3D* This);
+    /**
+     * 0x4540f0
+     * @brief
+     * @param This ESI:4
+     */
+    static void createTextureFromAtR(AnmLoadedD3D* This);
+
     static int createTextureFromAt(AnmLoadedD3D* This, uint32_t width, uint32_t height, int formatIndex);
     static int createTextureFromThtx(AnmLoadedD3D* This, uint32_t texWidth, uint32_t texHeight, int formatIndex, void* thtxData);
     static int createTextureFromImage(AnmLoadedD3D* This, int textureWidthOffset, uint32_t width, uint32_t height, int formatIndex);

@@ -149,7 +149,15 @@ public:
 
     //static void onDrawRenderMesh();
     static int setupTextureQuadAndMatrices(AnmVm* This, uint32_t spriteNumber, AnmLoaded* anmLoaded);
+
+    /**
+     * 0x450700
+     * @brief Used for the pillar background in the Extra stage
+     * @param  This EAX:4
+     * @return int  EAX:4
+     */
     static int projectQuadCornersThroughCameraViewport(AnmVm* This);
+
     static void inlineAsmFsincos(RenderVertex144* This, float theta, float scale);
     static int onTick(AnmVm* This);
     static int getIntVar(AnmVm* This, int id);
@@ -163,6 +171,7 @@ public:
     static float normalizeUnsigned(RngContext* rngContext);
     static float normalizeToAngle(float angle, RngContext* rngContext);
 
+    static void printD3DMatrix(const D3DMATRIX& m);
 private:
     inline void loadNextInstruction()
     {

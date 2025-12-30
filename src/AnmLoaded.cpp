@@ -1,9 +1,9 @@
 #include "AnmLoaded.h"
 #include "Globals.h"
 
-// 0x4540f0
-int AnmLoadedD3D::createTextureFromAtR(AnmLoadedD3D* This)
+void AnmLoadedD3D::createTextureFromAtR(AnmLoadedD3D* This)
 {
+    puts("Called @R\n");
     This->m_flags |= 1;
     g_supervisor.d3dDevice->CreateTexture(
         g_supervisor.m_d3dPresetParameters.BackBufferWidth,
@@ -16,7 +16,6 @@ int AnmLoadedD3D::createTextureFromAtR(AnmLoadedD3D* This)
         NULL
     );
     This->m_bytesPerPixel = g_supervisor.m_d3dPresetParameters.BackBufferFormat == D3DFMT_X8R8G8B8 * 2 + 2;
-    return 0;
 }
 
 // 0x4540a0

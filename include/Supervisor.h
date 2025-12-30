@@ -19,7 +19,7 @@ public:
     IDirectInputDevice8A* keyboard;              // <0x20>
     IDirectInputDevice8A* joystick;              // <0x24>
     int idk1;                                    // <0x28>
-    uint32_t controllerCaps;                     // <0x2c>
+    LPDIDEVCAPS controllerCaps;                  // <0x2c>
     int idk2[10];                                // <0x30>
     HWND appWindow;                              // <0x58>
     D3DMATRIX d3dMatrix1;                        // <0x5c>
@@ -56,7 +56,7 @@ public:
     int idk8[2];                                 // <0x580>
     AnmLoaded* someAnmLoaded;                    // <0x588>
     int idk9;                                    // <0x58c>
-    uint32_t criticalSectionFlag;                // <0c590>
+    uint32_t criticalSectionFlag;                // <0x590>
     DWORD currentTime;                           // <0x594>
     uint32_t idk10[78];                          // <0x598>
     uint32_t snapshotFlag;                       // <0x6d0>
@@ -89,5 +89,7 @@ public:
     int verifyGameConfig();
     void enterCriticalSection(size_t criticalSectionNumber);
     void leaveCriticalSection(size_t criticalSectionNumber);
+    static void resetRenderState();
+    static int initializeDevices(Supervisor* This);
 };
 ASSERT_SIZE(Supervisor, 0x9c4);

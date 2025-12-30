@@ -1,12 +1,13 @@
 #include "Chireiden.h"
 #include "AnmVm.h"
+#include "AnmLoaded.h"
 #include "AnmManager.h"
 #include "TrampolineFactory.h"
 #include "FileAbstrction.h"
 #include "SoundManager.h"
 #include <conio.h> // Required for _kbhit() and _getch()
 
-void __cdecl logfThunk(const char* format, ...)
+void logfThunk(const char* format, ...)
 {
     // Get current time
     time_t now = time(NULL);
@@ -25,9 +26,42 @@ void __cdecl logfThunk(const char* format, ...)
     va_end(args);
 }
 
-void __cdecl logThunk(const char* str)
+void logThunk(const char* str)
 {
     logfThunk("%s", str);
+}
+
+void SetupConsole()
+{
+    // 1. Allocate the console window
+    if (!AllocConsole()) {
+        return;
+    }
+
+    // 2. Fix the "Newline" Copy/Paste Issue
+    // We increase the buffer width so lines don't wrap visually or in the clipboard.
+    HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    COORD bufferSize;
+    bufferSize.X = 4096; // Wide buffer (prevents hard wrapping)
+    bufferSize.Y = 2000; // Long scrollback history
+    SetConsoleScreenBufferSize(hOut, bufferSize);
+
+    // 3. Redirect stdout, stdin, and stderr
+    FILE* fp;
+    freopen_s(&fp, "CONOUT$", "w", stdout);
+    freopen_s(&fp, "CONOUT$", "w", stderr);
+    freopen_s(&fp, "CONIN$", "r", stdin);
+
+    // 4. (Optional) Enable ANSI Colors for a "Modern" look
+    DWORD dwMode = 0;
+    GetConsoleMode(hOut, &dwMode);
+    dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+    SetConsoleMode(hOut, dwMode);
+
+    // 5. Sync C++ streams (std::cout, std::cin, etc.)
+    std::ios::sync_with_stdio(true);
+
+    SetConsoleTitle(L"Reimu's Debug Console");
 }
 
 void waitForDebugger()
@@ -52,19 +86,19 @@ void waitForDebugger()
         Sleep(500);
     }
 }
+
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID lpvReserved)
 {
     if (fdwReason == DLL_PROCESS_ATTACH)
     {
-        AllocConsole();
-        FILE* fp;
-        errno_t err = freopen_s(&fp, "CONOUT$", "w", stdout);
-        if (err != 0) {
-            printf("freopen_s error");
-            exit(1);
-        }
-
-        waitForDebugger();
+        //AllocConsole();
+        //FILE* fp;
+        //errno_t err = freopen_s(&fp, "CONOUT$", "w", stdout);
+        //if (err != 0) {
+        //    printf("freopen_s error");
+        //    exit(1);
+        //}
+        SetupConsole();
 
         installHook(0x459bc0, createLtoThunk<Stack<0x4>, Stack<0x8>>(logfThunk, 0));
         installHook(0x441c80, createLtoThunk<Stack<0x4>, Stack<0x8>>(logfThunk, 0));
@@ -73,11 +107,10 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID lpvReserved)
         installHook(0x45b5a0, createLtoThunk<Stack<0x4>, Stack<0x8>>(logfThunk, 0));
         installHook(0x458a10, createLtoThunk<Stack<0x4>>(logThunk, 0));
         installHook(0x458af0, createLtoThunk<Stack<0x4>>(logThunk, 0));
-
-        installHook(0x4581c0, createLtoThunk<Stack<0x4>, Stack<0x8>, AL, Stack<0xc>, Stack<0x10>, Stack<0x14>>(FileUtils::decrypt, 0x14));
+        
         installHook(0x449660, createLtoThunk<Returns<RegCode::EAX>, ECX, Stack<0x4>, EAX, EDI>(SoundManager::findRiffChunk, 0x4));
         installHook(0x452420, createLtoThunk<Returns<RegCode::EAX>, ECX>(AnmVm::onTick, 0));
-
+        
         installHook(0x4503d0, createLtoThunk<EAX, Stack<0x4>, EBX, EDI, ESI>(AnmVm::applyZRotationToQuadCorners, 0x4));
         installHook(0x4500f0, createLtoThunk<Stack<0x4>, EBX, EDI, EDX, ESI>(AnmVm::writeSpriteCharacters, 0x4));
         installHook(0x44fd10, createLtoThunk<ESI>(AnmManager::flushSprites, 0));
@@ -85,6 +118,23 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID lpvReserved)
         installHook(0x44f4b0, createLtoThunk<EAX, Stack<0x4>>(AnmManager::applyRenderStateForVm, 0x4));
         installHook(0x44fda0, createLtoThunk<EAX, EDX>(AnmManager::writeSprite, 0));
         installHook(0x44f880, createLtoThunk<ECX, Stack<0x4>, EAX>(AnmManager::drawVmSprite2D, 0x4));
+        installHook(0x450700, createLtoThunk<Returns<RegCode::EAX>, EAX>(AnmVm::projectQuadCornersThroughCameraViewport, 0));
+        installHook(0x457080, createLtoThunk<EDX, ECX>(Chain::cut, 0));
+        installHook(0x456cb0, createLtoThunk<Returns<RegCode::EAX>, EBX>(Chain::runCalcChain, 0));
+        installHook(0x456e10, createLtoThunk<Returns<RegCode::EAX>>(Chain::runDrawChain, 0));
+        installHook(0x456c10, createLtoThunk<Returns<RegCode::EAX>, ESI, EBX>(Chain::registerDrawChain, 0));
+
+        installHook(0x4540f0, createLtoThunk<ESI>(AnmLoadedD3D::createTextureFromAtR, 0));
+        installHook(0x458400, createLtoThunk<Returns<RegCode::EAX>, EAX, Stack<0x4>, Stack<0x8>>(openFile, 0x8));
+
+        installHook(0x441760, createLtoThunk<Returns<RegCode::EAX>, Stack<0x4>, Stack<0x8>, ECX>(PbgArchive::readDecompressEntry, 0x8));
+        installHook(0x4418d0, createLtoThunk<Returns<RegCode::EAX>, EAX, EBX>(PbgArchive::findEntry, 0));
+        installHook(0x4426c0, createLtoThunk<Returns<RegCode::EAX>, Stack<0x4>, Stack<0x8>, Stack<0xc>, EAX>(Lzss::decompress, 0xc));
+        installHook(0x4423a0, createLtoThunk<Returns<RegCode::EAX>, Stack<0x4>, Stack<0x8>, Stack<0xc>>(Lzss::compress, 0xc));
+        installHook(0x4581c0, createLtoThunk<Stack<0x4>, Stack<0x8>, AL, Stack<0xc>, Stack<0x10>, Stack<0x14>>(FileUtils::decrypt, 0x14));
+
+
+        waitForDebugger();
     }
     return TRUE;
 }

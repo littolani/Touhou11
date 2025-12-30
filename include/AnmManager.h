@@ -44,11 +44,13 @@ public:
     AnmVm m_primaryVm;                          // <0x435180>
     uint32_t m_u0;                              // <0x4355bc>
     D3DCOLOR m_color;                           // <0x4355b8>
-    AnmLoadedD3D* m_tex;                        // <0x4355bc>
+    AnmLoadedD3D* m_anmLoadedD3D;               // <0x4355bc>
     uint8_t m_renderStateMode;                  // <0x4355c0>
-    uint8_t m_l;                                // <0x4355c1>
-    uint8_t m_haveFlushedSprites;               // <0x4355c2>
-    uint8_t m_stuff[3];
+    int8_t m_unk_4355c1;                        // <0x4355c1>
+    int8_t m_haveFlushedSprites;                // <0x4355c2>
+    uint8_t m_unk_4355c3;                       // <0x4355c3>
+    uint8_t m_unk_4355c4;                       // <0x4355c4>
+    uint8_t m_unk_4355c5;                       // <0x4355c5>
     bool m_usePointFilter;                      // <0x4355c6>
     uint8_t m_idk2;                             // <0x4355c7>
     AnmLoadedSprite* m_cachedSprite;            // <0x4355c8>
