@@ -3,9 +3,9 @@
 #include "Supervisor.h"
 #include "AsciiManager.h"
 #include "Chain.h"
+#include "FileAbstrction.h"
 
 HANDLE g_app;
-HWND g_window;
 DWORD g_unusualLaunchFlag{};
 HINSTANCE g_hInstance{};
 DWORD g_primaryScreenWorkingArea{};
@@ -49,9 +49,9 @@ double getDeltaTime()
     return elapsedTime;
 }
 
-// 0x458400
 byte* openFile(const char* filename, size_t* outSize, BOOL isExternalResource)
 {
+    printf("Opening %s\n", filename);
     byte* outBuffer;
     int decompressedSize;
     
@@ -112,14 +112,16 @@ byte* openFile(const char* filename, size_t* outSize, BOOL isExternalResource)
 
         // Decrypt entry
         printf("Decoding %s\n", filename);
-        outBuffer = new byte[decompressedSize];
+        //outBuffer = new byte[decompressedSize];
+        outBuffer = (byte*)game_malloc(decompressedSize);
+
         if (!outBuffer)
         {
             printf("openFile: Buffer allocation failed!\n");
             g_supervisor.leaveCriticalSection(2);
             return nullptr;
         }
-        g_pbgArchive.readDecompressEntry(filename, outBuffer);
+        g_pbgArchive.readDecompressEntry(&g_pbgArchive, outBuffer, filename);
         g_supervisor.leaveCriticalSection(2);
         return outBuffer;
     }
@@ -146,7 +148,9 @@ byte* openFile(const char* filename, size_t* outSize, BOOL isExternalResource)
         }
 
         DWORD fileSize = GetFileSize(file,NULL);
-        outBuffer = new byte[fileSize];
+
+        //outBuffer = new byte[fileSize];
+        outBuffer = (byte*)game_malloc(fileSize);
 
         if (!outBuffer)
         {
@@ -278,7 +282,7 @@ void loadTh11Dat()
 
     if (!g_pbgArchive.load("th11.dat"))
     {
-        printf("error : データファイルが存在しません\n");
+        printf("Could not save data file\n");
         return;
     }
     sprintf_s(buffer, "th11_%.4x%c.ver", 0x100, 0x61);
@@ -286,7 +290,7 @@ void loadTh11Dat()
     g_supervisor.th11DatSize = outSize;
     if (!g_supervisor.th11DatBytes)
     {
-        printf("error : データのバージョンが違います\n");
+        printf("Data version is incorrect\n");
         g_supervisor.th11DatBytes = nullptr;
     }
 }
