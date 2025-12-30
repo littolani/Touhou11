@@ -3,7 +3,7 @@
 #include "AnmLoaded.h"
 #include "AnmManager.h"
 #include "TrampolineFactory.h"
-#include "FileAbstrction.h"
+#include "FileAbstraction.h"
 #include "SoundManager.h"
 #include <conio.h> // Required for _kbhit() and _getch()
 

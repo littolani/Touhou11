@@ -2,7 +2,7 @@
 
 #include "Chireiden.h"
 #include "AnmVm.h"
-#include "FileAbstrction.h"
+#include "FileAbstraction.h"
 
 struct AnmLoaded;
 struct AnmLoadedD3D;

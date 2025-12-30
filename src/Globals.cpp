@@ -3,7 +3,7 @@
 #include "Supervisor.h"
 #include "AsciiManager.h"
 #include "Chain.h"
-#include "FileAbstrction.h"
+#include "FileAbstraction.h"
 
 HANDLE g_app;
 DWORD g_unusualLaunchFlag{};

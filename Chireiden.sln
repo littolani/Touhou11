@@ -4,11 +4,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 VisualStudioVersion = 17.14.36518.9
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Chireiden", "Chireiden.vcxproj", "{C0EDDEE7-31E7-40D0-AC3E-617540F34043}"
+	ProjectSection(ProjectDependencies) = postProject
+		{BF4D7522-4CF8-4C3E-8F7B-BA2F0108A915} = {BF4D7522-4CF8-4C3E-8F7B-BA2F0108A915}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ChireidenLauncher", "..\ChireidenLauncher\ChireidenLauncher.vcxproj", "{BF4D7522-4CF8-4C3E-8F7B-BA2F0108A915}"
-	ProjectSection(ProjectDependencies) = postProject
-		{C0EDDEE7-31E7-40D0-AC3E-617540F34043} = {C0EDDEE7-31E7-40D0-AC3E-617540F34043}
-	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
