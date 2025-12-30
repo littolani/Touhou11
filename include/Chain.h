@@ -4,17 +4,20 @@
 
 enum ChainCallbackResult
 {
-    CHAIN_CALLBACK_RESULT_CONTINUE_AND_REMOVE_JOB = 0,
-    CHAIN_CALLBACK_RESULT_CONTINUE,
-    CHAIN_CALLBACK_RESULT_EXECUTE_AGAIN,
-    CHAIN_CALLBACK_RESULT_BREAK,
-    CHAIN_CALLBACK_RESULT_EXIT_GAME_SUCCESS,
-    CHAIN_CALLBACK_RESULT_EXIT_GAME_ERROR,
-    CHAIN_CALLBACK_RESULT_RESTART_FROM_FIRST_JOB,
-    UNKNOWN_8
+    CHAIN_CALLBACK_RESULT_CONTINUE_AND_REMOVE_JOB = 0, // Cut node and continue
+    CHAIN_CALLBACK_RESULT_CONTINUE = 1,                // Normal step
+    CHAIN_CALLBACK_RESULT_EXECUTE_AGAIN = 2,           // Immediate re-run (for logic that needs 2+ passes)
+    CHAIN_CALLBACK_RESULT_BREAK = 3,                   // Stop processing this chain for this frame
+    CHAIN_CALLBACK_RESULT_EXIT_GAME_SUCCESS = 4,       // Soft exit (e.g. Back to Menu)
+    CHAIN_CALLBACK_RESULT_EXIT_GAME_ERROR = 5,         // Hard error exit (returns -1)
+    CHAIN_CALLBACK_RESULT_RESTART_FROM_FIRST_JOB = 6,  // Reset 'tracker' to head
+    CHAIN_CALLBACK_RESULT_CLEANUP_AND_CONTINUE = 7,    // Run cleanup callback at +0x10 and continue
+    CHAIN_CALLBACK_RESULT_QUIT_GAME = 8                // Hard exit (Quit to OS)
 };
 
-typedef ChainCallbackResult(*ChainCallback)(void*);
+// Fastcall calling convention must be used when calling functions in the game
+// Once callbacks are hooked inside the DLL, however, they will be cdecl.
+typedef ChainCallbackResult(__fastcall* ChainCallback)(void*);
 
 struct ChainElem
 {
@@ -41,6 +44,13 @@ struct ChainElem
 };
 ASSERT_SIZE(ChainElem, 0x24);
 
+struct TrackerNode
+{
+    ChainElem* ownerJob;   // <0x0> Points to the ChainElem (Base)
+    TrackerNode* next;     // <0x4> Points to next embeddedTracker
+    TrackerNode* prev;     // <0x8> Points to prev embeddedTracker
+};
+
 struct Chain
 {
     ChainElem calcChain;      // <0x0> Sentinel node for calculation chain
@@ -48,16 +58,38 @@ struct Chain
     uint32_t timeToRemove;    // <0x48> Time-to-remove flag
 
     Chain();
-    void release();
-    int runCalcChain();
-    int runDrawChain();
-    int registerCalcChain(ChainElem* chainElem, int priority);
-    int registerDrawChain(ChainElem* chainElem, int priority);
-    void releaseSingleChain(ChainElem* chainElem);
-    void cut(ChainElem* elementToRemove);
+    static void release(Chain* This);
+
+    /**
+     * 0x456cb0
+     * @param  This EBX:4
+     * @return int  EAX:4
+     */
+    static int runCalcChain(Chain* This);
+
+    /**
+     * 0x456e10
+     * @return int EAX:4
+     */
+    static int runDrawChain();
+
+    
+    static int registerCalcChain(Chain* This, ChainElem* chainElem, int priority);
+
+    /**
+     * 0x456c10
+     * @brief
+     * @param  chainElem  ESI:4
+     * @param  priority   EBX:4
+     * @return int        EAX:4
+     */
+    static int registerDrawChain(ChainElem* chainElem, int priority);
+
+    static void releaseSingleChain(Chain* This, ChainElem* chainElem);
+
+    static void cut(Chain* This, ChainElem* elementToRemove);
+
     static void removeTracker(ChainElem* tracker, ChainElem* elementToRemove);
 
 };
 ASSERT_SIZE(Chain, 0x4c);
-
-extern Chain* g_chain;
