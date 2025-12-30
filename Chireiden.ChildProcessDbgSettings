@@ -1,6 +1,0 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<ChildProcessDebuggingSettings IsEnabled="true" xmlns="http://schemas.microsoft.com/vstudio/ChildProcessDebuggingSettings/2014">
-  <DefaultRule Attach="false" />
-  <Rule IsEnabled="true" ProcessName="*th11.exe" CommandLine="" EngineFilter="{3b476d35-a401-11d2-aad4-00c04f990171}" />
-  <Rule IsEnabled="true" ProcessName="*ChireidenLauncher.exe" CommandLine="" Attach="false" />
-</ChildProcessDebuggingSettings>
