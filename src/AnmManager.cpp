@@ -2,18 +2,19 @@
 #include "AnmLoaded.h"
 #include "Globals.h"
 
-// 0x454360
-AnmLoaded* AnmManager::preloadAnm(AnmManager* This, int anmIdx, const char* anmFileName)
+AnmLoaded* AnmManager::preloadAnm(int anmSlotIndex, const char* anmFileName)
 {
+    AnmManager* This = g_anmManager;
+
     // Return existing animation if already loaded
-    if (This->m_loadedAnms[anmIdx] != nullptr)
+    if (This->m_loadedAnms[anmSlotIndex] != nullptr)
     {
         printf("preloadAnm: already loaded %s\n", anmFileName);
-        return This->m_loadedAnms[anmIdx];
+        return This->m_loadedAnms[anmSlotIndex];
     }
 
     // Load animation from memory
-    AnmLoaded* anmLoaded = preloadAnmFromMemory(This, anmFileName, anmIdx);
+    AnmLoaded* anmLoaded = preloadAnmFromMemory(This, anmSlotIndex, anmFileName);
     if (anmLoaded == nullptr)
         return nullptr;
 
@@ -25,20 +26,19 @@ AnmLoaded* AnmManager::preloadAnm(AnmManager* This, int anmIdx, const char* anmF
     return anmLoaded;
 }
 
-// Function to process a single ANM chunk
-int openAnmLoaded(AnmLoaded* anmLoaded, AnmHeader* chunk, int chunkIndex)
+int AnmManager::openAnmLoaded(AnmLoaded* anmLoaded, AnmHeader* anmHeader, int chunkIndex)
 {
     // Check if the version is 7 (specific to this ANM format)
-    if (chunk->version != 7)
+    if (anmHeader->version != 7)
     {
         printf("ANM version is incorrect\n");
         return -1;
     }
 
     // If hasdata is 0, load an external texture file
-    if (chunk->hasData == 0)
+    if (anmHeader->hasData == 0)
     {
-        char* name = (char*)chunk + chunk->nameOffset;
+        char* name = (char*)anmHeader + anmHeader->nameOffset;
 
         // Skip if name starts with '@' (special case)
         if (*name != '@')
@@ -60,17 +60,14 @@ int openAnmLoaded(AnmLoaded* anmLoaded, AnmHeader* chunk, int chunkIndex)
     return 1;
 }
 
-// 0x454190
-// Function to preload an ANM file into memory
-AnmLoaded* AnmManager::preloadAnmFromMemory(AnmManager* This, const char* anmFilePath, int m_anmSlotIndex)
+AnmLoaded* AnmManager::preloadAnmFromMemory(AnmManager* This, int anmSlotIndex, const char* anmFilePath)
 {
-    // Log the preload action
     printf("preloadAnmFromMemory: %s\n", anmFilePath);
 
     // Check if the slot index is within bounds (0-31)
-    if (m_anmSlotIndex >= 32)
+    if (anmSlotIndex >= 32)
     {
-        printf("\n");
+        printf("Anm slot index %d is out of bounds!\n", anmSlotIndex);
         return nullptr;
     }
 
@@ -78,22 +75,25 @@ AnmLoaded* AnmManager::preloadAnmFromMemory(AnmManager* This, const char* anmFil
     char resolvedFilePath[260];
     sprintf_s(resolvedFilePath, "%s", anmFilePath);
 
-    // Open the ANM file (memory-mapped)
     AnmHeader* header = (AnmHeader*)openFile(resolvedFilePath, nullptr, 0);
     if (!header)
     {
-        printf("\n");
+        printf("Anm header is NULL!\n");
         return nullptr;
     }
 
     // Allocate and initialize the AnmLoaded structure
-    AnmLoaded* anmLoaded = (AnmLoaded*)malloc(sizeof(AnmLoaded));
-    if (anmLoaded)
-        memset(anmLoaded, 0, sizeof(AnmLoaded));
-    This->m_loadedAnms[m_anmSlotIndex] = anmLoaded;
+    AnmLoaded* anmLoaded = (AnmLoaded*)game_new(sizeof(AnmLoaded));
+    if (!anmLoaded)
+    {
+        printf("Unable to allocate anmLoaded!\n");
+        return nullptr;
+    }
+    memset(anmLoaded, 0, sizeof(AnmLoaded));
+    This->m_loadedAnms[anmSlotIndex] = anmLoaded;
 
     // Set initial fields
-    anmLoaded->m_anmSlotIndex = m_anmSlotIndex;
+    anmLoaded->m_anmSlotIndex = anmSlotIndex;
     anmLoaded->m_header = header;
     strcpy_s(anmLoaded->m_filePath, anmFilePath);
 
@@ -117,14 +117,14 @@ AnmLoaded* AnmManager::preloadAnmFromMemory(AnmManager* This, const char* anmFil
     // Allocate buffers for chunk data, keyframes, and sprites
     anmLoaded->m_numAnmLoadedD3Ds = processedCount;
 
-    //anmLoaded->m_header = new AnmHeader[processedCount]();
-    anmLoaded->m_header = (AnmHeader*)malloc(processedCount * sizeof(AnmHeader));
+    anmLoaded->m_anmLoadedD3D = (AnmLoadedD3D*)game_malloc(processedCount * sizeof(AnmLoadedD3D));
+    memset(anmLoaded->m_anmLoadedD3D, 0, processedCount * sizeof(AnmLoadedD3D));
 
     //anmLoaded->m_keyframeData = new AnmLoadedSprite[numSprites]();
-    anmLoaded->m_keyframeData = (AnmLoadedSprite*)malloc(numSprites * sizeof(AnmLoadedSprite));
+    anmLoaded->m_keyframeData = (AnmLoadedSprite*)game_malloc(numSprites * sizeof(AnmLoadedSprite));
 
     //anmLoaded->m_spriteData = new uint32_t[numScripts]();
-    anmLoaded->m_spriteData = (uint32_t*)malloc(numScripts * sizeof(uint32_t));
+    anmLoaded->m_spriteData = (uint32_t*)game_malloc(numScripts * sizeof(uint32_t));
 
     anmLoaded->m_numScripts = numScripts;
     anmLoaded->m_numSprites = numSprites;
@@ -138,11 +138,11 @@ AnmLoaded* AnmManager::preloadAnmFromMemory(AnmManager* This, const char* anmFil
         if (result < 0)
         {
             printf("Could not read ANM data.\n");
-            free(anmLoaded->m_header);
-            free(anmLoaded->m_keyframeData);
-            free(anmLoaded->m_spriteData);
-            free(anmLoaded);
-            This->m_loadedAnms[m_anmSlotIndex] = nullptr;
+            game_free(anmLoaded->m_header);
+            game_free(anmLoaded->m_keyframeData);
+            game_free(anmLoaded->m_spriteData);
+            game_free(anmLoaded);
+            This->m_loadedAnms[anmSlotIndex] = nullptr;
             return nullptr;
         }
         chunkIndex++;
@@ -356,6 +356,7 @@ void AnmManager::createD3DTextures(AnmManager* This)
 // 0x450e20
 int AnmManager::updateWorldMatrixAndProjectQuadCorners(AnmManager* This, AnmVm* vm)
 {
+    puts("Called updateWorldMatrixAndProjectQuadCorners\n");
     uint32_t flags;
     D3DXMATRIX* baseSpriteScaleMatrix;
     D3DXMATRIX* localTransformMatrix;
@@ -750,9 +751,9 @@ uint32_t AnmManager::modulateColorComponent(uint16_t base, uint16_t factor)
     return i;
 }
 
-// 0x450b00
 int AnmManager::drawVmWithFog(AnmManager* This, AnmVm* vm)
 {
+    puts("Drawing vm with fog\n");
     if (vm->projectQuadCornersThroughCameraViewport(vm) != 0)
         return -1;
 
@@ -1226,9 +1227,9 @@ void AnmManager::transformAndDraw(AnmManager* This, AnmVm* vm)
     g_renderQuad144[0].rhw = 1.0f;
 }
 
-// 0x4513a0
 int AnmManager::drawVmWithTextureTransform(AnmManager* This, AnmVm* vm)
 {
+    // Check flags: Bit 0 and Bit 1 must be set, and Alpha (byte 3 of color) must not be 0
     if ((vm->m_flagsLow & 1) && (vm->m_flagsLow & 2) && (vm->m_color0 >> 24) != 0)
     {
         // 0x435620: Check if there are batched sprites waiting to be drawn
@@ -1239,12 +1240,14 @@ int AnmManager::drawVmWithTextureTransform(AnmManager* This, AnmVm* vm)
         }
 
         uint32_t flags = vm->m_flagsLow;
+
+        // Matrix update logic (same as your version, verified correct)
         if (!(flags & 0x4000) && (flags & 0xC))
         {
             vm->m_localTransformMatrix = vm->m_baseScaleMatrix;
             vm->m_localTransformMatrix._11 *= vm->m_scale.x;
             vm->m_localTransformMatrix._22 *= vm->m_scale.y;
-            vm->m_flagsLow &= ~0x8; // Clear scale dirty flag (Bit 3 / 0x8)
+            vm->m_flagsLow &= ~0x8; // Clear scale dirty flag
 
             D3DXMATRIX tempMatrix;
             if (vm->m_rotation.x != 0.0f)
@@ -1252,32 +1255,30 @@ int AnmManager::drawVmWithTextureTransform(AnmManager* This, AnmVm* vm)
                 D3DXMatrixRotationX(&tempMatrix, vm->m_rotation.x);
                 D3DXMatrixMultiply(&vm->m_localTransformMatrix, &vm->m_localTransformMatrix, &tempMatrix);
             }
-
             if (vm->m_rotation.y != 0.0f)
             {
                 D3DXMatrixRotationY(&tempMatrix, vm->m_rotation.y);
                 D3DXMatrixMultiply(&vm->m_localTransformMatrix, &vm->m_localTransformMatrix, &tempMatrix);
             }
-
             if (vm->m_rotation.z != 0.0f)
             {
                 D3DXMatrixRotationZ(&tempMatrix, vm->m_rotation.z);
                 D3DXMatrixMultiply(&vm->m_localTransformMatrix, &vm->m_localTransformMatrix, &tempMatrix);
             }
-
-            vm->m_flagsLow &= ~0x4; // Clear rotation dirty flag (Bit 2 / 0x4)
+            vm->m_flagsLow &= ~0x4; // Clear rotation dirty flag
         }
 
         // Initialize World Matrix from Local Matrix
         D3DXMATRIX worldMatrix = vm->m_localTransformMatrix;
 
         // Position & Anchor Calculation
+        // Note: Assembly logic suggests Pos - fabs(Size*Scale).
+        // If m_spriteSize is full width, * 0.5f is required for edge anchoring.
         int anchorX = (vm->m_flagsLow >> 18) & 3;
         float finalX = vm->m_entityPos.x + vm->m_pos.x + vm->m_offsetPos.x;
 
         if (anchorX == 1)
             finalX -= fabsf(vm->m_spriteSize.x * vm->m_scale.x * 0.5f);
-
         else if (anchorX == 2)
             finalX += fabsf(vm->m_spriteSize.x * vm->m_scale.x * 0.5f);
 
@@ -1290,10 +1291,11 @@ int AnmManager::drawVmWithTextureTransform(AnmManager* This, AnmVm* vm)
             finalY -= fabsf(vm->m_spriteSize.y * vm->m_scale.y * 0.5f);
         else if (anchorY == 2)
             finalY += fabsf(vm->m_spriteSize.y * vm->m_scale.y * 0.5f);
+
         worldMatrix._42 = finalY;
         worldMatrix._43 = vm->m_entityPos.z + vm->m_pos.z + vm->m_offsetPos.z;
 
-        // 0x44f4b0: Apply material/colors/render states
+        // Apply material/colors/render states
         applyRenderStateForVm(This, vm);
 
         // Set World Transform (State 256 / 0x100)
@@ -1301,8 +1303,6 @@ int AnmManager::drawVmWithTextureTransform(AnmManager* This, AnmVm* vm)
 
         // Texture Setup
         AnmLoadedD3D* anmLoadedD3D = vm->m_sprite->anmLoadedD3D;
-
-        // Check cached texture pointer
         if (This->m_anmLoadedD3D != anmLoadedD3D)
         {
             This->m_anmLoadedD3D = anmLoadedD3D;
@@ -1310,46 +1310,51 @@ int AnmManager::drawVmWithTextureTransform(AnmManager* This, AnmVm* vm)
         }
 
         // Texture Transform (Scroll/Matrix)
+        // Assembly accesses offset 0x70 (m_uvScrollPos?) and 0x54 (m_spriteUvQuad[0]?) of AnmVm
         float scrollX = vm->m_uvScrollPos.x;
-
-        // Check if texture matrix needs update (different sprite or non-zero scroll)
         if (This->m_cachedSprite != vm->m_sprite || scrollX != 0.0f || vm->m_uvScrollPos.y != 0.0f)
         {
             This->m_cachedSprite = vm->m_sprite;
 
-            // Start with the VM's texture matrix (0x334)
+            // Copy base texture matrix
             D3DXMATRIX texMatrix = vm->m_textureMatrix;
 
-            // Apply UV scrolling/offset to the matrix
+            // Update translation components
             texMatrix._31 = vm->m_uvScrollPos.x + vm->m_spriteUvQuad[0].x;
             texMatrix._32 = vm->m_uvScrollPos.y + vm->m_spriteUvQuad[0].y;
 
-            // Set Texture Transform (State 16 / D3DTS_TEXTURE0)
             g_supervisor.d3dDevice->SetTransform(D3DTS_TEXTURE0, &texMatrix);
         }
 
         if (This->m_haveFlushedSprites != 2)
         {
-            g_supervisor.d3dDevice->SetStreamSource(0, This->m_d3dVertexBuffer, 0, sizeof(RenderVertex144));
+            // CRITICAL FIX: The assembly uses stride 0x14 (20 bytes), NOT sizeof(RenderVertex144) (28 bytes).
+            // This expects a buffer of struct { float x,y,z; float u,v; };
+            g_supervisor.d3dDevice->SetStreamSource(0, This->m_d3dVertexBuffer, 0, 20);
+
+            // Set FVF to XYZ | TEX1 (0x102) matches the 20-byte stride.
             g_supervisor.d3dDevice->SetFVF(D3DFVF_XYZ | D3DFVF_TEX1);
+
             g_supervisor.d3dDevice->SetTextureStageState(0, D3DTSS_COLORARG2, D3DTA_CURRENT);
             g_supervisor.d3dDevice->SetTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_CURRENT);
             This->m_haveFlushedSprites = 2;
         }
+
         g_supervisor.d3dDevice->DrawPrimitive(D3DPT_TRIANGLESTRIP, 0, 2);
         return 0;
     }
     return -1;
 }
 
-// 0x451ef0
 void AnmManager::drawVm(AnmManager* This, AnmVm* vm)
 {
     uint8_t alpha = (vm->m_color0 >> 24) & 0xff;
     if ((vm->m_flagsLow & 0x3) != 0x3 || alpha == 0)
         return;
+    uint32_t mode = vm->m_flagsLow >> 0x16 & 0xf;
+    if (mode == 6) printf("drawing vm with mode %d\n", mode);
 
-    switch (vm->m_flagsLow >> 0x16 & 0xf)
+    switch (mode)
     {
     case 0:
     {
@@ -1465,7 +1470,7 @@ void AnmManager::drawVm(AnmManager* This, AnmVm* vm)
 }
 
 // 0x445460
-void blitTextures(AnmManager* This)
+void AnmManager::blitTextures(AnmManager* This)
 {
     for (int i = 0; i < 4; ++i)
     {

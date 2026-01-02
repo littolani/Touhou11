@@ -128,15 +128,15 @@ public:
      * @param This        Stack[0x4]:4
      * @param bottomLeft  EBX:4
      * @param bottomRight EDI:4
-     * @param topLeft     EDX:4
      * @param topRight    ESI:4
+     * @param topLeft     EDX:4
      */
     static void writeSpriteCharacters(
         AnmVm* This,
         RenderVertex144* bottomLeft,
         RenderVertex144* bottomRight,
-        RenderVertex144* topLeft,
-        RenderVertex144* topRight
+        RenderVertex144* topRight,
+        RenderVertex144* topLeft
     );
 
     static void writeSpriteCharactersWithoutRot(

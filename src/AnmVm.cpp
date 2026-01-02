@@ -323,8 +323,8 @@ void AnmVm::writeSpriteCharacters(
     AnmVm* This,
     RenderVertex144* bottomLeft,
     RenderVertex144* bottomRight,
-    RenderVertex144* topLeft,
-    RenderVertex144* topRight
+    RenderVertex144* topRight,
+    RenderVertex144* topLeft
 )
 {
     D3DXVECTOR3 effectivePos = This->m_entityPos + This->m_pos + This->m_offsetPos;
@@ -815,20 +815,21 @@ void AnmVm::printD3DMatrix(const D3DMATRIX& m)
     std::cout << "\n\n";
 }
 
+
 // 0x44b4b0
 void AnmVm::run(AnmVm* This)
 {
 #if 0
-    while (m_currentInstruction != nullptr)
+    while (This->m_currentInstruction != nullptr)
     {
-        if (m_flagsLow & 0x20000)
+        if (This->m_flagsLow & 0x20000)
             return;
 
         float gameSpeed = g_gameSpeed;
         g_gameSpeed = 1.0;
 
         AnmRawInstruction* instr_interrupt = nullptr;
-        uint32_t opcode = m_currentInstruction->opcode;
+        uint32_t opcode = This->m_currentInstruction->opcode;
 
         //TODO: Move local variables into inner scopes if possible
         uint32_t spriteNumber;
@@ -848,10 +849,10 @@ void AnmVm::run(AnmVm* This)
         float prevOffsetPosY;
         float prevOffsetPosZ;
 
-        if (m_pendingInterrupt != 0)
+        if (This->m_pendingInterrupt != 0)
             goto Interrupt;
 
-        if (m_currentInstruction->time > m_timeInScript.m_current)
+        if (This->m_currentInstruction->time > This->m_timeInScript.m_current)
         {
             // TODO: Update timers and interpolation
             return;
@@ -865,15 +866,15 @@ void AnmVm::run(AnmVm* This)
 
             // Destroys the graphic.
         case 1: // delete
-            m_flagsLow &= ~1; // Clear visibility
-            m_currentInstruction = nullptr; // Terminate script
+            This->m_flagsLow &= ~1; // Clear visibility
+            This->m_currentInstruction = nullptr; // Terminate script
             g_gameSpeed = gameSpeed;
             break;
 
             // Freezes the graphic until it is destroyed externally.
             // Any interpolation instructions like posTime will no longer advance, and interrupts are disabled.
         case 2: // static
-            m_currentInstruction = nullptr; // Terminate script
+            This->m_currentInstruction = nullptr; // Terminate script
             g_gameSpeed = gameSpeed;
             return;
 
@@ -882,34 +883,34 @@ void AnmVm::run(AnmVm* This)
             // Thanm also lets you use the sprite's name instead of an index.
             // Under some unknown conditions, these sprite indices are transformed by a "sprite-mapping" function; e.g. many bullet scripts use false indices, presumably to avoid repeating the same script for 16 different colors. The precise mechanism of this is not yet fully understood.
         case 3: // sprite(int id)
-            m_flagsLow |= 1; // Set visibility
+            This->m_flagsLow |= 1; // Set visibility
 
-            if (m_spriteMappingFunc == nullptr)
+            if (This->m_spriteMappingFunc == nullptr)
             {
-                spriteNumber = m_currentInstruction->args[0];
-                if ((m_currentInstruction->varMask & 1) != 0)
-                    spriteNumber = getIntVar(spriteNumber);
+                spriteNumber = This->m_currentInstruction->args[0];
+                if ((This->m_currentInstruction->varMask & 1) != 0)
+                    spriteNumber = getIntVar(This, spriteNumber);
             }
 
             else
             {
-                arg0_1 = m_currentInstruction->args[0];
-                if ((m_currentInstruction->varMask & 1) != 0)
-                    arg0_1 = getIntVar(arg0_1);
-                spriteNumber = (uint32_t)m_spriteMappingFunc(this, arg0_1);
+                arg0_1 = This->m_currentInstruction->args[0];
+                if ((This->m_currentInstruction->varMask & 1) != 0)
+                    arg0_1 = getIntVar(This, arg0_1);
+                spriteNumber = (uint32_t)This->m_spriteMappingFunc(This, arg0_1);
             }
-            setupTextureQuadAndMatrices(spriteNumber, m_anmLoaded);
-            loadNextInstruction();
+            setupTextureQuadAndMatrices(This, spriteNumber, This->m_anmLoaded);
+            This->loadNextInstruction();
             break;
 
             // Jumps to byte offset dest from the script's beginning and sets the time to t. thanm accepts a label name for dest.
             // Chinese wiki says some confusing recommendation about setting a=0, can someone explain to me?
         case 4: // jmp(int dest, int t)
         {
-            int dest = m_currentInstruction->args[0];
-            int t = m_currentInstruction->args[1];
-            m_timeInScript.setCurrent(t);
-            jumpToInstruction(dest);
+            int dest = This->m_currentInstruction->args[0];
+            int t = This->m_currentInstruction->args[1];
+            This->m_timeInScript.setCurrent(t);
+            This->jumpToInstruction(dest);
             break;
         }
 
@@ -917,22 +918,22 @@ void AnmVm::run(AnmVm* This)
         case 5: // jmpDec(int& count, int dest, int t)
         {
             static int* count;
-            count = &m_currentInstruction->args[0];
-            int dest = m_currentInstruction->args[1];
-            int t = m_currentInstruction->args[2];
+            count = &This->m_currentInstruction->args[0];
+            int dest = This->m_currentInstruction->args[1];
+            int t = This->m_currentInstruction->args[2];
             int originalCount = *count;
 
-            if (m_currentInstruction->varMask & 1)
-                count = getIntVarPtr(m_currentInstruction->args);
+            if (This->m_currentInstruction->varMask & 1)
+                count = getIntVarPtr(This, This->m_currentInstruction->args);
             *count -= 1;
 
-            if (m_currentInstruction->varMask & 1)
-                originalCount = getIntVar(originalCount);
+            if (This->m_currentInstruction->varMask & 1)
+                originalCount = getIntVar(This, originalCount);
 
             if (originalCount > 0)
             {
-                m_timeInScript.setCurrent(t);
-                jumpToInstruction(dest);
+                This->m_timeInScript.setCurrent(t);
+                This->jumpToInstruction(dest);
             }
             break;
         }
@@ -940,388 +941,388 @@ void AnmVm::run(AnmVm* This)
         // Does a = b.
         case 6: // iset(int& dest, int val)
         {
-            int src = m_currentInstruction->args[1];
-            if ((m_currentInstruction->varMask & 2) == 0)
-                src = getIntVar(m_currentInstruction->args[1]);
+            int src = This->m_currentInstruction->args[1];
+            if ((This->m_currentInstruction->varMask & 2) == 0)
+                src = getIntVar(This, This->m_currentInstruction->args[1]);
 
-            int* dest = reinterpret_cast<int*>(&m_currentInstruction->args[0]);
-            if ((m_currentInstruction->varMask & 1) == 0)
-                dest = getIntVarPtr(dest);
+            int* dest = reinterpret_cast<int*>(&This->m_currentInstruction->args[0]);
+            if ((This->m_currentInstruction->varMask & 1) == 0)
+                dest = getIntVarPtr(This, dest);
 
             *dest = src;
-            loadNextInstruction();
+            This->loadNextInstruction();
             break;
         }
         // Does a = b.
         case 7: // fset(float& dest, float val)
         {
-            float src = bit_cast<float>(m_currentInstruction->args[1]);
-            if ((m_currentInstruction->varMask & 2) != 0)
-                src = getFloatVar(src);
+            float src = bit_cast<float>(This->m_currentInstruction->args[1]);
+            if ((This->m_currentInstruction->varMask & 2) != 0)
+                src = getFloatVar(This, src);
 
-            float* dest = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
-            if ((m_currentInstruction->varMask & 1) != 0)
-                dest = getFloatVarPtr(dest);
+            float* dest = reinterpret_cast<float*>(&This->m_currentInstruction->args[0]);
+            if ((This->m_currentInstruction->varMask & 1) != 0)
+                dest = getFloatVarPtr(This, dest);
             *dest = src;
-            loadNextInstruction();
+            This->loadNextInstruction();
             break;
         }
         
         // Does a += b.
         case 8: // iadd(int& a, int b)
         {
-            int b = getIntVar(m_currentInstruction->args[1]);
-            if ((m_currentInstruction->varMask & 2) != 0)
-                b = m_currentInstruction->args[1];
+            int b = getIntVar(This, This->m_currentInstruction->args[1]);
+            if ((This->m_currentInstruction->varMask & 2) != 0)
+                b = This->m_currentInstruction->args[1];
             
-            int* a = &m_currentInstruction->args[0];
-            if ((m_currentInstruction->varMask & 1) != 0)
-                a = getIntVarPtr(a);
+            int* a = &This->m_currentInstruction->args[0];
+            if ((This->m_currentInstruction->varMask & 1) != 0)
+                a = getIntVarPtr(This, a);
             *a += b;
-            loadNextInstruction();
+            This->loadNextInstruction();
             break;
         }
         
         // Does a += b.
         case 9: // fadd(float& a, float b)
         {
-            float b = bit_cast<float>(m_currentInstruction->args[1]);
-            if ((m_currentInstruction->varMask & 2) != 0)
-                b = getFloatVar(b);
+            float b = bit_cast<float>(This->m_currentInstruction->args[1]);
+            if ((This->m_currentInstruction->varMask & 2) != 0)
+                b = getFloatVar(This, b);
 
-            float* a = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
-            if ((m_currentInstruction->varMask & 1) != 0)
-                a = getFloatVarPtr(a);
+            float* a = reinterpret_cast<float*>(&This->m_currentInstruction->args[0]);
+            if ((This->m_currentInstruction->varMask & 1) != 0)
+                a = getFloatVarPtr(This, a);
 
             *a += b;
-            loadNextInstruction();
+            This->loadNextInstruction();
             break;
         }
         
         // Does a -= b.
         case 10: // isub(int& a, int b)
         {
-            int b = m_currentInstruction->args[1];
+            int b = This->m_currentInstruction->args[1];
     
-            if ((m_currentInstruction->varMask & 2) != 0)
-                b = getIntVar(m_currentInstruction->args[1]);
+            if ((This->m_currentInstruction->varMask & 2) != 0)
+                b = getIntVar(This, This->m_currentInstruction->args[1]);
 
-            int* a = m_currentInstruction->args;
-            if ((m_currentInstruction->varMask & 1) != 0)
-                a = getIntVarPtr(a);
+            int* a = This->m_currentInstruction->args;
+            if ((This->m_currentInstruction->varMask & 1) != 0)
+                a = getIntVarPtr(This, a);
 
             *a -= b;
-            loadNextInstruction();
+            This->loadNextInstruction();
             break;
         }
         
         // Does a -= b.
         case 11: // fsub(float& a, float b)
         {
-            float b = bit_cast<float>(m_currentInstruction->args[1]);
-            if ((m_currentInstruction->varMask & 2) != 0)
-                b = getFloatVar(b);
+            float b = bit_cast<float>(This->m_currentInstruction->args[1]);
+            if ((This->m_currentInstruction->varMask & 2) != 0)
+                b = getFloatVar(This, b);
 
-            float* a = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
-            if ((m_currentInstruction->varMask & 1) != 0)
-                a = getFloatVarPtr(a);
+            float* a = reinterpret_cast<float*>(&This->m_currentInstruction->args[0]);
+            if ((This->m_currentInstruction->varMask & 1) != 0)
+                a = getFloatVarPtr(This, a);
 
             *a -= b;
-            loadNextInstruction();
+            This->loadNextInstruction();
             break;
         }
 
         // Does a *= b.
         case 12: // imul(int& a, int b)
         {
-            int b = getIntVar(m_currentInstruction->args[1]);
-            if ((m_currentInstruction->varMask & 2) == 0)
-                b = m_currentInstruction->args[1];
+            int b = getIntVar(This, This->m_currentInstruction->args[1]);
+            if ((This->m_currentInstruction->varMask & 2) == 0)
+                b = This->m_currentInstruction->args[1];
 
-            int* a = &m_currentInstruction->args[0];
-            if ((m_currentInstruction->varMask & 1) != 0)
-                a = getIntVarPtr(a);
+            int* a = &This->m_currentInstruction->args[0];
+            if ((This->m_currentInstruction->varMask & 1) != 0)
+                a = getIntVarPtr(This, a);
 
             *a *= b;
-            loadNextInstruction();
+            This->loadNextInstruction();
             break;
         }
 
         // Does a *= b.
         case 13: // fmul(float& a, float b)
         {
-            float b = m_currentInstruction->args[1];
-            if ((m_currentInstruction->varMask & 2) != 0)
-                b = getFloatVar(b);
+            float b = This->m_currentInstruction->args[1];
+            if ((This->m_currentInstruction->varMask & 2) != 0)
+                b = getFloatVar(This, b);
 
-            float* a = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
-            if ((m_currentInstruction->varMask & 1) != 0)
-                a = getFloatVarPtr(a);
+            float* a = reinterpret_cast<float*>(&This->m_currentInstruction->args[0]);
+            if ((This->m_currentInstruction->varMask & 1) != 0)
+                a = getFloatVarPtr(This, a);
 
             *a *= b;
-            loadNextInstruction();
+            This->loadNextInstruction();
         }
         // Does a /= b.
         case 14: // idiv(int& a, int b)
         {
-            int b = m_currentInstruction->args[1];
-            if ((m_currentInstruction->varMask & 2) != 0)
-                b = getIntVar(m_currentInstruction->args[1]);
+            int b = This->m_currentInstruction->args[1];
+            if ((This->m_currentInstruction->varMask & 2) != 0)
+                b = getIntVar(This, This->m_currentInstruction->args[1]);
 
-            int* a = &m_currentInstruction->args[0];
-            if ((m_currentInstruction->varMask & 1) != 0)
-                a = getIntVarPtr(a);
+            int* a = &This->m_currentInstruction->args[0];
+            if ((This->m_currentInstruction->varMask & 1) != 0)
+                a = getIntVarPtr(This, a);
 
             *a /= b;
-            loadNextInstruction();
+            This->loadNextInstruction();
             break;
         }
 
         // Does a /= b.
         case 15: // fdiv(float& a, float b)
         {
-            float b = bit_cast<float>(m_currentInstruction->args[1]);
-            if ((m_currentInstruction->varMask & 2) != 0)
-                b = getFloatVar(b);
+            float b = bit_cast<float>(This->m_currentInstruction->args[1]);
+            if ((This->m_currentInstruction->varMask & 2) != 0)
+                b = getFloatVar(This, b);
 
-            float* a = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
-            if ((m_currentInstruction->varMask & 1) != 0)
-                a = getFloatVarPtr(a);
+            float* a = reinterpret_cast<float*>(&This->m_currentInstruction->args[0]);
+            if ((This->m_currentInstruction->varMask & 1) != 0)
+                a = getFloatVarPtr(This, a);
 
             *a /= b;
-            loadNextInstruction();
+            This->loadNextInstruction();
             break;
         }
         // Does a %= b.
         case 16: // imod(int& a, int b)
         {
-            int b = m_currentInstruction->args[1];
-            if ((m_currentInstruction->varMask & 2) != 0)
-                b = getIntVar(m_currentInstruction->args[1]);
+            int b = This->m_currentInstruction->args[1];
+            if ((This->m_currentInstruction->varMask & 2) != 0)
+                b = getIntVar(This, This->m_currentInstruction->args[1]);
 
-            int* a = &m_currentInstruction->args[0];
-            if ((m_currentInstruction->varMask & 1) != 0)
-                a = getIntVarPtr(a);
+            int* a = &This->m_currentInstruction->args[0];
+            if ((This->m_currentInstruction->varMask & 1) != 0)
+                a = getIntVarPtr(This, a);
 
             *a %= b;
-            loadNextInstruction();
+            This->loadNextInstruction();
             break;
         }
 
         // Does a %= b.
         case 17: // fmod(float& a, float b)
         {
-            float b = bit_cast<float>(m_currentInstruction->args[1]);
-            if ((m_currentInstruction->varMask & 2) != 0)
-                b = getFloatVar(b);
+            float b = bit_cast<float>(This->m_currentInstruction->args[1]);
+            if ((This->m_currentInstruction->varMask & 2) != 0)
+                b = getFloatVar(This, b);
 
-            float* dest = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
-            float a = bit_cast<float>(m_currentInstruction->args[0]);
-            if ((m_currentInstruction->varMask & 1) != 0)
+            float* dest = reinterpret_cast<float*>(&This->m_currentInstruction->args[0]);
+            float a = bit_cast<float>(This->m_currentInstruction->args[0]);
+            if ((This->m_currentInstruction->varMask & 1) != 0)
             {
-                a = getFloatVar(a);
-                dest = getFloatVarPtr(dest);
+                a = getFloatVar(This, a);
+                dest = getFloatVarPtr(This, dest);
             }
 
             *dest = fmod(a, b);
-            loadNextInstruction();
+            This->loadNextInstruction();
             break;
         }
 
         // Does a = b + c.
         case 18: // isetAdd(int& a, int b, int c)
         {
-            int* a = &m_currentInstruction->args[0];
-            if ((m_currentInstruction->varMask & 1) != 0)
-                a = getIntVarPtr(a);
+            int* a = &This->m_currentInstruction->args[0];
+            if ((This->m_currentInstruction->varMask & 1) != 0)
+                a = getIntVarPtr(This, a);
 
-            int b = m_currentInstruction->args[1];
-            if ((m_currentInstruction->varMask & 2) != 0)
-                b = getIntVar(b);
+            int b = This->m_currentInstruction->args[1];
+            if ((This->m_currentInstruction->varMask & 2) != 0)
+                b = getIntVar(This, b);
 
-            int c = m_currentInstruction->args[2];
-            if ((m_currentInstruction->varMask & 4) != 0)
-                c = getIntVar(c);
+            int c = This->m_currentInstruction->args[2];
+            if ((This->m_currentInstruction->varMask & 4) != 0)
+                c = getIntVar(This, c);
 
             *a = b + c;
-            loadNextInstruction();
+            This->loadNextInstruction();
             break;
         }
 
         // Does a = b + c.
         case 19: // fsetAdd(float& x, float a, float b)
         {
-            float* a = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
-            if ((m_currentInstruction->varMask & 1) != 0)
-                a = getFloatVarPtr(a);
+            float* a = reinterpret_cast<float*>(&This->m_currentInstruction->args[0]);
+            if ((This->m_currentInstruction->varMask & 1) != 0)
+                a = getFloatVarPtr(This, a);
 
-            float b = bit_cast<float>(m_currentInstruction->args[1]);
-            if ((m_currentInstruction->varMask & 2) != 0)
-                b = getFloatVar(b);
+            float b = bit_cast<float>(This->m_currentInstruction->args[1]);
+            if ((This->m_currentInstruction->varMask & 2) != 0)
+                b = getFloatVar(This, b);
         
-            float c = bit_cast<float>(m_currentInstruction->args[2]);
-            if ((m_currentInstruction->varMask & 4) != 0)
-                c = getFloatVar(c);
+            float c = bit_cast<float>(This->m_currentInstruction->args[2]);
+            if ((This->m_currentInstruction->varMask & 4) != 0)
+                c = getFloatVar(This, c);
             
             *a = b + c;
-            loadNextInstruction();
+            This->loadNextInstruction();
             break;
         }
 
         // Does a = b - c.
         case 20: // isetSub(int& x, int a, int b)
         {
-            int* a = &m_currentInstruction->args[0];
-            if ((m_currentInstruction->varMask & 1) != 0)
-                a = getIntVarPtr(a);
+            int* a = &This->m_currentInstruction->args[0];
+            if ((This->m_currentInstruction->varMask & 1) != 0)
+                a = getIntVarPtr(This, a);
 
-            int b = m_currentInstruction->args[1];
-            if ((m_currentInstruction->varMask & 2) != 0)
-                b = getIntVar(b);
+            int b = This->m_currentInstruction->args[1];
+            if ((This->m_currentInstruction->varMask & 2) != 0)
+                b = getIntVar(This, b);
         
-            int c = m_currentInstruction->args[2];
-            if ((m_currentInstruction->varMask & 4) != 0)
-                c = getIntVar(c);
+            int c = This->m_currentInstruction->args[2];
+            if ((This->m_currentInstruction->varMask & 4) != 0)
+                c = getIntVar(This, c);
             
             *a = b - c;
-            loadNextInstruction();
+            This->loadNextInstruction();
             break;
         }
         // Does a = b - c.
         case 21: // fsetSub(float& a, float b, float c)
         {
-            float* a = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
-            if ((m_currentInstruction->varMask & 1) != 0)
-                a = getFloatVarPtr(a);
+            float* a = reinterpret_cast<float*>(&This->m_currentInstruction->args[0]);
+            if ((This->m_currentInstruction->varMask & 1) != 0)
+                a = getFloatVarPtr(This, a);
 
-            float b = bit_cast<float>(m_currentInstruction->args[1]);
-            if ((m_currentInstruction->varMask & 2) != 0)
-                b = getFloatVar(b);
+            float b = bit_cast<float>(This->m_currentInstruction->args[1]);
+            if ((This->m_currentInstruction->varMask & 2) != 0)
+                b = getFloatVar(This, b);
         
-            float c = bit_cast<float>(m_currentInstruction->args[2]);
-            if ((m_currentInstruction->varMask & 4) != 0)
-                c = getFloatVar(c);
+            float c = bit_cast<float>(This->m_currentInstruction->args[2]);
+            if ((This->m_currentInstruction->varMask & 4) != 0)
+                c = getFloatVar(This, c);
             
             *a = b - c;
-            loadNextInstruction();
+            This->loadNextInstruction();
             break;
         }
 
         // Does a = b * c.
         case 22: // isetMul(int& a, int b, int c)
         {
-            int* a = &m_currentInstruction->args[0];
-            if ((m_currentInstruction->varMask & 1) != 0)
-                a = getIntVarPtr(a);
+            int* a = &This->m_currentInstruction->args[0];
+            if ((This->m_currentInstruction->varMask & 1) != 0)
+                a = getIntVarPtr(This, a);
 
-            int b = m_currentInstruction->args[1];
-            if ((m_currentInstruction->varMask & 2) != 0)
-                b = getIntVar(b);
+            int b = This->m_currentInstruction->args[1];
+            if ((This->m_currentInstruction->varMask & 2) != 0)
+                b = getIntVar(This, b);
         
-            int c = m_currentInstruction->args[2];
-            if ((m_currentInstruction->varMask & 4) != 0)
-                c = getIntVar(c);
+            int c = This->m_currentInstruction->args[2];
+            if ((This->m_currentInstruction->varMask & 4) != 0)
+                c = getIntVar(This, c);
             
             *a = b * c;
-            loadNextInstruction();
+            This->loadNextInstruction();
             break;
         }
 
         // Does a = b * c.
         case 23: // fsetMul(float& a, float b, float c)
         {
-            float* a = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
-            if ((m_currentInstruction->varMask & 1) != 0)
-                a = getFloatVarPtr(a);
+            float* a = reinterpret_cast<float*>(&This->m_currentInstruction->args[0]);
+            if ((This->m_currentInstruction->varMask & 1) != 0)
+                a = getFloatVarPtr(This, a);
 
-            float b = bit_cast<float>(m_currentInstruction->args[1]);
-            if ((m_currentInstruction->varMask & 2) != 0)
-                b = getFloatVar(b);
+            float b = bit_cast<float>(This->m_currentInstruction->args[1]);
+            if ((This->m_currentInstruction->varMask & 2) != 0)
+                b = getFloatVar(This, b);
         
-            float c = bit_cast<float>(m_currentInstruction->args[2]);
-            if ((m_currentInstruction->varMask & 4) != 0)
-                c = getFloatVar(c);
+            float c = bit_cast<float>(This->m_currentInstruction->args[2]);
+            if ((This->m_currentInstruction->varMask & 4) != 0)
+                c = getFloatVar(This, c);
             
             *a = b * c;
-            loadNextInstruction();
+            This->loadNextInstruction();
             break;
         }
         // Does a = b / c.
         case 24: // isetDiv(int& x, int a, int b)
         {
-            int* a = &m_currentInstruction->args[0];
-            if ((m_currentInstruction->varMask & 1) != 0)
-                a = getIntVarPtr(a);
+            int* a = &This->m_currentInstruction->args[0];
+            if ((This->m_currentInstruction->varMask & 1) != 0)
+                a = getIntVarPtr(This, a);
 
-            int b = m_currentInstruction->args[1];
-            if ((m_currentInstruction->varMask & 2) != 0)
-                b = getIntVar(b);
+            int b = This->m_currentInstruction->args[1];
+            if ((This->m_currentInstruction->varMask & 2) != 0)
+                b = getIntVar(This, b);
         
-            int c = m_currentInstruction->args[2];
-            if ((m_currentInstruction->varMask & 4) != 0)
-                c = getIntVar(c);
+            int c = This->m_currentInstruction->args[2];
+            if ((This->m_currentInstruction->varMask & 4) != 0)
+                c = getIntVar(This, c);
             
             *a = b / c;
-            loadNextInstruction();
+            This->loadNextInstruction();
             break;
         }
         // Does a = b / c.
         case 25: // fsetDiv(float& x, float a, float b)
         {
-            float* a = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
-            if ((m_currentInstruction->varMask & 1) != 0)
-                a = getFloatVarPtr(a);
+            float* a = reinterpret_cast<float*>(&This->m_currentInstruction->args[0]);
+            if ((This->m_currentInstruction->varMask & 1) != 0)
+                a = getFloatVarPtr(This, a);
 
-            float b = bit_cast<float>(m_currentInstruction->args[1]);
-            if ((m_currentInstruction->varMask & 2) != 0)
-                b = getFloatVar(b);
+            float b = bit_cast<float>(This->m_currentInstruction->args[1]);
+            if ((This->m_currentInstruction->varMask & 2) != 0)
+                b = getFloatVar(This, b);
         
-            float c = bit_cast<float>(m_currentInstruction->args[2]);
-            if ((m_currentInstruction->varMask & 4) != 0)
-                c = getFloatVar(c);
+            float c = bit_cast<float>(This->m_currentInstruction->args[2]);
+            if ((This->m_currentInstruction->varMask & 4) != 0)
+                c = getFloatVar(This, c);
             
             *a = b / c;
-            loadNextInstruction();
+            This->loadNextInstruction();
             break;
         }
 
         // Does a = b % c.
         case 26: // isetMod(int& x, int a, int b)
         {
-            int* a = &m_currentInstruction->args[0];
-            if ((m_currentInstruction->varMask & 1) != 0)
-                a = getIntVarPtr(a);
+            int* a = &This->m_currentInstruction->args[0];
+            if ((This->m_currentInstruction->varMask & 1) != 0)
+                a = getIntVarPtr(This, a);
 
-            int b = m_currentInstruction->args[1];
-            if ((m_currentInstruction->varMask & 2) != 0)
-                b = getIntVar(b);
-        
-            int c = m_currentInstruction->args[2];
-            if ((m_currentInstruction->varMask & 4) != 0)
-                c = getIntVar(c);
+            int b = This->m_currentInstruction->args[1];
+            if ((This->m_currentInstruction->varMask & 2) != 0)
+                b = getIntVar(This, b);
+
+            int c = This->m_currentInstruction->args[2];
+            if ((This->m_currentInstruction->varMask & 4) != 0)
+                c = getIntVar(This, c);
             
             *a = b % c;
-            loadNextInstruction();
+            This->loadNextInstruction();
             break;
         }
  
         // Does a = b % c.
         case 27: // fsetMod(float& a, float b, float c)
         {
-            float c = (float)m_currentInstruction->args[2];
-            if ((m_currentInstruction->varMask & 4) != 0)
-                c = getFloatVar(c);
+            float c = bit_cast<float>(This->m_currentInstruction->args[2]);
+            if ((This->m_currentInstruction->varMask & 4) != 0)
+                c = getFloatVar(This, c);
 
-            float b = (float)m_currentInstruction->args[1];
-            if ((m_currentInstruction->varMask & 2) != 0)
-                b = getFloatVar(b);
+            float b = bit_cast<float>(This->m_currentInstruction->args[1]);
+            if ((This->m_currentInstruction->varMask & 2) != 0)
+                b = getFloatVar(This, b);
  
-            float* a = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
-            if ((m_currentInstruction->varMask & 1) != 0)
-                a = getFloatVarPtr(a);
+            float* a = reinterpret_cast<float*>(&This->m_currentInstruction->args[0]);
+            if ((This->m_currentInstruction->varMask & 1) != 0)
+                a = getFloatVarPtr(This, a);
             
             *a = fmod(b,c);
-            loadNextInstruction();
+            This->loadNextInstruction();
         }
 
         // Jumps if a == b.
@@ -1427,104 +1428,104 @@ void AnmVm::run(AnmVm* This)
         case 41: // fsetRand(float& x, float r)
         {
             RngContext* rngCtx;
-            float r = bit_cast<float>(m_currentInstruction->args[1]);
-            if ((m_flagsLow & 0x40000000) == 0)
+            float r = bit_cast<float>(This->m_currentInstruction->args[1]);
+            if ((This->m_flagsLow & 0x40000000) == 0)
             {
-                if ((m_currentInstruction->varMask & 2) != 0)
-                    posX = getFloatVar(posX);
+                if ((This->m_currentInstruction->varMask & 2) != 0)
+                    posX = getFloatVar(This, posX);
                 rngCtx = &g_replayRngContext;
             }
             else
             {
-                if ((m_currentInstruction->varMask & 2) != 0)
-                    posX = getFloatVar(posX);
+                if ((This->m_currentInstruction->varMask & 2) != 0)
+                    posX = getFloatVar(This, posX);
                 rngCtx = &g_anmRngContext;
             }
 
-            float* dest = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
-            if ((m_currentInstruction->varMask & 1) != 0)
-                dest = getFloatVarPtr(dest);
+            float* dest = reinterpret_cast<float*>(&This->m_currentInstruction->args[0]);
+            if ((This->m_currentInstruction->varMask & 1) != 0)
+                dest = getFloatVarPtr(This, dest);
 
             *dest = randScale(posX, rngCtx);
-            loadNextInstruction();
+            This->loadNextInstruction();
         }
 
         // Compute sin(theta) (in radians).
         case 42: // fsin(float& dest, float theta)
         {
-            float* dest = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
-            float theta = bit_cast<float>(m_currentInstruction->args[1]);
-            if ((m_currentInstruction->varMask & 2) != 0)
-                theta = getFloatVar(posX);
+            float* dest = reinterpret_cast<float*>(&This->m_currentInstruction->args[0]);
+            float theta = bit_cast<float>(This->m_currentInstruction->args[1]);
+            if ((This->m_currentInstruction->varMask & 2) != 0)
+                theta = getFloatVar(This, posX);
 
-            if ((m_currentInstruction->varMask & 1) != 0)
-                dest = getFloatVarPtr(dest);
+            if ((This->m_currentInstruction->varMask & 1) != 0)
+                dest = getFloatVarPtr(This, dest);
 
             *dest = std::sinf(posX);
-            loadNextInstruction();
+            This->loadNextInstruction();
             break;
         }
 
         // Compute cos(theta) (in radians).
         case 43: // fcos(float& dest, float theta)
         {
-            float* dest = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
-            float theta = bit_cast<float>(m_currentInstruction->args[1]);
-            if ((m_currentInstruction->varMask & 2) != 0)
-                theta = getFloatVar(theta);
+            float* dest = reinterpret_cast<float*>(&This->m_currentInstruction->args[0]);
+            float theta = bit_cast<float>(This->m_currentInstruction->args[1]);
+            if ((This->m_currentInstruction->varMask & 2) != 0)
+                theta = getFloatVar(This, theta);
 
-            if ((m_currentInstruction->varMask & 1) != 0)
-                dest = getFloatVarPtr(dest);
+            if ((This->m_currentInstruction->varMask & 1) != 0)
+                dest = getFloatVarPtr(This, dest);
 
             *dest = std::cosf(theta);
-            loadNextInstruction();
+            This->loadNextInstruction();
             break;
         }
 
         // Compute tan(theta) (in radians).
         case 44: // ftan(float& dest, float theta)
         {
-            float* dest = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
-            float theta = bit_cast<float>(m_currentInstruction->args[1]);
-            if ((m_currentInstruction->varMask & 2) != 0)
-                theta = getFloatVar(theta);
+            float* dest = reinterpret_cast<float*>(&This->m_currentInstruction->args[0]);
+            float theta = bit_cast<float>(This->m_currentInstruction->args[1]);
+            if ((This->m_currentInstruction->varMask & 2) != 0)
+                theta = getFloatVar(This, theta);
 
-            if ((m_currentInstruction->varMask & 1) != 0)
-                dest = getFloatVarPtr(dest);
+            if ((This->m_currentInstruction->varMask & 1) != 0)
+                dest = getFloatVarPtr(This, dest);
 
             *dest = std::tanf(theta);
-            loadNextInstruction();
+            This->loadNextInstruction();
             break;
         }
         // Compute acos(x) (in radians).
         case 45: // facos(float& dest, float x)
         {
-            float* dest = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
-            float theta = bit_cast<float>(m_currentInstruction->args[1]);
-            if ((m_currentInstruction->varMask & 2) != 0)
-                theta = getFloatVar(theta);
+            float* dest = reinterpret_cast<float*>(&This->m_currentInstruction->args[0]);
+            float theta = bit_cast<float>(This->m_currentInstruction->args[1]);
+            if ((This->m_currentInstruction->varMask & 2) != 0)
+                theta = getFloatVar(This, theta);
 
-            if ((m_currentInstruction->varMask & 1) != 0)
-                dest = getFloatVarPtr(dest);
+            if ((This->m_currentInstruction->varMask & 1) != 0)
+                dest = getFloatVarPtr(This, dest);
 
             *dest = std::acosf(theta);
-            loadNextInstruction();
+            This->loadNextInstruction();
             break;
         }
 
         // Compute atan(f) (in radians).
         case 46: // fatan(float& dest, float f)
         {
-            float* dest = reinterpret_cast<float*>(&m_currentInstruction->args[0]);
-            float theta = bit_cast<float>(m_currentInstruction->args[1]);
-            if ((m_currentInstruction->varMask & 2) != 0)
-                theta = getFloatVar(theta);
+            float* dest = reinterpret_cast<float*>(&This->m_currentInstruction->args[0]);
+            float theta = bit_cast<float>(This->m_currentInstruction->args[1]);
+            if ((This->m_currentInstruction->varMask & 2) != 0)
+                theta = getFloatVar(This, theta);
 
-            if ((m_currentInstruction->varMask & 1) != 0)
-                dest = getFloatVarPtr(dest);
+            if ((This->m_currentInstruction->varMask & 1) != 0)
+                dest = getFloatVarPtr(This, dest);
 
             *dest = std::atanf(theta);
-            loadNextInstruction();
+            This->loadNextInstruction();
             break;
         }
 
@@ -1537,47 +1538,47 @@ void AnmVm::run(AnmVm* This)
             // This is part of the implementation of th09:posMode in earlier games, and is, to my knowledge,
             // entirely dead code in every game since StB.
         case 48: // pos(float x, float y, float z)
-            posX = bit_cast<float>(m_currentInstruction->args[0]);
-            posY = bit_cast<float>(m_currentInstruction->args[1]);
-            posZ = bit_cast<float>(m_currentInstruction->args[2]);
+            posX = bit_cast<float>(This->m_currentInstruction->args[0]);
+            posY = bit_cast<float>(This->m_currentInstruction->args[1]);
+            posZ = bit_cast<float>(This->m_currentInstruction->args[2]);
 
-            if ((m_flagsLow & 0x100) == 0)
+            if ((This, This->m_flagsLow & 0x100) == 0)
             {
-                if ((m_currentInstruction->varMask & 4) != 0)
-                    posZ = getFloatVar(posZ);
+                if ((This, This->m_currentInstruction->varMask & 4) != 0)
+                    posZ = getFloatVar(This, posZ);
 
-                if ((m_currentInstruction->varMask & 2) != 0)
-                    posY = getFloatVar(posY);
+                if ((This, This->m_currentInstruction->varMask & 2) != 0)
+                    posY = getFloatVar(This, posY);
 
-                if ((m_currentInstruction->varMask & 1) != 0)
-                    posX = getFloatVar(posX);
+                if ((This, This->m_currentInstruction->varMask & 1) != 0)
+                    posX = getFloatVar(This, posX);
 
-                m_pos.x = posX;
-                m_pos.y = posY;
-                m_pos.z = posZ;
+                This->m_pos.x = posX;
+                This->m_pos.y = posY;
+                This->m_pos.z = posZ;
                 prevPosX = posX;
                 prevPosY = posY;
                 prevPosZ = posZ;
             }
             else
             {
-                if ((m_currentInstruction->varMask & 4) != 0)
-                    posZ = getFloatVar(posZ);
+                if ((This->m_currentInstruction->varMask & 4) != 0)
+                    posZ = getFloatVar(This, posZ);
 
-                if ((m_currentInstruction->varMask & 2) != 0)
-                    posY = getFloatVar(posY);
+                if ((This->m_currentInstruction->varMask & 2) != 0)
+                    posY = getFloatVar(This, posY);
 
-                if ((m_currentInstruction->varMask & 1) != 0)
-                    posX = getFloatVar(posX);
+                if ((This->m_currentInstruction->varMask & 1) != 0)
+                    posX = getFloatVar(This, posX);
 
-                m_offsetPos.x = posX;
-                m_offsetPos.y = posY;
-                m_offsetPos.z = posZ;
+                This->m_offsetPos.x = posX;
+                This->m_offsetPos.y = posY;
+                This->m_offsetPos.z = posZ;
                 prevOffsetPosX = posX;
                 prevOffsetPosY = posY;
                 prevOffsetPosZ = posZ;
             }
-            loadNextInstruction();
+            This->loadNextInstruction();
             break;
 
             // Set the graphic's rotation. For 2D objects, only the z rotation matters.
@@ -1591,24 +1592,24 @@ void AnmVm::run(AnmVm* This)
             // If nothing seems to be happening when you call this, check your type setting!
         case 49: // rotate(float rx, float ry, float rz)
         {
-            rX = bit_cast<float>(m_currentInstruction->args[0]);
-            rY = bit_cast<float>(m_currentInstruction->args[1]);
-            rZ = bit_cast<float>(m_currentInstruction->args[2]);
+            rX = bit_cast<float>(This->m_currentInstruction->args[0]);
+            rY = bit_cast<float>(This->m_currentInstruction->args[1]);
+            rZ = bit_cast<float>(This->m_currentInstruction->args[2]);
 
-            if ((m_currentInstruction->varMask & 1) != 0)
-                rX = getFloatVar(rX);
+            if ((This->m_currentInstruction->varMask & 1) != 0)
+                rX = getFloatVar(This, rX);
 
-            if ((m_currentInstruction->varMask & 2) != 0)
-                rY = getFloatVar(rY);
+            if ((This->m_currentInstruction->varMask & 2) != 0)
+                rY = getFloatVar(This, rY);
 
-            if ((m_currentInstruction->varMask & 4) != 0)
-                rZ = getFloatVar(rZ);
+            if ((This->m_currentInstruction->varMask & 4) != 0)
+                rZ = getFloatVar(This, rZ);
 
-            m_flagsLow |= 4;
-            m_rotation.x = rX;
-            m_rotation.y = rY;
-            m_rotation.z = rZ;
-            loadNextInstruction();
+            This->m_flagsLow |= 4;
+            This->m_rotation.x = rX;
+            This->m_rotation.y = rY;
+            This->m_rotation.z = rZ;
+            This->loadNextInstruction();
             break;
         }
         // Scales the ANM independently along the x and y axis. Graphics grow around their anchor point (see anchor). Some special drawing instructions give the x and y scales special meaning.
@@ -1725,52 +1726,51 @@ void AnmVm::run(AnmVm* This)
             // This is like stop except that it also hides the graphic by clearing the visibility flag (see visible).
             // Interpolation instructions like posTime will continue to advance, and interrupts can be triggered at any time. Successful interrupts will automatically re-enable the visibility flag.
         case 69: // stopHide
-            m_flagsLow &= 0xfffffffe;
+            This->m_flagsLow &= 0xfffffffe;
 
         switchD_0044b52d_caseD_3f:
 
-            if (m_pendingInterrupt == 0)
-                m_flagsLow |= 0x1000;
+            if (This->m_pendingInterrupt == 0)
+                This->m_flagsLow |= 0x1000;
             else
             {
             Interrupt:
-                m_currentInstruction = m_beginningOfScript;
+                This->m_currentInstruction = This->m_beginningOfScript;
                 instr_interrupt = nullptr;
                 while (1)
                 {
-                    uint16_t m_currentInstruction_opcode = m_currentInstruction->opcode;
+                    uint16_t m_currentInstruction_opcode = This->m_currentInstruction->opcode;
                     opcode = 0; // Nop
 
-                    if ((m_currentInstruction_opcode == 64 && m_pendingInterrupt == m_currentInstruction->args[0]) || m_currentInstruction_opcode == -1)
+                    if ((m_currentInstruction_opcode == 64 && This->m_pendingInterrupt == This->m_currentInstruction->args[0]) || m_currentInstruction_opcode == -1)
                         break;
 
-                    if (m_currentInstruction_opcode == 64 && m_currentInstruction->args[0] == -1)
-                        instr_interrupt = m_currentInstruction;
+                    if (m_currentInstruction_opcode == 64 && This->m_currentInstruction->args[0] == -1)
+                        instr_interrupt = This->m_currentInstruction;
 
-                    m_currentInstruction = (AnmRawInstruction*)((char*)m_currentInstruction + m_currentInstruction->offsetToNextInstr);
+                    This->loadNextInstruction();
                 }
 
-                if (m_currentInstruction->opcode == 64 || (m_currentInstruction = instr_interrupt, instr_interrupt != nullptr))
+                if (This->m_currentInstruction->opcode == 64 || (This->m_currentInstruction = instr_interrupt, instr_interrupt != nullptr))
                 {
-                    m_interruptReturnTime.m_previous = m_timeInScript.m_previous;
-                    m_interruptReturnTime.m_current = m_timeInScript.m_current;
-                    m_interruptReturnTime.m_currentF = m_timeInScript.m_currentF;
-                    m_interruptReturnTime.m_gameSpeed = m_timeInScript.m_gameSpeed;
-                    instr_interrupt = m_currentInstruction;
-                    m_interruptReturnTime.m_isInitialized = m_timeInScript.m_isInitialized;
-                    m_interruptReturnInstr = instr_interrupt;
-                    m_timeInScript.setCurrent(m_currentInstruction->time);
+                    This->m_interruptReturnTime.m_previous      = This->m_timeInScript.m_previous;
+                    This->m_interruptReturnTime.m_current       = This->m_timeInScript.m_current;
+                    This->m_interruptReturnTime.m_currentF      = This->m_timeInScript.m_currentF;
+                    This->m_interruptReturnTime.m_gameSpeed     = This->m_timeInScript.m_gameSpeed;
+                    This->m_interruptReturnTime.m_isInitialized = This->m_timeInScript.m_isInitialized;
+                    This->m_interruptReturnInstr                = This->m_currentInstruction;
+                    This->m_timeInScript.setCurrent(This->m_currentInstruction->time);
 
-                    m_pendingInterrupt = m_currentInstruction->offsetToNextInstr; //TODO: verify???
+                    This->m_pendingInterrupt = This->m_currentInstruction->offsetToNextInstr; //TODO: verify???
 
-                    m_flagsLow |= 1;
-                    m_currentInstruction = (AnmRawInstruction*)((char*)m_currentInstruction + m_currentInstruction->offsetToNextInstr);
+                    This->m_flagsLow |= 1;
+                    This->loadNextInstruction();
                     break;
                 }
             }
-            m_timeInScript.addf(-1.0);
+            This->m_timeInScript.addf(-1.0);
 
-            goto Idk_Why_I_Must_Jump_0044c2ae;
+            //goto Idk_Why_I_Must_Jump_0044c2ae;
 
             // Add vel to the texture u coordinate every frame (in units of 1 / total_image_width), causing the displayed sprite to scroll horizontally through the image file.
         case 70: // scrollX(float vel)

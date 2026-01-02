@@ -6,6 +6,7 @@
 
 struct AnmLoaded;
 struct AnmLoadedD3D;
+struct AnmHeader;
 
 struct BlitParams
 {
@@ -76,18 +77,12 @@ public:
     uint8_t m_scaleA;                           // <0x7bd88f>
     uint32_t m_rebuildColorFlag;                // <0x7bd890>
 
-    static void createD3DTextures(AnmManager* This);
-    static void markAnmLoadedAsReleasedInVmList(AnmManager* This, AnmLoaded* anmLoaded);
-    static void releaseTextures(AnmManager* This);
-
     /**
      * 0x44fd10
      * @brief Renders any batched sprites that have been queued up but not yet drawn, then resets the batch state.
      * @param This ESI:4
      */
     static void flushSprites(AnmManager* This);
-
-    static void blitTextureToSurface(AnmManager* This, BlitParams* blitParams);
 
     /**
      * 0x44f710
@@ -101,7 +96,7 @@ public:
      * 0x44f4b0
      * @brief Extracts render state parameters from VM flags and synchronizes them with D3D (Identical to setupRenderStateForVm)
      * @param This EAX:4
-     * @param vm   Stack<0x4>:4
+     * @param vm   Stack[0x4>]:4
      */
     static void applyRenderStateForVm(AnmManager* This, AnmVm* vm);
 
@@ -109,7 +104,7 @@ public:
      * 0x44f880
      * @brief Draws VM sprite on a layer
      * @param This  ECX:4
-     * @param layer Stack<0x4>:4
+     * @param layer Stack[0x4]:4
      * @param vm    EAX:4
      */
     static void drawVmSprite2D(AnmManager* This, uint32_t layer, AnmVm* anmVm);
@@ -122,19 +117,82 @@ public:
      */
     static void writeSprite(AnmManager* This, RenderVertex144* vertexBuffer);
 
+    /**
+     * 0x4543e0
+     * @brief Function to process a single ANM chunk
+     * @param  anmLoaded    ECX:4
+     * @param  anmHeader    Stack[0x4]:4
+     * @param  chunkIndex   EBX:4
+     * @return int          EAX:4
+     */
+    static int openAnmLoaded(AnmLoaded* anmLoaded, AnmHeader* anmHeader, int chunkIndex);
+
+    /**
+     * 0x454190
+     * @brief
+     * @param  This         Stack[0x4]:4
+     * @param  anmSlotIndex Stack[0x8]:4
+     * @param  anmFilePath  ECX:4
+     * @return AnmLoaded*   EAX:4
+     */
+    static AnmLoaded* preloadAnmFromMemory(AnmManager* This, int anmSlotIndex, const char* anmFilePath);
+
+    /**
+     * 0x454360
+     * @brief
+     * @param  anmSlotIndex ECX:4
+     * @param  anmFilePath  EBX:4
+     * @return AnmLoaded*   EAX:4
+     */
+    static AnmLoaded* preloadAnm(int anmSlotIndex, const char* anmFileName);
+
+    /**
+     * 0x450e20
+     * @brief
+     * @param  This  Stack[0x4]:4
+     * @param  vm    EAX:4
+     * @return int   EAX:4
+     */
+    static int updateWorldMatrixAndProjectQuadCorners(AnmManager* This, AnmVm* vm);
+
+    /**
+     * 0x450b00
+     * @brief
+     * @param  This  EDI:4
+     * @param  vm    ESI:4
+     * @return int   EAX:4
+     */
+    static int drawVmWithFog(AnmManager* This, AnmVm* vm);
+
+    /**
+     * 0x451ef0
+     * @brief
+     * @param  This  ECX:4
+     * @param  vm    EAX:4
+     */
     static void drawVm(AnmManager* This, AnmVm* vm);
+
+    /**
+     * 0x4513a0
+     * @brief
+     * @param  This  Stack[0x4]:4
+     * @param  vm    EBX:4
+     * @return int   EAX:4
+     */
+    static int drawVmWithTextureTransform(AnmManager* This, AnmVm* vm);
+
+    static void createD3DTextures(AnmManager* This);
+    static void markAnmLoadedAsReleasedInVmList(AnmManager* This, AnmLoaded* anmLoaded);
+    static void releaseTextures(AnmManager* This);
+    static void blitTextureToSurface(AnmManager* This, BlitParams* blitParams);
+    
     static void transformAndDraw(AnmManager* This, AnmVm* vm);
     static void loadIntoAnmVm(AnmVm* vm, AnmLoaded* anmLoaded, int scriptNumber);
     static void putInVmList(AnmManager* This, AnmVm* vm, AnmId* anmId);
     static void releaseAnmLoaded(AnmManager* This, AnmLoaded* anmLoaded);
-    static int drawVmWithTextureTransform(AnmManager* This, AnmVm* vm);
-    static int updateWorldMatrixAndProjectQuadCorners(AnmManager* This, AnmVm* vm);
     
-    static int drawVmWithFog(AnmManager* This, AnmVm* vm);
     static int drawVmTriangleStrip(AnmManager* This, AnmVm* vm, SpecialRenderData* specialRenderData, uint32_t vertexCount);
     static int drawVmTriangleFan(AnmManager* This, AnmVm* vm, SpecialRenderData* specialRenderData, uint32_t vertexCount);
-    static AnmLoaded* preloadAnm(AnmManager* This, int anmIdx, const char* anmFileName);
-    static AnmLoaded* preloadAnmFromMemory(AnmManager* This, const char* anmFilePath, int m_anmSlotIndex);
     static AnmVm* allocateVm(AnmManager* This);
     static AnmVm* getVmWithId(AnmManager* This, int anmId);
     static void blitTextures(AnmManager* This);
