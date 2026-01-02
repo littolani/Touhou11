@@ -16,6 +16,7 @@ PUBLIC _g_lzssTree
 ; Functions
 PUBLIC _game_free
 PUBLIC _game_malloc
+PUBLIC _game_new
 
 _g_anmManager          EQU 04c3268h
 _g_supervisor          EQU 04c3280h
@@ -39,5 +40,10 @@ _game_malloc PROC
     mov eax, 0460192h ; Game's malloc function
     jmp eax
 _game_malloc ENDP
+
+_game_new PROC
+    mov eax, 045FCE4h  ; Address of the game's operator new
+    jmp eax
+_game_new ENDP
 
 END

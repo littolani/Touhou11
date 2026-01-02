@@ -33,6 +33,7 @@ extern "C"
 
     void __cdecl game_free(void* memory);
     void* __cdecl game_malloc(size_t size);
+    void* __cdecl game_new(size_t size);
 }
 
 extern D3DFORMAT g_d3dFormats[];
