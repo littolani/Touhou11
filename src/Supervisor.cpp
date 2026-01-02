@@ -3,11 +3,7 @@
 #include "Globals.h"
 #include "Window.h"
 #include "GameConfig.h"
-
-int Supervisor::initializeDevices()
-{
-    return 0;
-}
+#include "DebugGui.h"
 
 void Supervisor::releaseDinputIface()
 {
@@ -236,12 +232,12 @@ BOOL CALLBACK enumDeviceObjectsCallback(LPCDIDEVICEOBJECTINSTANCEA lpddoi, LPVOI
 BOOL CALLBACK enumJoysticksCallback(LPCDIDEVICEINSTANCEA lpddi, LPVOID pvRef)
 {
     // Only create a device if we haven't found one yet
-    if (g_supervisor.joystick == NULL)
+    if (g_supervisor.joystick == nullptr)
     {
         HRESULT hr = g_supervisor.dInputInterface->CreateDevice(
             lpddi->guidInstance,
             &g_supervisor.joystick,
-            NULL
+            nullptr
         );
 
         if (FAILED(hr))
@@ -253,40 +249,37 @@ BOOL CALLBACK enumJoysticksCallback(LPCDIDEVICEINSTANCEA lpddi, LPVOID pvRef)
     return DIENUM_STOP;
 }
 
-int Supervisor::initializeDevices(Supervisor* This)
+int Supervisor::initializeInputDevices(Supervisor* This)
 {
-    HRESULT hr;
-
-    // 0x447ab3: Check Config Flags (Bit 3 usually indicates Input Disabled)
-    if (This->m_gameConfig.flags & 8) {
+	// 0x447ab3: Check Config Flags (Bit 3 usually indicates Input Disabled)
+    if (This->m_gameConfig.flags & 8)
         return -1;
-    }
 
     // 0x447ad8: Create DirectInput8 Interface
     // Assembly 447aba loads g_hInstance into the register passed here
-    hr = DirectInput8Create(
-        g_window.hInstance,
-        DIRECTINPUT_VERSION, // 0x0800
-        IID_IDirectInput8,
-        (void**)&This->dInputInterface,
-        NULL
+    HRESULT hr = DirectInput8Create(
+	    g_window.hInstance,
+	    DIRECTINPUT_VERSION, // 0x0800
+	    IID_IDirectInput8,
+	    (void**)&This->dInputInterface,
+	    nullptr
     );
 
     if (FAILED(hr)) {
-        This->dInputInterface = NULL;
+        This->dInputInterface = nullptr;
         puts("DirectInput cannot be used\n");
         return -1;
     }
 
     // 0x447b13: Create Keyboard Device
     // 0x48cc5c is likely the address of GUID_SysKeyboard
-    hr = This->dInputInterface->CreateDevice(GUID_SysKeyboard, &This->keyboard, NULL);
+    hr = This->dInputInterface->CreateDevice(GUID_SysKeyboard, &This->keyboard, nullptr);
 
     if (FAILED(hr)) {
         // Cleanup and Log
         if (This->dInputInterface) {
             This->dInputInterface->Release();
-            This->dInputInterface = NULL;
+            This->dInputInterface = nullptr;
         }
         puts("Could not initialize DirectInput\n");
         return -1;
@@ -299,12 +292,12 @@ int Supervisor::initializeDevices(Supervisor* This)
         // Cleanup Keyboard
         if (This->keyboard) {
             This->keyboard->Release();
-            This->keyboard = NULL;
+            This->keyboard = nullptr;
         }
         // Cleanup Interface
         if (This->dInputInterface) {
             This->dInputInterface->Release();
-            This->dInputInterface = NULL;
+            This->dInputInterface = nullptr;
         }
         puts("DirectInput SetDataFormat failed\n");
         return -1;
@@ -319,12 +312,12 @@ int Supervisor::initializeDevices(Supervisor* This)
         // Cleanup Keyboard
         if (This->keyboard) {
             This->keyboard->Release();
-            This->keyboard = NULL;
+            This->keyboard = nullptr;
         }
         // Cleanup Interface
         if (This->dInputInterface) {
             This->dInputInterface->Release();
-            This->dInputInterface = NULL;
+            This->dInputInterface = nullptr;
         }
         puts("DirectInput SetCooperativeLevel Failed\n");
         return -1;
@@ -336,11 +329,11 @@ int Supervisor::initializeDevices(Supervisor* This)
     This->dInputInterface->EnumDevices(
         DI8DEVCLASS_GAMECTRL,
         enumJoysticksCallback,
-        NULL,
+        nullptr,
         DIEDFL_ATTACHEDONLY
     );
 
-    if (This->joystick != NULL)
+    if (This->joystick != nullptr)
     {
         This->joystick->SetDataFormat(&c_dfDIJoystick);
         This->joystick->SetCooperativeLevel(
@@ -350,10 +343,308 @@ int Supervisor::initializeDevices(Supervisor* This)
 
         This->controllerCaps->dwSize = 0x2C;
         This->joystick->GetCapabilities(This->controllerCaps);
-        This->joystick->EnumObjects(enumDeviceObjectsCallback, NULL, DIDFT_ALL);
+        This->joystick->EnumObjects(enumDeviceObjectsCallback, nullptr, DIDFT_ALL);
         
         puts("Found a valid gamepad\n");
     }
 
+    return 0;
+}
+
+void Supervisor::renderFrameWithReset()
+{
+    g_supervisor.d3dDevice->Clear(0, nullptr, 3, 0xff000000, 1.0, 0);
+    HRESULT hr = g_supervisor.d3dDevice->Present(
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr
+    );
+
+    if (FAILED(hr))
+    	g_supervisor.d3dDevice->Reset(&g_supervisor.m_d3dPresetParameters);
+
+    g_supervisor.d3dDevice->Clear(
+        0,
+        nullptr,
+        3,
+        0xff000000,
+        1.0,
+        0
+    );
+    hr = g_supervisor.d3dDevice->Present(
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr
+    );
+    if (FAILED(hr))
+        g_supervisor.d3dDevice->Reset(&g_supervisor.m_d3dPresetParameters);
+}
+
+void Supervisor::setupViewport()
+{
+    if (g_anmManager)
+        AnmManager::flushSprites(g_anmManager);
+   
+    g_supervisor.d3dViewport.MinZ = 0.0;
+    g_supervisor.d3dViewport.X = 0;
+    g_supervisor.d3dViewport.Y = 0;
+    g_supervisor.d3dViewport.MaxZ = 1.0;
+    g_supervisor.d3dViewport.Width = 640;
+    g_supervisor.d3dViewport.Height = 480;
+    g_supervisor.d3dDevice->SetViewport(&g_supervisor.d3dViewport);
+    renderFrameWithReset();
+}
+
+// 0x446d30
+int Supervisor::initD3d9Devices(D3DFORMAT d3dFormat)
+{
+    puts("initD3d9Devices\n");
+    HRESULT hr;
+    D3DDISPLAYMODE currentDisplayMode;
+    D3DPRESENT_PARAMETERS d3dpp;
+
+    g_supervisor.d3dInterface0->GetAdapterDisplayMode(D3DADAPTER_DEFAULT, &currentDisplayMode);
+    g_supervisor.currentDisplayModeWidth = currentDisplayMode.Width;
+    g_supervisor.currentDisplayModeHeight = currentDisplayMode.Height;
+    g_supervisor.d3dPresentationIntervalFlag = currentDisplayMode.RefreshRate;
+    g_supervisor.d3dPresentBackBuferFormat = currentDisplayMode.Format;
+
+    int presentationInterval = D3DPRESENT_INTERVAL_DEFAULT; // Default (usually matches RefreshRate or 60)
+
+    // 2. Validate Refresh Rate (0x3c = 60Hz)
+    if (g_supervisor.m_gameConfig.displayMode != 0) // Windowed mode check?
+    {
+        if (currentDisplayMode.RefreshRate != 60)
+        {
+            puts("Refresh rate is not 60Hz\n");
+            g_window.someFlag2 &= ~0x10;
+        }
+
+        // Logic for setting presentation interval based on config/flags
+        //currentDisplayMode.Format = (D3DFORMAT)currentDisplayMode.Width; // (Ghidra artifact likely, ignored)
+
+        bool lowLatency = (g_window.someFlag2 & 0x10) || (g_supervisor.m_gameConfig.latencyMode == 3);
+        if (lowLatency || currentDisplayMode.RefreshRate != 60)
+            presentationInterval = D3DPRESENT_INTERVAL_IMMEDIATE; // No VSync
+        else
+            presentationInterval = D3DPRESENT_INTERVAL_ONE; // VSync
+
+        goto SETUP_PRESENT_PARAMS;
+    }
+
+    // Color Depth Configuration
+    if ((g_supervisor.m_gameConfig.flags & 1) == 0)
+    {
+        if (g_supervisor.m_gameConfig.colorDepth == 0xFF)
+        {
+            currentDisplayMode.Format = D3DFMT_X8R8G8B8;
+            g_supervisor.m_gameConfig.colorDepth = 0;
+            printf("First launch, D3D Device at %p initialized screen to 32Bits\n", g_supervisor.d3dDevice);
+        }
+        else
+            currentDisplayMode.Format = (g_supervisor.m_gameConfig.colorDepth != 0) ? D3DFMT_R5G6B5 : D3DFMT_X8R8G8B8;
+    }
+    else
+    {
+        currentDisplayMode.Format = D3DFMT_R5G6B5;
+        g_supervisor.m_gameConfig.colorDepth = 1;
+    }
+
+    // VSync / Latency Logic
+    if (g_window.unusualLaunchFlag == 0)
+    {
+        if (g_supervisor.m_noVerticalSyncFlag == 0)
+        {
+            if ((g_window.someFlag2 & 0x10) == 0)
+            {
+                presentationInterval = (g_supervisor.m_gameConfig.latencyMode != 3) ? D3DPRESENT_INTERVAL_ONE : D3DPRESENT_INTERVAL_IMMEDIATE;
+            }
+            else
+                presentationInterval = D3DPRESENT_INTERVAL_IMMEDIATE;
+
+            printf("Attempting to change refresh rate to 60Hz of D3D Device at %p\n", g_supervisor.d3dDevice);
+            goto SETUP_PRESENT_PARAMS;
+        }
+    }
+    else
+    {
+        g_supervisor.m_noVerticalSyncFlag = 1;
+    }
+
+    presentationInterval = D3DPRESENT_INTERVAL_IMMEDIATE;
+    printf("Attempting VSync async possible check of D3D Device at %p\n", g_supervisor.d3dDevice);
+
+SETUP_PRESENT_PARAMS:
+    g_supervisor.criticalSectionFlag |= 2;
+    memset(&d3dpp, 0, sizeof(D3DPRESENT_PARAMETERS));
+
+    d3dpp.BackBufferWidth = 640;
+    d3dpp.BackBufferHeight = 480;
+    d3dpp.BackBufferFormat = currentDisplayMode.Format;
+    d3dpp.BackBufferCount = 1;
+    d3dpp.SwapEffect = D3DSWAPEFFECT_DISCARD;
+    d3dpp.hDeviceWindow = g_window.hwnd;
+    d3dpp.Windowed = TRUE;
+    d3dpp.EnableAutoDepthStencil = TRUE;
+    d3dpp.AutoDepthStencilFormat = D3DFMT_D16; // Standard depth buffer
+    d3dpp.Flags = 0;
+    d3dpp.FullScreen_RefreshRateInHz = D3DPRESENT_RATE_DEFAULT;
+    d3dpp.PresentationInterval = presentationInterval;
+
+    g_supervisor.idk8[0] = 1;
+    bool isResetAttempted = false;
+
+    while (true)
+    {
+        // Try Hardware Vertex Processing (T&L HAL)
+        if ((g_supervisor.m_gameConfig.flags & 2) == 0)
+        {
+            hr = g_supervisor.d3dInterface0->CreateDevice(
+                D3DADAPTER_DEFAULT,
+                D3DDEVTYPE_HAL,
+                g_window.hwnd,
+                D3DCREATE_HARDWARE_VERTEXPROCESSING,
+                &d3dpp,
+                &g_supervisor.d3dDevice
+            );
+
+            if (SUCCEEDED(hr))
+            {
+                printf("Running D3D device at %p with T&L HAL\n", g_supervisor.d3dDevice);
+                ImGuiHook::getInstance().hook(g_supervisor.d3dDevice);
+                puts("ImGui Hook Attached.\n");
+                g_supervisor.criticalSectionFlag |= 1;
+                goto DEVICE_CREATED;
+            }
+
+            if (isResetAttempted)
+                printf("T&L HAL seems unusable for D3D device at %p\n", g_supervisor.d3dDevice);
+
+            // Fallback to Software Vertex Processing (HAL)
+            hr = g_supervisor.d3dInterface0->CreateDevice(
+                D3DADAPTER_DEFAULT,
+                D3DDEVTYPE_HAL,
+                g_window.hwnd,
+                D3DCREATE_SOFTWARE_VERTEXPROCESSING,
+                &d3dpp,
+                &g_supervisor.d3dDevice
+            );
+
+            if (SUCCEEDED(hr))
+            {
+                printf("Running D3D Device at %p with HAL\n", g_supervisor.d3dDevice);
+                ImGuiHook::getInstance().hook(g_supervisor.d3dDevice);
+                puts("ImGui Hook Attached.\n");
+                g_supervisor.criticalSectionFlag &= ~1;
+                goto DEVICE_CREATED;
+            }
+
+            if (isResetAttempted)
+                printf("HAL also seems unusable for D3D Device at %p\n", g_supervisor.d3dDevice);
+        }
+
+        // Fallback to Reference Rasterizer (REF) - extremely slow
+        hr = g_supervisor.d3dInterface0->CreateDevice(
+            D3DADAPTER_DEFAULT,
+            D3DDEVTYPE_REF,
+            g_window.hwnd,
+            D3DCREATE_SOFTWARE_VERTEXPROCESSING,
+            &d3dpp,
+            &g_supervisor.d3dDevice
+        );
+
+        if (SUCCEEDED(hr))
+            break; // Found a device (REF)
+
+        // Error Handling
+        if (g_supervisor.m_noVerticalSyncFlag == 0)
+        {
+            printf("Cannot change refresh rate of D3D Device at %p\n", g_supervisor.d3dDevice);
+            g_supervisor.idk8[0] = 0;
+            isResetAttempted = true;
+        }
+        else
+        {
+            if (d3dpp.PresentationInterval != D3DPRESENT_INTERVAL_ONE)
+            {
+                puts("Failed to initialize Direct3D, cannot play game\n");
+                if (g_supervisor.d3dInterface0)
+                {
+                    g_supervisor.d3dInterface0->Release();
+                    g_supervisor.d3dInterface0 = nullptr;
+                }
+                return 1;
+            }
+            d3dpp.PresentationInterval = D3DPRESENT_INTERVAL_IMMEDIATE;
+        }
+    }
+
+    printf("Running D3D Device at %p with REF, probably too slow to play...\n", g_supervisor.d3dDevice);
+    ImGuiHook::getInstance().hook(g_supervisor.d3dDevice);
+    puts("ImGui Hook Attached.\n");
+    g_supervisor.criticalSectionFlag &= ~1;
+
+DEVICE_CREATED:
+    
+    g_supervisor.m_d3dPresetParameters = d3dpp; // Copy successful presentation parameters to Supervisor member
+
+    // Set View Matrix (LookAtLH)
+    D3DXVECTOR3 cameraPosition(320.0f, -240.0f, 0.0f);
+    D3DXVECTOR3 cameraTarget(320.0f, -240.0f, 0.0f);
+    D3DXVECTOR3 cameraUp(0.0f, 1.0f, 0.0f);
+
+    // Calculate Z position for 30 degree FOV to fit 480 height
+
+    float fovY = D3DXToRadian(30.0f); // 0x3e860a92 is approx 15 degrees in radians
+    float tanHalfFov = tanf(fovY / 2.0f);
+    cameraPosition.z = -(240.0f / tanHalfFov);
+
+    D3DXMatrixLookAtLH(&g_supervisor.d3dMatrix1, &cameraPosition, &cameraTarget, &cameraUp);
+
+    // Set Projection Matrix (PerspectiveFovLH)
+    D3DXMatrixPerspectiveFovLH(&g_supervisor.d3dMatrix2, fovY, 4.0f / 3.0f, 100.0f, 10000.0f);
+
+    g_supervisor.d3dDevice->SetTransform(D3DTS_VIEW, &g_supervisor.d3dMatrix1);
+    g_supervisor.d3dDevice->SetTransform(D3DTS_PROJECTION, &g_supervisor.d3dMatrix2);
+    g_supervisor.d3dDevice->GetViewport(&g_supervisor.d3dViewport);
+
+    // Check Capabilities
+    D3DCAPS9 caps;
+    g_supervisor.d3dDevice->GetDeviceCaps(&caps);
+
+    if (!(caps.TextureOpCaps & D3DTEXOPCAPS_ADD))
+        printf("D3DTEXOPCAPS_ADD not supported for D3D Device at %p, running in color add emulate mode\n", g_supervisor.d3dDevice);
+
+    if (caps.MaxTextureWidth < 256 || caps.MaxTextureHeight < 256) // 0x101 check implies 257? likely 256 check
+        printf("D3D Device at %p does not support 512+ textures. Images will be blurry.\n", g_supervisor.d3dDevice);
+
+    // Check Texture Format Support (D3DFMT_A8R8G8B8)
+    if ((g_supervisor.m_gameConfig.flags & 1) == 0 && (d3dFormat >> 24) != 0)
+    {
+        hr = g_supervisor.d3dInterface0->CheckDeviceFormat(
+            D3DADAPTER_DEFAULT,
+            D3DDEVTYPE_HAL,
+            currentDisplayMode.Format,
+            0,
+            D3DRTYPE_TEXTURE,
+            D3DFMT_A8R8G8B8
+        );
+
+        if (hr == D3D_OK)
+            g_supervisor.criticalSectionFlag |= 4;
+        else
+        {
+            g_supervisor.criticalSectionFlag &= ~4;
+            g_supervisor.m_gameConfig.flags |= 1;
+            printf("D3DFMT_A8R8G8B8 not supported on D3D Device at %p, running in reduced color mode\n", g_supervisor.d3dDevice);
+        }
+    }
+
+    resetRenderState();
+    setupViewport();
+    g_window.timeForCleanup = 0;
+    g_supervisor.idk8[1] = 0;
     return 0;
 }

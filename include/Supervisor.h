@@ -1,13 +1,13 @@
 #pragma once
 #include "Chireiden.h"
 #include "AnmVm.h"
-#include "Globals.h"
 #include "Camera.h"
 #include "GameConfig.h"
 #include "LoadingThread.h"
 
 struct AnmLoaded;
 
+#pragma pack(push, 1)
 class Supervisor
 {
 public:
@@ -22,15 +22,17 @@ public:
     LPDIDEVCAPS controllerCaps;                  // <0x2c>
     int idk2[10];                                // <0x30>
     HWND appWindow;                              // <0x58>
-    D3DMATRIX d3dMatrix1;                        // <0x5c>
-    D3DMATRIX d3dMatrix2;                        // <0x9c>
+    D3DXMATRIX d3dMatrix1;                       // <0x5c>
+    D3DXMATRIX d3dMatrix2;                       // <0x9c>
     D3DVIEWPORT9 d3dViewport;                    // <0xdc>
     D3DPRESENT_PARAMETERS m_d3dPresetParameters; // <0xf4>
     uint32_t idk3[18];                           // <0x12c>
     IDirect3D9* d3dInterface1;                   // <0x174>
     IDirect3D9* d3dInterface2;                   // <0x178>
     IDirect3D9* d3dInterface3;                   // <0x17c>
-    uint32_t idk4[9];                            // <0x180>
+    uint32_t idk4[7];                            // <0x180>
+    uint32_t currentDisplayModeWidth;            // <0x19c>
+    uint32_t currentDisplayModeHeight;           // <0x1a0>
     uint32_t d3dPresentationIntervalFlag;        // <0x1a4>
     uint32_t d3dPresentBackBuferFormat;          // <0x1a8>
     IDirect3DSurface9* surfaceR0;                // <0x1ac>
@@ -81,15 +83,26 @@ public:
     int idk14[3];                                // <0x994>
     size_t th11DatSize;                          // <0x9a0>
     byte* th11DatBytes;                          // <0x9a4>
-    int idk15[6];                                // <0x9a8>
+    short idk15;
+    short idk16;
+    short idk17;
+    short idk18;
+    short idk19;
+    short idk20;
+    short idk21;
+    short idk22;
+    double deltatime;
     D3DCOLOR clearColor;                         // <0x9c0>
     
-    int initializeDevices();
     void releaseDinputIface();
     int verifyGameConfig();
     void enterCriticalSection(size_t criticalSectionNumber);
     void leaveCriticalSection(size_t criticalSectionNumber);
     static void resetRenderState();
-    static int initializeDevices(Supervisor* This);
+    static void renderFrameWithReset();
+    static void setupViewport();
+    static int initializeInputDevices(Supervisor* This);
+    static int initD3d9Devices(D3DFORMAT d3dFormat);
 };
+#pragma pack(pop)
 ASSERT_SIZE(Supervisor, 0x9c4);
