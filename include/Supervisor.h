@@ -37,7 +37,7 @@ public:
     uint32_t d3dPresentBackBuferFormat;          // <0x1a8>
     IDirect3DSurface9* surfaceR0;                // <0x1ac>
     IDirect3DSurface9* surfaceR1;                // <0x1b0>
-    IDirect3DDevice9* backBuffer;                // <0x1b4>
+    IDirect3DSurface9* backBuffer;               // <0x1b4>
     uint32_t unknown;                            // <0x1b8>
     AnmVm* arcadeVm0;                            // <0x1bc>
     AnmVm* arcadeVm1;                            // <0x1c0>
