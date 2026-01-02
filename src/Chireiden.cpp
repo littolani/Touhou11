@@ -2,6 +2,7 @@
 #include "AnmVm.h"
 #include "AnmLoaded.h"
 #include "AnmManager.h"
+#include "DebugGui.h"
 #include "TrampolineFactory.h"
 #include "FileAbstraction.h"
 #include "SoundManager.h"
@@ -22,7 +23,7 @@ void logfThunk(const char* format, ...)
     // Print formatted message
     va_list args;
     va_start(args, format);
-    vprintf(format, args);
+    g_console.log(format, args);
     va_end(args);
 }
 
@@ -31,12 +32,11 @@ void logThunk(const char* str)
     logfThunk("%s", str);
 }
 
-void SetupConsole()
+void setupConsole()
 {
     // 1. Allocate the console window
-    if (!AllocConsole()) {
+    if (!AllocConsole())
         return;
-    }
 
     // 2. Fix the "Newline" Copy/Paste Issue
     // We increase the buffer width so lines don't wrap visually or in the clipboard.
@@ -91,48 +91,53 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID lpvReserved)
 {
     if (fdwReason == DLL_PROCESS_ATTACH)
     {
-        //AllocConsole();
-        //FILE* fp;
-        //errno_t err = freopen_s(&fp, "CONOUT$", "w", stdout);
-        //if (err != 0) {
-        //    printf("freopen_s error");
-        //    exit(1);
-        //}
-        SetupConsole();
+        setupConsole();
+        g_console.log("hi");
 
         installHook(0x459bc0, createLtoThunk<Stack<0x4>, Stack<0x8>>(logfThunk, 0));
         installHook(0x441c80, createLtoThunk<Stack<0x4>, Stack<0x8>>(logfThunk, 0));
         installHook(0x44ab00, createLtoThunk<Stack<0x4>, Stack<0x8>>(logfThunk, 0));
         installHook(0x456ad0, createLtoThunk<Stack<0x4>, Stack<0x8>>(logfThunk, 0));
         installHook(0x45b5a0, createLtoThunk<Stack<0x4>, Stack<0x8>>(logfThunk, 0));
+        installHook(0x41f6e0, createLtoThunk<Stack<0x4>, Stack<0x8>>(logfThunk, 0));
         installHook(0x458a10, createLtoThunk<Stack<0x4>>(logThunk, 0));
         installHook(0x458af0, createLtoThunk<Stack<0x4>>(logThunk, 0));
         
         installHook(0x449660, createLtoThunk<Returns<RegCode::EAX>, ECX, Stack<0x4>, EAX, EDI>(SoundManager::findRiffChunk, 0x4));
-        installHook(0x452420, createLtoThunk<Returns<RegCode::EAX>, ECX>(AnmVm::onTick, 0));
         
-        installHook(0x4503d0, createLtoThunk<EAX, Stack<0x4>, EBX, EDI, ESI>(AnmVm::applyZRotationToQuadCorners, 0x4));
-        installHook(0x4500f0, createLtoThunk<Stack<0x4>, EBX, EDI, EDX, ESI>(AnmVm::writeSpriteCharacters, 0x4));
         installHook(0x44fd10, createLtoThunk<ESI>(AnmManager::flushSprites, 0));
         installHook(0x44f710, createLtoThunk<EAX, EDI>(AnmManager::setupRenderStateForVm, 0));
         installHook(0x44f4b0, createLtoThunk<EAX, Stack<0x4>>(AnmManager::applyRenderStateForVm, 0x4));
         installHook(0x44fda0, createLtoThunk<EAX, EDX>(AnmManager::writeSprite, 0));
         installHook(0x44f880, createLtoThunk<ECX, Stack<0x4>, EAX>(AnmManager::drawVmSprite2D, 0x4));
-        installHook(0x450700, createLtoThunk<Returns<RegCode::EAX>, EAX>(AnmVm::projectQuadCornersThroughCameraViewport, 0));
+        installHook(0x4543e0, createLtoThunk<Returns<RegCode::EAX>, ECX, Stack<0x4>, EBX>(AnmManager::openAnmLoaded, 0x4));
+        installHook(0x454190, createLtoThunk<Returns<RegCode::EAX>, Stack<0x4>, Stack<0x8>, ECX>(AnmManager::preloadAnmFromMemory, 0x8));
+        installHook(0x454360, createLtoThunk<Returns<RegCode::EAX>, ECX, EBX>(AnmManager::preloadAnm, 0));
+        installHook(0x450e20, createLtoThunk<Returns<RegCode::EAX>, Stack<0x4>, EAX>(AnmManager::updateWorldMatrixAndProjectQuadCorners, 0x4));
+        installHook(0x4513a0, createLtoThunk<Returns<RegCode::EAX>, Stack<0x4>, EBX>(AnmManager::drawVmWithTextureTransform, 0x4));
+        installHook(0x450b00, createLtoThunk<Returns<RegCode::EAX>, EDI, ESI>(AnmManager::drawVmWithFog, 0));
+        installHook(0x451ef0, createLtoThunk<ECX, EAX>(AnmManager::drawVm, 0));
+
         installHook(0x457080, createLtoThunk<EDX, ECX>(Chain::cut, 0));
         installHook(0x456cb0, createLtoThunk<Returns<RegCode::EAX>, EBX>(Chain::runCalcChain, 0));
         installHook(0x456e10, createLtoThunk<Returns<RegCode::EAX>>(Chain::runDrawChain, 0));
         installHook(0x456c10, createLtoThunk<Returns<RegCode::EAX>, ESI, EBX>(Chain::registerDrawChain, 0));
 
-        installHook(0x4540f0, createLtoThunk<ESI>(AnmLoadedD3D::createTextureFromAtR, 0));
-        installHook(0x458400, createLtoThunk<Returns<RegCode::EAX>, EAX, Stack<0x4>, Stack<0x8>>(openFile, 0x8));
+        installHook(0x4503d0, createLtoThunk<EAX, Stack<0x4>, EBX, EDI, ESI>(AnmVm::applyZRotationToQuadCorners, 0x4));
+        installHook(0x4500f0, createLtoThunk<Stack<0x4>, EBX, EDI, EDX, ESI>(AnmVm::writeSpriteCharacters, 0x4));
+        installHook(0x450700, createLtoThunk<Returns<RegCode::EAX>, EAX>(AnmVm::projectQuadCornersThroughCameraViewport, 0));
+        installHook(0x452420, createLtoThunk<Returns<RegCode::EAX>, ECX>(AnmVm::onTick, 0));
 
+        installHook(0x4540f0, createLtoThunk<ESI>(AnmLoadedD3D::createTextureFromAtR, 0));
+
+        installHook(0x458400, createLtoThunk<Returns<RegCode::EAX>, EAX, Stack<0x4>, Stack<0x8>>(openFile, 0x8));
         installHook(0x441760, createLtoThunk<Returns<RegCode::EAX>, Stack<0x4>, Stack<0x8>, ECX>(PbgArchive::readDecompressEntry, 0x8));
         installHook(0x4418d0, createLtoThunk<Returns<RegCode::EAX>, EAX, EBX>(PbgArchive::findEntry, 0));
         installHook(0x4426c0, createLtoThunk<Returns<RegCode::EAX>, Stack<0x4>, Stack<0x8>, Stack<0xc>, EAX>(Lzss::decompress, 0xc));
         installHook(0x4423a0, createLtoThunk<Returns<RegCode::EAX>, Stack<0x4>, Stack<0x8>, Stack<0xc>>(Lzss::compress, 0xc));
         installHook(0x4581c0, createLtoThunk<Stack<0x4>, Stack<0x8>, AL, Stack<0xc>, Stack<0x10>, Stack<0x14>>(FileUtils::decrypt, 0x14));
 
+        installHook(0x446d30, createLtoThunk<Returns<RegCode::EAX>, EDI>(Supervisor::initD3d9Devices, 0));
 
         waitForDebugger();
     }
