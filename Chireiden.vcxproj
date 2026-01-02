@@ -75,17 +75,22 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>C:\Program Files %28x86%29\Microsoft DirectX SDK %28June 2010%29\Include;$(IncludePath)</IncludePath>
+    <IncludePath>C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)\Include;$(ProjectDir)include;$(ProjectDir)third_party\imgui;$(ProjectDir)third_party\imgui\backends</IncludePath>
+    <LibraryPath>C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)\Lib\x86;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)\Include;$(ProjectDir)include</IncludePath>
+    <IncludePath>C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)\Include;$(ProjectDir)include;$(ProjectDir)third_party\imgui;$(ProjectDir)third_party\imgui\backends</IncludePath>
     <LibraryPath>C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)\Lib\x86;$(LibraryPath)</LibraryPath>
     <OutDir>$(SolutionDir)bin\$(Configuration)\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)\Include;$(ProjectDir)include</IncludePath>
+    <IncludePath>C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)\Include;$(ProjectDir)include;$(ProjectDir)third_party\imgui;$(ProjectDir)third_party\imgui\backends</IncludePath>
     <LibraryPath>C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)\Lib\x86;$(LibraryPath)</LibraryPath>
     <OutDir>$(SolutionDir)bin\$(Configuration)\</OutDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <IncludePath>C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)\Include;$(ProjectDir)include;$(ProjectDir)third_party\imgui;$(ProjectDir)third_party\imgui\backends</IncludePath>
+    <LibraryPath>C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)\Lib\x86;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -156,93 +161,13 @@ if %errorlevel% LSS 8 exit 0 else exit %errorlevel%</Command>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="src\AnmLoaded.cpp" />
-    <ClCompile Include="src\AnmManager.cpp" />
-    <ClCompile Include="src\AnmVm.cpp" />
-    <ClCompile Include="src\AsciiManager.cpp" />
-    <ClCompile Include="src\Bomb.cpp" />
-    <ClCompile Include="src\Bullet.cpp" />
-    <ClCompile Include="src\BulletManager.cpp" />
-    <ClCompile Include="src\Chain.cpp" />
-    <ClCompile Include="src\Chireiden.cpp" />
-    <ClCompile Include="src\EclVm.cpp" />
-    <ClCompile Include="src\EffectManager.cpp" />
-    <ClCompile Include="src\Effect.cpp" />
-    <ClCompile Include="src\Enemy.cpp" />
-    <ClCompile Include="src\EnemyManager.cpp" />
-    <ClCompile Include="src\FileAbstraction.cpp" />
-    <ClCompile Include="src\GameConfig.cpp" />
-    <ClCompile Include="src\Globals.cpp" />
-    <ClCompile Include="src\Interp.cpp" />
-    <ClCompile Include="src\LaserManager.cpp" />
-    <ClCompile Include="src\Lzss.cpp" />
-    <ClCompile Include="src\Player.cpp" />
-    <ClCompile Include="src\DistortionMesh.cpp" />
-    <ClCompile Include="src\SoundManager.cpp" />
-    <ClCompile Include="src\Supervisor.cpp" />
-    <ClInclude Include="src\StdVm.cpp" />
-    <ClCompile Include="src\Timer.cpp" />
-    <ClCompile Include="src\Window.cpp" />
+    <ClCompile Include="src\**\*.cpp" />
+    <ClCompile Include="third_party\imgui\*.cpp" />
+    <ClCompile Include="third_party\imgui\backends\imgui_impl_win32.cpp" />
+    <ClCompile Include="third_party\imgui\backends\imgui_impl_dx9.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="include\AnmId.h" />
-    <ClInclude Include="include\AnmLoaded.h" />
-    <ClInclude Include="include\AnmManager.h" />
-    <ClInclude Include="include\AnmVm.h" />
-    <ClInclude Include="include\AnmVmList.h" />
-    <ClInclude Include="include\AsciiManager.h" />
-    <ClInclude Include="include\Bomb.h" />
-    <ClInclude Include="include\Bullet.h" />
-    <ClInclude Include="include\BulletManager.h" />
-    <ClInclude Include="include\Camera.h" />
-    <ClInclude Include="include\Chain.h" />
-    <ClInclude Include="include\Chireiden.h" />
-    <ClInclude Include="include\CSound.h" />
-    <ClInclude Include="include\CStreamingSound.h" />
-    <ClInclude Include="include\CWaveFile.h" />
-    <ClInclude Include="include\EclVm.h" />
-    <ClInclude Include="include\EffectManager.h" />
-    <ClInclude Include="include\Effect.h" />
-    <ClInclude Include="include\Ending.h" />
-    <ClInclude Include="include\Enemy.h" />
-    <ClInclude Include="include\EnemyData.h" />
-    <ClInclude Include="include\EnemyDrop.h" />
-    <ClInclude Include="include\EnemyManager.h" />
-    <ClInclude Include="include\FileAbstraction.h" />
-    <ClInclude Include="include\FpsCounter.h" />
-    <ClInclude Include="include\GameConfig.h" />
-    <ClInclude Include="include\GameThread.h" />
-    <ClInclude Include="include\Globals.h" />
-    <ClInclude Include="include\Gui.h" />
-    <ClInclude Include="include\HintManager.h" />
-    <ClInclude Include="include\TrampolineFactory.h" />
-    <ClInclude Include="include\Interp.h" />
-    <ClInclude Include="include\Item.h" />
-    <ClInclude Include="include\ItemManager.h" />
-    <ClInclude Include="include\LaserData.h" />
-    <ClInclude Include="include\LaserInfinite.h" />
-    <ClInclude Include="include\LaserLine.h" />
-    <ClInclude Include="include\LaserManager.h" />
-    <ClInclude Include="include\LaserSegment.h" />
-    <ClInclude Include="include\LoadingThread.h" />
-    <ClInclude Include="include\Lzss.h" />
-    <ClInclude Include="include\Macros.h" />
-    <ClInclude Include="include\MainMenu.h" />
-    <ClInclude Include="include\PauseMenu.h" />
-    <ClInclude Include="include\Player.h" />
-    <ClInclude Include="include\PopupManager.h" />
-    <ClInclude Include="include\DistortionMesh.h" />
-    <ClInclude Include="include\ReplayManager.h" />
-    <ClInclude Include="include\ReplayStageData.h" />
-    <ClInclude Include="include\RenderVertex.h" />
-    <ClInclude Include="include\Rng.h" />
-    <ClInclude Include="include\SoundManager.h" />
-    <ClInclude Include="include\Spellcard.h" />
-    <ClInclude Include="include\StdVm.h" />
-    <ClInclude Include="include\Supervisor.h" />
-    <ClInclude Include="include\Timer.h" />
-    <ClInclude Include="include\Window.h" />
-    <ClInclude Include="include\Vectors.h" />
+<ClInclude Include="include\**\*.h" />
   </ItemGroup>
   <ItemGroup>
     <MASM Include="Symbols.asm">

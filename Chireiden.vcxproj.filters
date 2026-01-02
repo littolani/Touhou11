@@ -272,6 +272,12 @@
     <ClInclude Include="include\Rng.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\DebugGui.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\DebugGui.cpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <MASM Include="Symbols.asm">
