@@ -17,10 +17,9 @@ public:
     DWORD timeForCleanup;
     HINSTANCE hInstance;
 
-    // idek anymore--they probably represent more than that 
-    // or else why would there be 4 possible states
-    DWORD isAppFocused;
-    DWORD isAppUnfocused;
+    // Yes, it does seem like 4 options are used to represent two states
+    BOOL isAppFocused;
+    BOOL isAppUnfocused;
 
     char frameskipCounter;
     char idk0[3];
@@ -44,6 +43,20 @@ public:
     int idk5;
     FrameTimingData frameTimingData[3];
     int idk6[2];
+
+    // 0x445e00
+    static LRESULT CALLBACK wndProcCallback(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lpParam);
+
+    // 0x446ae0
+    static int initialize(HINSTANCE hInstance);
+
+private:
+    static void setDarkTitleBar(HWND hwnd);
+
+    static constexpr LPCSTR TOUHOU_WINDOW_CLASS_NAME = "BASE";
+    static constexpr LPCSTR TOUHOU_WINDOW_TITLE = "Subterranean Animism";
+    static constexpr DWORD WINDOW_STYLE_WINDOWED = (WS_VISIBLE | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX);
+    static constexpr DWORD WINDOW_STYLE_FULLSCREEN = (WS_POPUP | WS_VISIBLE);
 };
 #pragma pack(pop)
 ASSERT_SIZE(Window, 0xac);
