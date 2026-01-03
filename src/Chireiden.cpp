@@ -1,8 +1,9 @@
-#include "Chireiden.h"
 #include "AnmVm.h"
 #include "AnmLoaded.h"
 #include "AnmManager.h"
+#include "Chireiden.h"
 #include "DebugGui.h"
+#include "Globals.h"
 #include "TrampolineFactory.h"
 #include "FileAbstraction.h"
 #include "SoundManager.h"
@@ -138,6 +139,9 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID lpvReserved)
         installHook(0x4581c0, createLtoThunk<Stack<0x4>, Stack<0x8>, AL, Stack<0xc>, Stack<0x10>, Stack<0x14>>(FileUtils::decrypt, 0x14));
 
         installHook(0x446d30, createLtoThunk<Returns<RegCode::EAX>, EDI>(Supervisor::initD3d9Devices, 0));
+
+        //installHook(0x445e00, createLtoThunk<Returns<RegCode::EAX>, Stack<0x4>, Stack<0x8>, Stack<0xc>, Stack<0x10>>(Window::wndProcCallback, 0x10));
+        installHook(0x446ae0, createLtoThunk<Returns<RegCode::EAX>, EBX>(Window::initialize, 0));
 
         waitForDebugger();
     }
