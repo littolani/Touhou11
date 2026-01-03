@@ -81,9 +81,9 @@ public:
         return instance;
     }
 
-    static void SetupRobustRenderState(IDirect3DDevice9* device, ImDrawData* draw_data)
+    static void setupRobustRenderState(IDirect3DDevice9* device, ImDrawData* draw_data)
     {
-        // 1. Setup Viewport to match the window
+        // Setup Viewport to match the window
         D3DVIEWPORT9 vp;
         vp.X = vp.Y = 0;
         vp.Width = (DWORD)draw_data->DisplaySize.x;
@@ -92,12 +92,11 @@ public:
         vp.MaxZ = 1.0f;
         device->SetViewport(&vp);
 
-        // 2. CRITICAL: Disable Programmable Shaders
-        // This is what fixes the pixelation/glitching in Touhou
+        // Disable Programmable Shaders
         device->SetPixelShader(NULL);
         device->SetVertexShader(NULL);
 
-        // 3. Force Fixed-Function State
+        // Force Fixed-Function State
         device->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
         device->SetRenderState(D3DRS_LIGHTING, FALSE);
         device->SetRenderState(D3DRS_ZENABLE, FALSE); // Draw on top of everything
@@ -110,21 +109,18 @@ public:
         device->SetRenderState(D3DRS_SHADEMODE, D3DSHADE_GOURAUD);
         device->SetRenderState(D3DRS_FOGENABLE, FALSE);
 
-        // 4. Reset Texture Stages (Touhou messes with these heavily)
+        // Reset Texture Stages
         device->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE);
         device->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
         device->SetTextureStageState(0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
         device->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
         device->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
         device->SetTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
-
-        // Ensure texture transforms are off (Touhou uses these for scrolling backgrounds)
         device->SetTextureStageState(0, D3DTSS_TEXTURETRANSFORMFLAGS, D3DTTFF_DISABLE);
-
         device->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
         device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
 
-        // 5. Setup Orthographic Projection for UI
+        // Setup Orthographic Projection for UI
         float L = draw_data->DisplayPos.x + 0.5f;
         float R = draw_data->DisplayPos.x + draw_data->DisplaySize.x + 0.5f;
         float T = draw_data->DisplayPos.y + 0.5f;
@@ -157,6 +153,11 @@ public:
         static bool init = false;
         if (!init) {
             ImGui::CreateContext();
+            ImGuiIO& io = ImGui::GetIO();
+
+            io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+            io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+
             ImGui_ImplWin32_Init(g_window.hwnd);
             ImGui_ImplDX9_Init(pDevice);
             init = true;
@@ -164,6 +165,28 @@ public:
 
         ImGui_ImplDX9_NewFrame();
         ImGui_ImplWin32_NewFrame();
+
+        ImGuiIO& io = ImGui::GetIO();
+
+        // Get the actual size of the window's client area (the drawable part)
+        RECT clientRect;
+        GetClientRect(g_window.hwnd, &clientRect);
+        float windowWidth = (float)(clientRect.right - clientRect.left);
+        float windowHeight = (float)(clientRect.bottom - clientRect.top);
+
+        // Prevent division by zero if minimized
+        if (windowWidth > 0 && windowHeight > 0)
+        {
+            // Calculate the scale factors
+            // Example: If window is 1280 wide, scaleX = 640 / 1280 = 0.5
+            float scaleX = GAME_INTERNAL_WIDTH / windowWidth;
+            float scaleY = GAME_INTERNAL_HEIGHT / windowHeight;
+
+            // Apply the scale to the mouse position
+            io.MousePos.x *= scaleX;
+            io.MousePos.y *= scaleY;
+        }
+
         ImGui::NewFrame();
 
         static bool showConsole = true;
@@ -182,17 +205,17 @@ public:
         {
             stateBlock->Capture();
 
-            // 2. Apply our "Nuclear Option" state setup
             ImDrawData* drawData = ImGui::GetDrawData();
-            SetupRobustRenderState(pDevice, drawData);
-
-            // 3. Render ImGui using the standard backend logic (or custom)
-            // If you are using standard ImGui_ImplDX9_RenderDrawData, you might need 
-            // to modify it to NOT try to set state again, OR just rely on SetupRobustRenderState
-            // running immediately before the draw calls.
+            setupRobustRenderState(pDevice, drawData);
             ImGui_ImplDX9_RenderDrawData(drawData);
 
-            // 4. Restore Game State
+            // Render detatched viewports
+            if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+            {
+                ImGui::UpdatePlatformWindows();
+                ImGui::RenderPlatformWindowsDefault();
+            }
+
             stateBlock->Apply();
             stateBlock->Release();
         }
@@ -243,4 +266,8 @@ private:
     typedef HRESULT(STDMETHODCALLTYPE* Reset)(IDirect3DDevice9*, D3DPRESENT_PARAMETERS*);
     static EndScene originalEndScene;
     static Reset originalReset;
+    static WNDPROC originalWndProc;
+    static HWND currentHwnd;
+    static constexpr float GAME_INTERNAL_WIDTH = 640.0f;
+    static constexpr float GAME_INTERNAL_HEIGHT = 480.0f;
 };
