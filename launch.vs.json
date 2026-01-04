@@ -1,0 +1,17 @@
+{
+  "version": "0.2.1",
+  "defaults": {},
+  "configurations": [
+    {
+      "type": "default",
+      "project": "CMakeLists.txt",
+      "projectTarget": "Touhou11",
+      "name": "Launch Touhou 11",
+      "args": [],
+      "cwd": "${workspaceRoot}/bin/${cmake.buildType}",
+      "env": {
+        "PATH": "${env.PATH};${workspaceRoot}/bin/${cmake.buildType}"
+      }
+    }
+  ]
+}
