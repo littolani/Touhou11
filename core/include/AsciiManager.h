@@ -49,8 +49,27 @@ public:
     ChainElem* chain2b;
     
     //AsciiManager();
-    void loadAsciiStrings(const char* str, D3DXVECTOR3* position);
-    void spawnAnm(AnmLoaded* anmLoaded, AnmId* outAnmId, int scriptNumber, int vmLayer, D3DXVECTOR3* spawnPosition);
+
+    /**
+     * 0x4014e0
+     * @brief
+     * @param This     ESI:4
+     * @param string   ECX:4
+     * @param position EBX:4
+     */
+    static void loadAsciiStrings(AsciiManager* This, const char* string, D3DXVECTOR3* position);
+
+    /**
+     * 0x455a70
+     * @brief
+     * @param anmLoaded     Stack[0x04]:4
+     * @param outAnmId      Stack[0x08]:4
+     * @param scriptNumber  Stack[0x0c]:4
+     * @param vmLayer       Stack[0x10]:4
+     * @param spawnPosition EAX:4
+     */
+    static void spawnAnm(AnmLoaded* anmLoaded, AnmId* outAnmId, int scriptNumber, int vmLayer, D3DXVECTOR3* spawnPosition);
+
     void spawnUnknownEffect(float x, float y);
 };
 ASSERT_SIZE(AsciiManager, 0x184bc);

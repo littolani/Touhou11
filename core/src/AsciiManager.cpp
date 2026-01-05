@@ -1,20 +1,20 @@
 #include "AsciiManager.h"
 
-void AsciiManager::loadAsciiStrings(const char* str, D3DXVECTOR3* position)
+void AsciiManager::loadAsciiStrings(AsciiManager* This, const char* string, D3DXVECTOR3* position)
 {
-    if (m_numStrings >= STRING_ARRAY_SIZE)
+    if (This->m_numStrings >= STRING_ARRAY_SIZE)
         return;
 
-    AsciiString* asciiString = &m_strings[m_numStrings++];
-    strcpy_s(asciiString->text, str);
+    AsciiString* asciiString = &This->m_strings[This->m_numStrings++];
+    strcpy_s(asciiString->text, string);
     asciiString->pos = *position;
-    asciiString->color = m_color;
-    asciiString->scale = scale;
-    asciiString->alignH = alignH;
-    asciiString->fontId = fontId;
-    asciiString->drawShadows = drawShadows;
-    asciiString->renderGroup = renderGroup;
-    asciiString->remainingTime = duration;
+    asciiString->color = This->m_color;
+    asciiString->scale = This->scale;
+    asciiString->alignH = This->alignH;
+    asciiString->fontId = This->fontId;
+    asciiString->drawShadows = This->drawShadows;
+    asciiString->renderGroup = This->renderGroup;
+    asciiString->remainingTime = This->duration;
 }
 
 void AsciiManager::spawnUnknownEffect(float x, float y)
@@ -31,7 +31,6 @@ void AsciiManager::spawnUnknownEffect(float x, float y)
         this->anmId = id.id;
     }
 }
-
 
 void AsciiManager::spawnAnm(AnmLoaded* anmLoaded, AnmId* outAnmId, int scriptNumber, int vmLayer, D3DXVECTOR3* spawnPosition)
 {
