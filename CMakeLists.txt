@@ -32,7 +32,7 @@ add_subdirectory(core)
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/dummy.cpp" "int main() { return 0; }")
 add_executable(Touhou11 "${CMAKE_CURRENT_BINARY_DIR}/dummy.cpp")
 set_target_properties(Touhou11 PROPERTIES OUTPUT_NAME "th11")
-target_link_libraries(Touhou11 PRIVATE d3d9) # Chireiden DLL project is named "d3d9"
+target_link_libraries(Touhou11 PRIVATE Chireiden)
 
 # Overwrite the compiled dummy with the REAL game executable
 # This runs *after* the linker creates the dummy th11.exe
