@@ -183,7 +183,7 @@ public:
 
     static void createD3DTextures(AnmManager* This);
     static void markAnmLoadedAsReleasedInVmList(AnmManager* This, AnmLoaded* anmLoaded);
-    static void releaseTextures(AnmManager* This);
+    static void releaseTextures();
     static void blitTextureToSurface(AnmManager* This, BlitParams* blitParams);
     
     static void transformAndDraw(AnmManager* This, AnmVm* vm);

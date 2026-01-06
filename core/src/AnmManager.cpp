@@ -207,8 +207,9 @@ AnmVm* AnmManager::allocateVm(AnmManager* This)
 }
 
 // 0x445320
-void AnmManager::releaseTextures(AnmManager* This)
+void AnmManager::releaseTextures()
 {
+    AnmManager* This = g_anmManager;
     for (int i = 0; i < NUM_ANM_LOADEDS; ++i)
     {
         AnmLoaded* anmLoaded = This->m_loadedAnms[i];
