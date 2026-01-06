@@ -16,7 +16,10 @@ The project uses CMake and can be opened directly in Visual Studio, which will a
 
 1. Obtain the game files (purchase a copy or source an archive).
 2. Place the game folder inside the project root and rename it to `game_files`.
-3. Build the solution. CMake will copy the resulting `d3d9.dll` into `game_files`.
+3. Build the solution. CMake/MSVC will produce `d3d9.dll` and copy `game_files` into the output directory.
+
+## Debugging in Visual Studio
+Visual Studio should find the `launch.vs.json` in the root folder. In the `Select Startup Item` dropdown menu, choose `th11.exe`.
 
 ## Tackling Link-Time Optimization (LTO)
 
@@ -84,9 +87,6 @@ extern "C" Supervisor g_supervisor;
 PUBLIC _g_supervisor
 _g_supervisor EQU 04c3280h
 ```
-
-## Debugging in Visual Studio
-Visual Studio should find the `launch.vs.json` in the root folder. In the `Select Startup Item` dropdown menu, choose `th11.exe`.
 
 ## VM Architecture & Debugging
 
