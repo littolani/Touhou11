@@ -3,7 +3,7 @@
 #include "AnmVm.h"
 #include "Camera.h"
 #include "GameConfig.h"
-#include "LoadingThread.h"
+#include "Thread.h"
 
 struct AnmLoaded;
 
@@ -67,13 +67,7 @@ public:
     void* snapshotRelated;                       // <0x6e4>
     uint32_t* snapshotDataProbably;              // <0x6e8>
     char snapshotFilename[MAX_PATH];             // <0x6ec>
-    LoadingThread* loadingThread;                // <0x7f0>
-    HANDLE gameThread;                           // <0x7f4>
-    DWORD gameThreadId;                          // <0x7f8>
-    uint32_t someFlag;                           // <0x7fc>
-    uint32_t someFlag2;                          // <0x800>
-    int idk12;                                   // <0x804>
-    void* gameThreadStartFunc;                   // <0x808>
+    Thread thread;                               // <0x7f0>
     uint32_t timeToSwitchGameMode;               // <0x80c>
     RTL_CRITICAL_SECTION criticalSections[12];   // <0x810>
     uint8_t criticalSectionCounters[12];         // <0x930>
@@ -105,6 +99,9 @@ public:
     static int initD3d9Devices(D3DFORMAT d3dFormat);
     static void setupCameras(Supervisor* This);
     static void swapCameraTransformMatrices(Camera* cam);
+    static void releaseSurfaces();
+    static void releaseChains();
+    static HRESULT disableD3dFog(Supervisor* This);
 };
 #pragma pack(pop)
 ASSERT_SIZE(Supervisor, 0x9c4);

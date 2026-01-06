@@ -1,6 +1,7 @@
 ﻿#include "Supervisor.h"
 #include "AnmManager.h"
 #include "AnmLoaded.h"
+#include "Chain.h"
 #include "Globals.h"
 #include "Window.h"
 #include "GameConfig.h"
@@ -728,3 +729,51 @@ void Supervisor::swapCameraTransformMatrices(Camera* cam)
         g_anmManager->m_globalRenderQuadOffsetY = cam->m_globalRenderQuadOffsetY;
     }
 }
+
+void Supervisor::releaseSurfaces()
+{
+    if (g_supervisor.surfaceR0)
+    {
+        g_supervisor.surfaceR0->Release();
+        g_supervisor.surfaceR0 = NULL;
+    }
+    if (g_supervisor.surfaceR1)
+    {
+        g_supervisor.surfaceR1->Release();
+        g_supervisor.surfaceR1 = NULL;
+    }
+    if (g_supervisor.backBuffer)
+    {
+        g_supervisor.backBuffer->Release();
+        g_supervisor.backBuffer = NULL;
+    }
+    g_supervisor.surfaceR0 = NULL;
+    return;
+}
+
+void Supervisor::releaseChains()
+{
+    g_supervisor.thread.close(&g_supervisor.thread);
+    g_chain->timeToRemove = 1;
+    g_chain->runCalcChain(g_chain);
+    g_chain->releaseSingleChain(g_chain, &g_chain->calcChain);
+    g_chain->releaseSingleChain(g_chain, &g_chain->drawChain);
+    g_chain->drawChain.jobRunDrawChainCallback = nullptr;
+    g_chain->drawChain.registerChainCallback = nullptr;
+    g_chain->drawChain.runCalcChainCallback = nullptr;
+    g_chain->calcChain.jobRunDrawChainCallback = nullptr;
+    g_chain->calcChain.registerChainCallback = nullptr;
+    g_chain->calcChain.runCalcChainCallback = nullptr;
+}
+
+HRESULT Supervisor::disableD3dFog(Supervisor* This)
+{
+    if (This->d3dDisableFogFlag != 0)
+    {
+        AnmManager::flushSprites(g_anmManager);
+        This->d3dDisableFogFlag = 0;
+        return This->d3dDevice->SetRenderState(D3DRS_FOGENABLE, 0);
+    }
+    return 0;
+}
+
