@@ -6,11 +6,19 @@ struct Thread
 {
     void* vtable;
     HANDLE handle;
-    DWORD threadId;
+    uint32_t threadId;
     uint32_t u0;
     uint32_t u1;
     uint32_t u2;
     void* initializationJobCallback;
+
+    Thread(_beginthreadex_proc_type initializationJobCallback)
+    {
+        this->initializationJobCallback = initializationJobCallback;
+        this->u1 = 1;
+        this->u0 = 0;
+        this->handle = (HANDLE)_beginthreadex(NULL, 0, initializationJobCallback, NULL, 0, &this->threadId);
+    }
 
     static void close(Thread* This)
     {
