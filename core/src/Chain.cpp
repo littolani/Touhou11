@@ -21,21 +21,6 @@ Chain::Chain()
     timeToRemove = 0;
 }
 
-void Chain::release(Chain* This)
-{
-    //Supervisor::closeThread(&g_supervisor.loadingThread);
-    This->timeToRemove = 1;
-    runCalcChain(This);
-    releaseSingleChain(This, &This->calcChain);
-    releaseSingleChain(This, &This->drawChain);
-    This->drawChain.jobRunDrawChainCallback = nullptr;
-    This->drawChain.registerChainCallback = nullptr;
-    This->drawChain.runCalcChainCallback = nullptr;
-    This->calcChain.jobRunDrawChainCallback = nullptr;
-    This->calcChain.registerChainCallback = nullptr;
-    This->calcChain.runCalcChainCallback = nullptr;
-}
-
 void Chain::releaseSingleChain(Chain* This, ChainElem* root)
 {
     ChainElem* elem = (root->embeddedTracker).trackerNextNode;
