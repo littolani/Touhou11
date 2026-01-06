@@ -1167,13 +1167,8 @@ void AnmManager::transformAndDraw(AnmManager* This, AnmVm* vm)
         float dy = pOut.x - g_supervisor.cam0.offset.x;
         float dz = pOut.y - g_supervisor.cam0.offset.y;
         float dx = pOut.z - g_supervisor.cam0.offset.z;
-
-        // Calculate distance (hypotenuse)
         float dist = sqrtf(dx * dx + dy * dy + dz * dz);
 
-        // Calculate Fog Factor
-        // If distance <= fogEnd (renderStateValue2), we might be fully inside or outside depending on logic
-        // The assembly logic is: if (dist <= fogEnd) -> Use Full Color.
         if (dist <= g_supervisor.cam0.fogEnd)
             g_renderQuad144[i].diffuse = baseColor;
         else
@@ -1183,35 +1178,13 @@ void AnmManager::transformAndDraw(AnmManager* This, AnmVm* vm)
 
             // Clamp and apply fog
             if (fogFactor >= 1.0f)
-            {
-                // This branch seems to set a specific render state value as color 
-                // possibly indicating "full fog" or "no fog" depending on blend mode.
-                // Based on asm: mov renderStateValue1 -> d[-1].uv.y+1 (likely color)
                 g_renderQuad144[i].diffuse = g_supervisor.currentCam->renderStateValue1;
-
-                // The assembly also sets the 'rhw' or 'x' position byte to 'c' (Alpha of base color)?
-                // *(undefined1 *)&(d->pos).x = c; 
-                // This part implies a specific hack for fully fogged items or Z-sorting.
-            }
             else
             {
-                // Interpolate RGB channels towards the Fog Color (fogR, fogG, fogB)
-                // The assembly calculates: Base - (Base - Fog) * Factor
-                // Or: (Base - FogBase) * Factor?
-
-                // Reconstructing the byte math from assembly:
-                // cStack_54 = ROUND(((float)(color & 0xff) - g_supervisor.cam0.fogB) * y);
-                // finalBlue = (char)color - cStack_54;
-
-                // Blue
                 int deltaB = (int)roundf(((float)b - g_supervisor.cam0.fogB) * fogFactor);
                 int finalB = b - deltaB;
-
-                // Green
                 int deltaG = (int)roundf(((float)g - g_supervisor.cam0.fogG) * fogFactor);
                 int finalG = g - deltaG;
-
-                // Red
                 int deltaR = (int)roundf(((float)r - g_supervisor.cam0.fogR) * fogFactor);
                 int finalR = r - deltaR;
 
@@ -1231,19 +1204,12 @@ void AnmManager::transformAndDraw(AnmManager* This, AnmVm* vm)
 
 int AnmManager::drawVmWithTextureTransform(AnmManager* This, AnmVm* vm)
 {
-    // Check flags: Bit 0 and Bit 1 must be set, and Alpha (byte 3 of color) must not be 0
     if ((vm->m_flagsLow & 1) && (vm->m_flagsLow & 2) && (vm->m_color0 >> 24) != 0)
     {
-        // 0x435620: Check if there are batched sprites waiting to be drawn
         if (This->m_anmVertexBuffers.leftoverSpriteCount != 0)
-        {
-            // 0x44fd10: Flush existing sprites to maintain draw order
             flushSprites(This);
-        }
 
         uint32_t flags = vm->m_flagsLow;
-
-        // Matrix update logic (same as your version, verified correct)
         if (!(flags & 0x4000) && (flags & 0xC))
         {
             vm->m_localTransformMatrix = vm->m_baseScaleMatrix;
@@ -1273,9 +1239,6 @@ int AnmManager::drawVmWithTextureTransform(AnmManager* This, AnmVm* vm)
         // Initialize World Matrix from Local Matrix
         D3DXMATRIX worldMatrix = vm->m_localTransformMatrix;
 
-        // Position & Anchor Calculation
-        // Note: Assembly logic suggests Pos - fabs(Size*Scale).
-        // If m_spriteSize is full width, * 0.5f is required for edge anchoring.
         int anchorX = (vm->m_flagsLow >> 18) & 3;
         float finalX = vm->m_entityPos.x + vm->m_pos.x + vm->m_offsetPos.x;
 
@@ -1297,10 +1260,7 @@ int AnmManager::drawVmWithTextureTransform(AnmManager* This, AnmVm* vm)
         worldMatrix._42 = finalY;
         worldMatrix._43 = vm->m_entityPos.z + vm->m_pos.z + vm->m_offsetPos.z;
 
-        // Apply material/colors/render states
         applyRenderStateForVm(This, vm);
-
-        // Set World Transform (State 256 / 0x100)
         g_supervisor.d3dDevice->SetTransform(D3DTS_WORLD, &worldMatrix);
 
         // Texture Setup
@@ -1330,13 +1290,8 @@ int AnmManager::drawVmWithTextureTransform(AnmManager* This, AnmVm* vm)
 
         if (This->m_haveFlushedSprites != 2)
         {
-            // CRITICAL FIX: The assembly uses stride 0x14 (20 bytes), NOT sizeof(RenderVertex144) (28 bytes).
-            // This expects a buffer of struct { float x,y,z; float u,v; };
             g_supervisor.d3dDevice->SetStreamSource(0, This->m_d3dVertexBuffer, 0, 20);
-
-            // Set FVF to XYZ | TEX1 (0x102) matches the 20-byte stride.
             g_supervisor.d3dDevice->SetFVF(D3DFVF_XYZ | D3DFVF_TEX1);
-
             g_supervisor.d3dDevice->SetTextureStageState(0, D3DTSS_COLORARG2, D3DTA_CURRENT);
             g_supervisor.d3dDevice->SetTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_CURRENT);
             This->m_haveFlushedSprites = 2;

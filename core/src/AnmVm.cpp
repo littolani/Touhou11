@@ -8,6 +8,7 @@
 // 0x402270
 AnmVm::AnmVm()
 {
+    memset(this, 0, sizeof(AnmVm));
     m_spriteNumber = -1;
 }
 
