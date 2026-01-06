@@ -12,6 +12,8 @@ PUBLIC _g_pbgArchives
 PUBLIC _g_numEntriesInDatFile
 PUBLIC _g_lzssDict
 PUBLIC _g_lzssTree
+PUBLIC _g_fpsCounter
+PUBLIC _g_spellcard
 
 ; Functions
 PUBLIC _game_free
@@ -28,7 +30,8 @@ _g_pbgArchives         EQU 04c3c48h
 _g_numEntriesInDatFile EQU 04a8ed0h
 _g_lzssDict            EQU 04c0ee8h
 _g_lzssTree            EQU 04a8ed8h
-
+_g_fpsCounter          EQU 04a8d80h
+_g_spellcard           EQU 04a8d6ch
 
 .code
 _game_free PROC
