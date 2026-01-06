@@ -33,10 +33,10 @@ public:
     int idk2;
     double frameDeltaTime;
     double frameSkipDeltaTime;
-    double deltaTime;
-    int idk3[2];
+    double predictedDeltaTime;
     double someDouble;
-    double k;
+    double timeSinceLastFrame;
+    double deltaTime;
     int idk4;
     int sleepTrackerMs;
     int frameTimingDataIndex;
@@ -50,9 +50,9 @@ public:
     // 0x446ae0
     static int initialize(HINSTANCE hInstance);
 
-    void frame(Window* This);
-    void update(Window* This);
-
+    static void frame(Window* This);
+    static void update(Window* This);
+    static double getDeltaTime();
 private:
     static void setDarkTitleBar(HWND hwnd);
 

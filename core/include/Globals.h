@@ -10,9 +10,10 @@ class AsciiManager;
 struct Chain;
 class Window;
 struct PbgArchive;
+class Spellcard;
+struct FpsCounter;
 
 extern float g_gameSpeed;
-extern double g_time;
 extern RngContext g_anmRngContext;
 extern RngContext g_replayRngContext;
 
@@ -27,9 +28,10 @@ extern "C"
     extern PbgArchive g_pbgArchive;
     extern PbgArchive* g_pbgArchives;
     extern int g_numEntriesInDatFile;
-
-    extern LzssTreeNode g_lzssTree[0x2000];
+    extern LzssTreeNode g_lzssTree[0x2001];
     extern byte g_lzssDict[0x2000];
+    extern Spellcard* g_spellcard;
+    extern FpsCounter* g_fpsCounter;
 
     void __cdecl game_free(void* memory);
     void* __cdecl game_malloc(size_t size);
@@ -39,8 +41,6 @@ extern "C"
 extern D3DFORMAT g_d3dFormats[];
 extern uint32_t g_bytesPerPixelLookupTable[];
 
-
-double getDeltaTime();
 int fileExists(LPCSTR filePath);
 int createDirectory(LPCSTR pathName);
 int writeToFile(LPCSTR fileName, DWORD numBytes, LPVOID bytes);

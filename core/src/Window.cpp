@@ -3,6 +3,7 @@
 #include "Globals.h"
 #include "Supervisor.h"
 #include "AnmManager.h"
+#include "ThunkGenerator.h"
 
 LRESULT Window::wndProcCallback(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lpParam)
 {
@@ -187,6 +188,33 @@ int Window::initialize(HINSTANCE hInstance)
     return 0;
 }
 
+double Window::getDeltaTime()
+{
+    g_supervisor.enterCriticalSection(5);
+    double elapsedTime;
+    if (g_window.performanceCounterFreq.QuadPart != 0)
+    {
+        LARGE_INTEGER currentCounter;
+        QueryPerformanceCounter(&currentCounter);
+        int64_t elapsedTicks = currentCounter.QuadPart - g_window.performanceCounterFreq.QuadPart;
+        elapsedTime = static_cast<double>(elapsedTicks) / g_window.performanceCounterFreq.QuadPart;
+
+        if (elapsedTime < g_window.someDouble)
+            g_window.someDouble = elapsedTime;
+
+        elapsedTime -= g_window.someDouble;
+    }
+    else
+    {
+        double currentTime = timeGetTime();
+        if (g_window.someDouble > currentTime)
+            g_window.someDouble = currentTime;
+        elapsedTime = (currentTime - g_window.someDouble) / 1000.0;
+    }
+    g_supervisor.leaveCriticalSection(5);
+    return elapsedTime;
+}
+
 void Window::frame(Window* This)
 {
     if (((g_window.someFlag2 & 0x10) != 0) && (This->deltaTime < This->frameDeltaTime))
@@ -208,7 +236,7 @@ void Window::frame(Window* This)
     // If result is 0 or -1, the game loop should terminate/close.
     if (runCalcChainResult == 0 || runCalcChainResult == -1)
     {
-        //Supervisor::closeThread(&g_supervisor.threadInf);
+        g_supervisor.thread.close(&g_supervisor.thread);
         return;
     }
 
@@ -224,13 +252,13 @@ void Window::frame(Window* This)
 
         // Disable Fog for drawing
         g_supervisor.d3dDisableFogFlag = 0xFF;
-        //Supervisor::disableD3dFog(&g_supervisor);
+        g_supervisor.disableD3dFog(&g_supervisor);
 
         // Execute the Draw Chain (process render commands)
-        Chain::runDrawChain();
+        g_chain->runDrawChain();
 
         // Flush any sprites added by the Draw Chain
-        AnmManager::flushSprites(g_anmManager);
+        g_anmManager->flushSprites(g_anmManager);
 
         g_supervisor.d3dDevice->SetTexture(0, NULL);
         g_supervisor.d3dDevice->EndScene();
@@ -249,10 +277,10 @@ void Window::update(Window* This)
     double currentTime = getDeltaTime();
     This->frameDeltaTime = currentTime;
 
-    // Calculate how much time has passed since the last frame start (someDouble),
+    // Calculate how much time has passed since the last frame start,
     // and determine how much we need to sleep to hit 60 FPS.
     // Formula: (LastFrameTime + TargetTime - CurrentTime) * 1000 - Bias
-    double timeUntilNextFrame = (This->someDouble + TARGET_FRAME_TIME_SEC) - currentTime;
+    double timeUntilNextFrame = (This->timeSinceLastFrame + TARGET_FRAME_TIME_SEC) - currentTime;
     int calculatedSleepMs = static_cast<int>(timeUntilNextFrame * SEC_TO_MS - SLEEP_BIAS_MS);
 
     This->sleepTrackerMs = calculatedSleepMs;
@@ -269,8 +297,7 @@ void Window::update(Window* This)
         if (currentFrameData.lagCounter < MAX_LAG_FRAMES)
         {
             // Check the previous frame's target sleep time to smooth adjustments
-            // NOTE: Using (index + 2) % 3 to safely access 'previous' in size-3 ring buffer 
-            // replacing decompiled [k + -1]
+            // Access "previous" in size-3 ring buffer 
             int prevIndex = (This->frameTimingDataIndex + 2) % 3;
 
             if (currentFrameData.sleepTimeMs < This->frameTimingData[prevIndex].targetSleepTime)
@@ -288,7 +315,6 @@ void Window::update(Window* This)
     else
     {
         // Clamp sleep time to 0 minimum
-        // Decompilation: (someInt < 0) - 1 & someInt => max(0, someInt)
         currentFrameData.sleepTimeMs = (calculatedSleepMs < 0) ? 0 : calculatedSleepMs;
 
         // Reset lag counter as we are on time
@@ -332,7 +358,7 @@ void Window::update(Window* This)
                 Sleep(1);
                 currentTime = getDeltaTime();
                 waitDuration = currentTime - This->deltaTime;
-            } while (waitDuration < VSYNC_BUSY_WAIT_THRESHOLD_SEC && !std::isnan(waitDuration));
+            } while (waitDuration < VSYNC_BUSY_WAIT_THRESHOLD_SEC);
         }
 
         // Phase 2: Raster Line Polling
@@ -354,11 +380,9 @@ void Window::update(Window* This)
                 // Watchdog: If we wait too long (drop below 57 FPS), abort to prevent spiraling lag
                 if ((currentTime - This->deltaTime) > LAG_THRESHOLD_SEC)
                 {
-                    FrameTimingData* pFVar1 = &This->frameTimingData[This->frameTimingDataIndex];
-                    if (pFVar1->sleepTimeMs > 0)
-                    {
-                        pFVar1->sleepTimeMs--;
-                    }
+                    FrameTimingData* frameTiming = &This->frameTimingData[This->frameTimingDataIndex];
+                    if (frameTiming->sleepTimeMs > 0)
+                        frameTiming->sleepTimeMs--;
                     break;
                 }
 
@@ -371,16 +395,17 @@ void Window::update(Window* This)
     currentTime = getDeltaTime();
     This->deltaTime = currentTime; // Update sync reference time
 
-    // Take snapshot (screenshot key handling?)
-    //NC_takeSnapshot();
+    // Take snapshot
+    static auto NC_takeSnapshot = createCustomCallingConvention<Storage<void>, Signature<void>>(0x446880);
+    NC_takeSnapshot();
 
     HRESULT hr = g_supervisor.d3dDevice->Present(NULL, NULL, NULL, NULL);
 
     // Handle Device Loss
     if (hr == D3DERR_DEVICELOST)
     {
-        //g_supervisor.releaseSurfaces(&g_supervisor);
-        g_anmManager->releaseTextures(g_anmManager);
+        g_supervisor.releaseSurfaces();
+        g_anmManager->releaseTextures();
 
         hr = g_supervisor.d3dDevice->Reset(&g_supervisor.m_d3dPresetParameters);
 
@@ -391,21 +416,27 @@ void Window::update(Window* This)
         g_supervisor.idk14[2] = 2;
     }
 
-    //if (g_fpsCounter)
-    //    FpsCounter::fpsCounterRelated2();
+    if (g_fpsCounter)
+    {
+        static auto fpsCounterRelated2 = createCustomCallingConvention<Storage<void>, Signature<void>>(0x419d90);
+        fpsCounterRelated2(); //FpsCounter::fpsCounterRelated2();
+    }
 
-    //if (g_spellcard)
-    //    NC_spellcardRelated();
+    if (g_spellcard)
+    {
+        static auto NC_spellcardRelated = createCustomCallingConvention<Storage<void>, Signature<void>>(0x40c310);
+        NC_spellcardRelated(); //NC_spellcardRelated();
+    }
 
-    // Final Sleep to cap frame rate based on the calculated sleep time
-    getDeltaTime(); // Discard result?
+
+    getDeltaTime(); // Discarded result
     DWORD sleepMs = This->frameTimingData[This->frameTimingDataIndex].sleepTimeMs;
     if ((int)sleepMs > 0)
         Sleep(sleepMs);
 
     // Store the final frame completion time for the next frame's calculation
     currentTime = getDeltaTime();
-    This->someDouble = currentTime;
+    This->timeSinceLastFrame = currentTime;
 }
 
 void Window::setDarkTitleBar(HWND hwnd)
