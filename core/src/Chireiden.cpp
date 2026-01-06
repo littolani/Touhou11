@@ -1,3 +1,4 @@
+#include "AsciiManager.h"
 #include "AnmVm.h"
 #include "AnmLoaded.h"
 #include "AnmManager.h"
@@ -125,6 +126,9 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID lpvReserved)
         setupConsole();
         //g_console.log("hi");
 
+        //installHook(0x455a70, createLtoThunk<Stack<0x4>, Stack<0x8>, Stack<0xc>, Stack<0x10>, EAX>(AsciiManager::spawnAnm, 0x10));
+        installHook(0x4014e0, createLtoThunk<ESI, ECX, EBX>(AsciiManager::loadAsciiStrings, 0));
+
         installHook(0x459bc0, createLtoThunk<Stack<0x4>, Stack<0x8>>(logfThunk, 0));
         installHook(0x441c80, createLtoThunk<Stack<0x4>, Stack<0x8>>(logfThunk, 0));
         installHook(0x44ab00, createLtoThunk<Stack<0x4>, Stack<0x8>>(logfThunk, 0));
@@ -170,9 +174,8 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID lpvReserved)
 
         installHook(0x446d30, createLtoThunk<Returns<RegCode::EAX>, EDI>(Supervisor::initD3d9Devices, 0));
 
-        //installHook(0x445e00, createLtoThunk<Returns<RegCode::EAX>, Stack<0x4>, Stack<0x8>, Stack<0xc>, Stack<0x10>>(Window::wndProcCallback, 0x10));
         installHook(0x446ae0, createLtoThunk<Returns<RegCode::EAX>, EBX>(Window::initialize, 0));
-
+        installHook(0x4461f0, createLtoThunk<ESI>(Window::update, 0));
         //waitForDebugger();
     }
     return TRUE;
