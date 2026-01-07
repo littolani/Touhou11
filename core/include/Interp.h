@@ -10,8 +10,8 @@ enum class InterpMethod
     Out2 = 3,
     Out3 = 4,
     Out4 = 5,
-    Unhandled7 = 6,
-    Unhandled8 = 7,
+    Linear = 6,
+    CubicHermite = 7,
     InOut2 = 8,
     InOut3 = 9,
     InOut4 = 10,
@@ -20,7 +20,7 @@ enum class InterpMethod
     OutIn4 = 13,
     Delayed = 14,
     Instant = 15,
-    Unhandled17 = 16
+    Physics = 16
 };
 
 template <typename T>
@@ -34,10 +34,10 @@ struct Interp
     int m_endTime;
     InterpMethod m_method;
     
-    constexpr T pow2(T t) { return t/* * t*/; }
-    constexpr T pow3(T t) { return t/* * t * t*/; }
-    constexpr T pow4(T t) { return t/* * t * t * t*/; }
+    constexpr T pow2(T t) { return t * t; }
+    constexpr T pow3(T t) { return t * t * t; }
+    constexpr T pow4(T t) { return t * t * t * t; }
 
-    T step();
-    T interpolate();
+    void step(Interp<T>* This);
+    float interpolate(Interp<T>* This);
 };
