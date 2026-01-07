@@ -13,7 +13,8 @@ public:
     float* m_gameSpeed;
     uint32_t m_isInitialized;
 
-    void addf(float amount);
-    void setCurrent(int time);
-    void increment();
+    static void addf(Timer* This, float amount);
+    static void setCurrent(Timer* This, int time);
+    static void increment(Timer* This);
+    static void set(Timer* This, int time);
 };

@@ -1,65 +1,61 @@
 #include "Timer.h"
 
-//Timer::Timer()
-//{
-//
-//}
-//
-//void Timer::reset()
-//{
-//    if ((m_isInitialized & 1) == 0)
-//    {
-//        m_currentF = 0.0;
-//        m_current = 0;
-//        m_previous = -999999;
-//        m_gameSpeed = &g_gameSpeed;
-//        m_isInitialized |= 1;
-//    }
-//    m_currentF = 0.0;
-//    m_current = 0;
-//    m_previous = -1;
-//}
-
-void Timer::addf(float amount)
+// 0x406100
+void Timer::set(Timer* This, int time)
 {
-    m_previous = m_current;
-    float gameSpeed = *m_gameSpeed;
-    if (0.99f < gameSpeed && gameSpeed < 1.01f)
+    if ((This->m_isInitialized & 1U) == 0)
     {
-        m_currentF += amount;
-        m_current = static_cast<int>(m_currentF);
-        return;
+        This->m_currentF = 0.0;
+        This->m_current = 0;
+        This->m_previous = -999999;
+        This->m_gameSpeed = &g_gameSpeed;
+        This->m_isInitialized |= 1;
     }
-    m_currentF = gameSpeed * amount + m_currentF;
-    m_current = static_cast<int>(m_currentF);
+    This->m_current = time;
+    This->m_previous = time - 1;
+    This->m_currentF = time;
 }
 
-void Timer::increment()
+void Timer::addf(Timer* This, float amount)
 {
-    float gameSpeed = *m_gameSpeed;
-    m_previous = m_current;
+    This->m_previous = This->m_current;
+    float gameSpeed = *This->m_gameSpeed;
     if (0.99f < gameSpeed && gameSpeed < 1.01f)
     {
-        m_current += 1;
-        m_currentF += 1.0f;
+        This->m_currentF += amount;
+        This->m_current = static_cast<int>(This->m_currentF);
         return;
     }
-  m_currentF += gameSpeed;
-  m_current = static_cast<int>(m_currentF);
+    This->m_currentF = gameSpeed * amount + This->m_currentF;
+    This->m_current = static_cast<int>(This->m_currentF);
 }
 
-void Timer::setCurrent(int time)
+void Timer::increment(Timer* This)
 {
-    if ((m_isInitialized & 1U) == 0)
+    float gameSpeed = *This->m_gameSpeed;
+    This->m_previous = This->m_current;
+    if (0.99f < gameSpeed && gameSpeed < 1.01f)
     {
-        m_currentF = 0.0;
-        m_current = 0;
-        m_previous = -999999;
-        m_gameSpeed = &g_gameSpeed;
-        m_isInitialized |= 1;
+        This->m_current += 1;
+        This->m_currentF += 1.0f;
+        return;
     }
-    m_current = time;
-    m_previous = time - 1;
-    m_currentF = static_cast<float>(time);
+  This->m_currentF += gameSpeed;
+  This->m_current = static_cast<int>(This->m_currentF);
+}
+
+void Timer::setCurrent(Timer* This, int time)
+{
+    if ((This->m_isInitialized & 1U) == 0)
+    {
+        This->m_currentF = 0.0;
+        This->m_current = 0;
+        This->m_previous = -999999;
+        This->m_gameSpeed = &g_gameSpeed;
+        This->m_isInitialized |= 1;
+    }
+    This->m_current = time;
+    This->m_previous = time - 1;
+    This->m_currentF = static_cast<float>(time);
     return;
 }
