@@ -14,6 +14,9 @@ PUBLIC _g_lzssDict
 PUBLIC _g_lzssTree
 PUBLIC _g_fpsCounter
 PUBLIC _g_spellcard
+PUBLIC _g_squareVertices
+PUBLIC _g_gameSpeed
+PUBLIC _g_globals
 
 ; Functions
 PUBLIC _game_free
@@ -32,6 +35,9 @@ _g_lzssDict            EQU 04c0ee8h
 _g_lzssTree            EQU 04a8ed8h
 _g_fpsCounter          EQU 04a8d80h
 _g_spellcard           EQU 04a8d6ch
+_g_squareVertices      EQU 04c9248h
+_g_gameSpeed           EQU 04a7948h
+_g_globals             EQU 04a56e0h
 
 .code
 _game_free PROC
