@@ -61,6 +61,52 @@ int AnmManager::openAnmLoaded(AnmLoaded* anmLoaded, AnmHeader* anmHeader, int ch
     return 1;
 }
 
+void AnmManager::setupRenderSquare()
+{
+    AnmManager* This = g_anmManager;
+    RenderVertexSq* verts = reinterpret_cast<RenderVertexSq*>(&This->m_squareVertices[0]);
+
+    verts[0].position = { -128.0f, -128.0f, 0.0f }; // Vertex 0: Bottom-Left
+    verts[0].uv = { 0.0f, 0.0f };
+    verts[1].position = { 128.0f, -128.0f, 0.0f }; // Vertex 1: Bottom-Right
+    verts[1].uv = { 1.0f, 0.0f };
+    verts[2].position = { -128.0f, 128.0f, 0.0f }; // Vertex 2: Top-Left
+    verts[2].uv = { 0.0f, 1.0f };
+    verts[3].position = { 128.0f, 128.0f, 0.0f }; // Vertex 3: Top-Right
+    verts[3].uv = { 1.0f, 1.0f };
+    memcpy(g_squareVertices, verts, sizeof(RenderVertexSq) * 4);
+
+    HRESULT hr = g_supervisor.d3dDevice->CreateVertexBuffer(
+        sizeof(RenderVertexSq) * 4,
+        0,
+        D3DFVF_XYZ | D3DFVF_TEX1,
+        D3DPOOL_MANAGED,
+        &This->m_squareVertexBuffer,
+        NULL
+    );
+
+    if (FAILED(hr))
+    {
+        puts("setupRenderSquare failed to create vertex buffer!\n");
+        return;
+    }
+
+    void* data = nullptr;
+    if (SUCCEEDED(This->m_squareVertexBuffer->Lock(0, 0, &data, 0)))
+    {
+
+        memcpy(data, verts, sizeof(RenderVertexSq) * 4); // Copy 80 bytes from local array to VRAM
+        This->m_squareVertexBuffer->Unlock();
+    }
+
+    g_supervisor.d3dDevice->SetStreamSource(
+        0,
+        This->m_squareVertexBuffer,
+        0,
+        sizeof(RenderVertexSq)
+    );
+}
+
 AnmLoaded* AnmManager::preloadAnmFromMemory(AnmManager* This, int anmSlotIndex, const char* anmFilePath)
 {
     printf("preloadAnmFromMemory: %s\n", anmFilePath);
@@ -358,7 +404,6 @@ void AnmManager::createD3DTextures(AnmManager* This)
 // 0x450e20
 int AnmManager::updateWorldMatrixAndProjectQuadCorners(AnmManager* This, AnmVm* vm)
 {
-    puts("Called updateWorldMatrixAndProjectQuadCorners\n");
     uint32_t flags;
     D3DXMATRIX* baseSpriteScaleMatrix;
     D3DXMATRIX* localTransformMatrix;
@@ -1021,19 +1066,7 @@ void AnmManager::loadIntoAnmVm(AnmVm* vm, AnmLoaded* anmLoaded, int scriptNumber
         instr = (AnmRawInstruction*)anmLoaded->m_spriteData[scriptNumber];
         vm->m_beginningOfScript = instr;
         vm->m_currentInstruction = instr;
-
-        isInitialized = (vm->m_timeInScript).m_isInitialized;
-        if ((isInitialized & 1) == 0)
-        {
-            vm->m_timeInScript.m_currentF = 0.0;
-            vm->m_timeInScript.m_current = 0;
-            vm->m_timeInScript.m_previous = -999999;
-            vm->m_timeInScript.m_gameSpeed = &g_gameSpeed;
-            vm->m_timeInScript.m_isInitialized = isInitialized | 1;
-        }
-        vm->m_timeInScript.m_currentF = 0.0;
-        vm->m_timeInScript.m_current = 0;
-        vm->m_timeInScript.m_previous = -1;
+        vm->m_timeInScript.set(&vm->m_timeInScript, 0);
         vm->m_flagsLow &= 0xfffffffe;
         vm->run(vm);
         ++g_anmManager->m_allocatedVmCountMaybe;
@@ -1151,11 +1184,8 @@ void AnmManager::transformAndDraw(AnmManager* This, AnmVm* vm)
     int g = (baseColor >> 8) & 0xFF;
     int b = baseColor & 0xFF;
 
-    // Pointer to the source positions calculated by updateWorldMatrix...
-    // In the assembly, this source array seems to be contiguous to primitive0Position or similar.
-    D3DXVECTOR3* srcPos = &This->m_primitive0Position;
+    D3DXVECTOR3* srcPos = &This->m_squareVertices->position;
 
-    // Loop over the 4 vertices of the global render quad
     for (int i = 0; i < 4; i++)
     {
         D3DXVECTOR4 pOut;
@@ -1272,7 +1302,6 @@ int AnmManager::drawVmWithTextureTransform(AnmManager* This, AnmVm* vm)
         }
 
         // Texture Transform (Scroll/Matrix)
-        // Assembly accesses offset 0x70 (m_uvScrollPos?) and 0x54 (m_spriteUvQuad[0]?) of AnmVm
         float scrollX = vm->m_uvScrollPos.x;
         if (This->m_cachedSprite != vm->m_sprite || scrollX != 0.0f || vm->m_uvScrollPos.y != 0.0f)
         {
@@ -1290,10 +1319,10 @@ int AnmManager::drawVmWithTextureTransform(AnmManager* This, AnmVm* vm)
 
         if (This->m_haveFlushedSprites != 2)
         {
-            g_supervisor.d3dDevice->SetStreamSource(0, This->m_d3dVertexBuffer, 0, 20);
+            g_supervisor.d3dDevice->SetStreamSource(0, This->m_squareVertexBuffer, 0, 20);
             g_supervisor.d3dDevice->SetFVF(D3DFVF_XYZ | D3DFVF_TEX1);
-            g_supervisor.d3dDevice->SetTextureStageState(0, D3DTSS_COLORARG2, D3DTA_CURRENT);
-            g_supervisor.d3dDevice->SetTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_CURRENT);
+            g_supervisor.d3dDevice->SetTextureStageState(0, D3DTSS_COLORARG2, D3DTA_TFACTOR);
+            g_supervisor.d3dDevice->SetTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_TFACTOR);
             This->m_haveFlushedSprites = 2;
         }
 
@@ -1329,36 +1358,19 @@ void AnmManager::drawVm(AnmManager* This, AnmVm* vm)
     {
         if (vm->m_rotation.z == 0.0)
         {
-            vm->writeSpriteCharactersWithoutRot(
-                vm,
-                &g_renderQuad144[0],
-                &g_renderQuad144[1],
-                &g_renderQuad144[2],
-                &g_renderQuad144[3]);
+            vm->writeSpriteCharactersWithoutRot(vm, &g_renderQuad144[0], &g_renderQuad144[1], &g_renderQuad144[2], &g_renderQuad144[3]);
             drawVmSprite2D(This, 1, vm);
         }
         else
         {
-            vm->applyZRotationToQuadCorners(
-                vm,
-                &g_renderQuad144[0],
-                &g_renderQuad144[1],
-                &g_renderQuad144[2],
-                &g_renderQuad144[3]
-            );
+            vm->applyZRotationToQuadCorners(vm, &g_renderQuad144[0], &g_renderQuad144[1], &g_renderQuad144[2], &g_renderQuad144[3]);
             drawVmSprite2D(This, 0, vm);
         }
         break;
     }
     case 2:
     {
-        vm->writeSpriteCharacters(
-            vm,
-            &g_renderQuad144[0],
-            &g_renderQuad144[1],
-            &g_renderQuad144[2],
-            &g_renderQuad144[3]
-        );
+        vm->writeSpriteCharacters(vm, &g_renderQuad144[0], &g_renderQuad144[1], &g_renderQuad144[2], &g_renderQuad144[3]);
         drawVmSprite2D(This, 0, vm);
         break;
     }
@@ -1366,24 +1378,12 @@ void AnmManager::drawVm(AnmManager* This, AnmVm* vm)
     {
         if (vm->m_rotation.z == 0.0)
         {
-            vm->writeSpriteCharacters(
-                vm,
-                &g_renderQuad144[0],
-                &g_renderQuad144[1],
-                &g_renderQuad144[2],
-                &g_renderQuad144[3]
-            );
+            vm->writeSpriteCharacters(vm, &g_renderQuad144[0], &g_renderQuad144[1], &g_renderQuad144[2], &g_renderQuad144[3]);
             drawVmSprite2D(This, 0, vm);
         }
         else
         {
-            vm->applyZRotationToQuadCorners(
-                vm,
-                &g_renderQuad144[0],
-                &g_renderQuad144[1],
-                &g_renderQuad144[2],
-                &g_renderQuad144[3]
-            );
+            vm->applyZRotationToQuadCorners(vm, &g_renderQuad144[0], &g_renderQuad144[1], &g_renderQuad144[2], &g_renderQuad144[3]);
             drawVmSprite2D(This, 0, vm);
         }
         break;
