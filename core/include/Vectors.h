@@ -14,3 +14,8 @@ struct Int3
 {
     int x, y, z;
 };
+
+struct Int2
+{
+    int x, y;
+};
