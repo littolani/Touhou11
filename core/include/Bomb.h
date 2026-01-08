@@ -8,8 +8,8 @@ struct Bomb
 {
     int idk0;
     int idk1;
-    ChainElem* onTick;
-    ChainElem* onDraw;
+    ChainElem* tickChainElem;
+    ChainElem* drawChainElem;
     int idk2;
     Timer timer0;
     Timer timer1;
@@ -23,5 +23,13 @@ struct Bomb
     D3DXVECTOR2 someVec2;
     uint32_t someIndicator;
     int idk3;
+
+    static ChainCallbackResult onTick(Bomb* This);
+    static int onTickReimuA(Bomb* This);
+    static int onTickReimuB(Bomb* This);
+    static int onTickReimuC(Bomb* This);
+    static int onTickMarisaA(Bomb* This);
+    static int onTickMarisaB(Bomb* This);
+    static int onTickMarisaC(Bomb* This);
 };
 ASSERT_SIZE(Bomb, 0x4a0);
