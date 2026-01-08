@@ -1,4 +1,5 @@
 #include "Timer.h"
+#include "Globals.h"
 
 // 0x406100
 void Timer::set(Timer* This, int time)

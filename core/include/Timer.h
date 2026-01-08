@@ -1,7 +1,5 @@
 #pragma once
-
 #include "Chireiden.h"
-#include "Globals.h"
 
 struct Timer
 {
