@@ -1,5 +1,7 @@
 #pragma once
 #include "Chireiden.h"
+#include "Shottypes.h"
+#include "Timer.h"
 #include "RenderVertex.h"
 #include "Lzss.h"
 #include "Rng.h"
@@ -12,12 +14,41 @@ class Window;
 struct PbgArchive;
 class Spellcard;
 struct FpsCounter;
-
-extern float g_gameSpeed;
 extern RngContext g_anmRngContext;
 extern RngContext g_replayRngContext;
 
-// These link directly to the labels defined in Symbols.asm
+struct Globals
+{
+    int scoreLimit;
+    int currentScore;
+    int currentPower;
+    int u1;
+    int currentPiv;
+    int u2;
+    int u3;
+    Timer timer;
+    CharacterId character;
+    SubshotId subshot;
+    int currentLives;
+    int currentLifeFragments;
+    int difficulty;
+    int u4;
+    int currentStage;
+    int currentStageCopy;
+    int u5;
+    int timeInStage;
+    int timeInChapter;
+    int continuesUsed;
+    int alsoContinuesUsed;
+    int rank;
+    int maxPower;
+    int powerPerLevel;
+    int livesMaybe;
+    int graze;
+};
+ASSERT_SIZE(Globals, 0x78);
+
+// These link directly to the labels defined in symbols.asm
 extern "C"
 {
     extern RenderVertex144 g_renderQuad144[4];
@@ -32,6 +63,9 @@ extern "C"
     extern byte g_lzssDict[0x2000];
     extern Spellcard* g_spellcard;
     extern FpsCounter* g_fpsCounter;
+    extern RenderVertexSq g_squareVertices[4];
+    extern float g_gameSpeed;
+    extern Globals g_globals;
 
     void __cdecl game_free(void* memory);
     void* __cdecl game_malloc(size_t size);
