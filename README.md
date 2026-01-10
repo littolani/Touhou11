@@ -97,12 +97,6 @@ Touhou 11 relies heavily on bytecode interpreters (Virtual Machines) for differe
 * **MSG:** Character dialogue and cutscenes.
 * **STD:** Background stage effects.
 
-### The "Big Switch" Problem
-
-These VMs are implemented as massive functions containing switch statements with hundreds of cases (opcodes). Hooking these directly is difficult due to their size and complexity.
-
-### ImGui Step-Debugger
-
 To facilitate reverse engineering these scripts, we are integrating an **ImGui/D3D9 Overlay**. This acts as a visual step-debugger for the game's internal VMs.
 
 **Features:**
