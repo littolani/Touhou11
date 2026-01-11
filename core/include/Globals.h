@@ -5,6 +5,8 @@
 #include "RenderVertex.h"
 #include "Lzss.h"
 #include "Rng.h"
+#include "Supervisor.h"
+#include "SoundManager.h"
 
 class AnmManager;
 class Supervisor;
@@ -16,6 +18,7 @@ class Spellcard;
 struct FpsCounter;
 extern RngContext g_anmRngContext;
 extern RngContext g_replayRngContext;
+class Player;
 
 struct Globals
 {
@@ -66,6 +69,9 @@ extern "C"
     extern RenderVertexSq g_squareVertices[4];
     extern float g_gameSpeed;
     extern Globals g_globals;
+    extern Player* g_player;
+    extern SoundManager g_soundManager;
+    extern SoundConfig g_soundConfigTable[56];
 
     void __cdecl game_free(void* memory);
     void* __cdecl game_malloc(size_t size);
