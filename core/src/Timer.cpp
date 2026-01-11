@@ -44,19 +44,3 @@ void Timer::increment(Timer* This)
   This->m_currentF += gameSpeed;
   This->m_current = static_cast<int>(This->m_currentF);
 }
-
-void Timer::setCurrent(Timer* This, int time)
-{
-    if ((This->m_isInitialized & 1U) == 0)
-    {
-        This->m_currentF = 0.0;
-        This->m_current = 0;
-        This->m_previous = -999999;
-        This->m_gameSpeed = &g_gameSpeed;
-        This->m_isInitialized |= 1;
-    }
-    This->m_current = time;
-    This->m_previous = time - 1;
-    This->m_currentF = static_cast<float>(time);
-    return;
-}
