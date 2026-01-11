@@ -14,6 +14,7 @@ struct ThBgmFormat
 
 struct CWaveFile
 {
+public:
     WAVEFORMATEX* waveFormat;
     MMCKINFO mmckinfo;
     int idk0[5];
@@ -22,11 +23,23 @@ struct CWaveFile
     ULONG dataSize;
     DWORD someNumber;
     uint32_t m_ulDataSize;
-    byte* pbDataCurrent;
+    uint32_t totalSize;
     int bgmLength;
     HANDLE fileHandle;
     ThBgmFormat* thBgmFormat;
     LPCSTR audioFilename;
     int filePointer;
+
+    // CWaveFile* This, ThBgmFormat* thBgmFormat, const char* filepath
+
+    /**
+     * 0x45b220
+     * @brief
+     * @param  This        ESI:4
+     * @param  thBgmFormat EBX:4
+     * @param  filepath    EDI:4
+     * @return HRESULT     EAX:4
+     */
+    static HRESULT openWavFile(CWaveFile* This, ThBgmFormat* thBgmFormat, const char* filepath);
 };
-ASSERT_SIZE(CWaveFile, 0x9c);
+ASSERT_SIZE(CWaveFile, 0x9c); // Verified
