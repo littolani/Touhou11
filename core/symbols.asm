@@ -17,6 +17,9 @@ PUBLIC _g_spellcard
 PUBLIC _g_squareVertices
 PUBLIC _g_gameSpeed
 PUBLIC _g_globals
+PUBLIC _g_player
+PUBLIC _g_soundManager
+PUBLIC _g_soundConfigTable
 
 ; Functions
 PUBLIC _game_free
@@ -38,6 +41,9 @@ _g_spellcard           EQU 04a8d6ch
 _g_squareVertices      EQU 04c9248h
 _g_gameSpeed           EQU 04a7948h
 _g_globals             EQU 04a56e0h
+_g_player              EQU 04a8eb4h
+_g_soundManager        EQU 04c3e80h
+_g_soundConfigTable    EQU 04a34f0h
 
 .code
 _game_free PROC
