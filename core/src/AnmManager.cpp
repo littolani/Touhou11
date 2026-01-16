@@ -222,35 +222,46 @@ void AnmManager::markAnmLoadedAsReleasedInVmList(AnmManager* This, AnmLoaded* an
     }
 }
 
-AnmVm* AnmManager::allocateVm(AnmManager* This)
+AnmVm* AnmManager::allocateVm()
 {
-    int index = This->m_nextBulkVmIndex;
-    AnmVm* vm;
+    AnmManager* This = g_anmManager;
+    int index = This->m_nextFastVmIndex;
 
-    if (This->m_bulkVmsIsAlive[index] == 0)
+    if (This->m_fastVmsIsAlive[index] != 0)
     {
-        vm = &This->m_bulkVms[index];
-        This->m_bulkVmsIsAlive[index] = 1;
-        This->m_nextBulkVmIndex = This->getNextBulkVmIndex(index);
-    }
-    else
-    {
-        int nextIdx = This->getNextBulkVmIndex(index);
-        if (This->m_bulkVmsIsAlive[nextIdx] == 0)
+        // Current slot busy. Move cursor to next and try again.
+        index = This->getNextFastVmIndex(index);
+        This->m_nextFastVmIndex = index;
+
+        // Check 2: Is the next slot also alive?
+        if (This->m_fastVmsIsAlive[index] != 0)
         {
-            vm = &This->m_bulkVms[nextIdx];
-            This->m_bulkVmsIsAlive[nextIdx] = 1;
+            // Both preferred slots are busy. Allocate an overflow VM from the heap.
+            AnmVm* vm = (AnmVm*)game_new(sizeof(AnmVm));
+            if (!vm)
+            {
+                puts("Could not allocate AnmVm!\n");
+                return nullptr;
+            }
+
+            memset(vm, 0, sizeof(AnmVm));
+            vm->m_spriteNumber = -1; // Inlined constructor
+            AnmVm::initialize(vm);
+
+            // Even though we allocated from the heap, the assembly behavior 
+            // advances the pool cursor before returning.
+            This->m_nextFastVmIndex = This->getNextFastVmIndex(This->m_nextFastVmIndex);
+
+            return vm;
         }
-        else
-        {
-            vm = new AnmVm();
-            if (vm)
-                vm->initialize(vm);
-        }
-        This->m_nextBulkVmIndex = This->getNextBulkVmIndex(nextIdx);
     }
+
+    AnmVm* vm = &This->m_fastVms[index];
+    This->m_fastVmsIsAlive[index] = 1;
+    This->m_nextFastVmIndex = This->getNextFastVmIndex(This->m_nextFastVmIndex);
     return vm;
 }
+
 
 // 0x445320
 void AnmManager::releaseTextures()
@@ -682,7 +693,6 @@ void AnmManager::drawVmSprite2D(AnmManager* This, uint32_t layer, AnmVm* anmVm)
     // Pixel Alignment (Round to nearest pixel - 0.5 for texel center mapping in DX9)
     if (layer & 1)
     {
-        // ASM: 44f92c fsubs 0x4973f8 (0.5) after rounding
         g_renderQuad144[0].pos.x = roundf(g_renderQuad144[0].pos.x) - 0.5f;
         g_renderQuad144[1].pos.x = roundf(g_renderQuad144[1].pos.x) - 0.5f;
         g_renderQuad144[0].pos.y = roundf(g_renderQuad144[0].pos.y) - 0.5f;

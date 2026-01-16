@@ -36,9 +36,9 @@ public:
     float m_globalRenderQuadOffsetX;               // <0xb0>
     float m_globalRenderQuadOffsetY;               // <0xb4>
     int m_unk3;                                    // <0xb8>
-    AnmVm m_bulkVms[4096];                         // <0xbc>
-    uint8_t m_bulkVmsIsAlive[4096];                // <0x4340bc>
-    int m_nextBulkVmIndex;                         // <0x4350bc>
+    AnmVm m_fastVms[4096];                         // <0xbc>
+    uint8_t m_fastVmsIsAlive[4096];                // <0x4340bc>
+    int m_nextFastVmIndex;                         // <0x4350bc>
     AnmLoaded* m_loadedAnms[32];                   // <0x4350c0>
     D3DXMATRIX m_currentWorldMatrix;               // <0x435140>
     AnmVm m_primaryVm;                             // <0x435180>
@@ -88,7 +88,7 @@ public:
      * 0x44f4b0
      * @brief Extracts render state parameters from VM flags and synchronizes them with D3D (Identical to setupRenderStateForVm)
      * @param This EAX:4
-     * @param vm   Stack[0x4>]:4
+     * @param vm   Stack[0x4]:4
      */
     static void applyRenderStateForVm(AnmManager* This, AnmVm* vm);
 
@@ -175,9 +175,10 @@ public:
 
     /**
      * 0x453220
-     * @brief
+     * @brief s
      */
     static void setupRenderSquare();
+
     static void createD3DTextures(AnmManager* This);
     static void markAnmLoadedAsReleasedInVmList(AnmManager* This, AnmLoaded* anmLoaded);
     static void releaseTextures();
@@ -190,17 +191,23 @@ public:
     
     static int drawVmTriangleStrip(AnmManager* This, AnmVm* vm, SpecialRenderData* specialRenderData, uint32_t vertexCount);
     static int drawVmTriangleFan(AnmManager* This, AnmVm* vm, SpecialRenderData* specialRenderData, uint32_t vertexCount);
-    static AnmVm* allocateVm(AnmManager* This);
+
+    /**
+     * 0x4569c0
+     * @brief Finds and returns a fast vm (preallocated) or allocates a new one if no space is available
+     */
+    static AnmVm* allocateVm();
+
     static AnmVm* getVmWithId(AnmManager* This, int anmId);
     static void blitTextures(AnmManager* This);
 private:
-    static constexpr int NUM_BULK_VMS = 4096;
+    static constexpr int NUM_FAST_VMS = 4096;
     static constexpr int NUM_ANM_LOADEDS = 32;
     static uint32_t modulateColorComponent(uint16_t base, uint16_t factor);
 
-    static inline int getNextBulkVmIndex(int current)
+    static inline int getNextFastVmIndex(int current)
     {
-        return (current + 1) & (NUM_BULK_VMS - 1);
+        return (current + 1) & (NUM_FAST_VMS - 1);
     }
 
     static inline uint8_t scaleChannel(uint32_t scale, uint8_t v)
