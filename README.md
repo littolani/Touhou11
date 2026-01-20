@@ -13,10 +13,10 @@ The project is built as a generic proxy DLL named `d3d9.dll`. When placed next t
 The project uses CMake and can be opened directly in Visual Studio, which will automatically generate the solution.
 
 **Prerequisites:**
-
-1. Obtain the game files (purchase a copy or source an archive).
-2. Place the game folder inside the project root and rename it to `game_files`.
-3. Build the solution. CMake/MSVC will produce `d3d9.dll` and copy `game_files` into the output directory.
+1. [Download the DirectX SDK (June 2010)](https://www.microsoft.com/en-us/download/details.aspx?id=6812)
+2. Obtain the game files (purchase a copy or source an archive).
+3. Place the game folder inside the project root and rename it to `game_files`.
+4. Build the solution. CMake/MSVC will produce `d3d9.dll` and copy `game_files` into the output directory.
 
 ## Debugging in Visual Studio
 Visual Studio should find the `launch.vs.json` in the root folder. In the `Select Startup Item` dropdown menu, choose `th11.exe`.
