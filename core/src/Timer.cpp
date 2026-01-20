@@ -31,7 +31,7 @@ void Timer::addf(Timer* This, float amount)
     This->m_current = static_cast<int>(This->m_currentF);
 }
 
-void Timer::increment(Timer* This)
+int Timer::increment(Timer* This)
 {
     float gameSpeed = *This->m_gameSpeed;
     This->m_previous = This->m_current;
@@ -39,8 +39,9 @@ void Timer::increment(Timer* This)
     {
         This->m_current += 1;
         This->m_currentF += 1.0f;
-        return;
+        return This->m_current;
     }
   This->m_currentF += gameSpeed;
   This->m_current = static_cast<int>(This->m_currentF);
+  return This->m_current;
 }
