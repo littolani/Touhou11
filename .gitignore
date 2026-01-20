@@ -11,6 +11,7 @@ CMakeCache.txt
 cmake_install.cmake
 Makefile
 /resources/th_re_data/
+/resources/ghidra/repo
 /sdk/
 /game_files
 
