@@ -2,6 +2,7 @@
 #include "AnmVm.h"
 #include "AnmLoaded.h"
 #include "AnmManager.h"
+#include "Bullet.h"
 #include "Chireiden.h"
 #include "DebugGui.h"
 #include "Globals.h"
@@ -124,7 +125,6 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID lpvReserved)
     if (fdwReason == DLL_PROCESS_ATTACH)
     {
         setupConsole();
-        //g_console.log("hi");
 
         //installHook(0x455a70, createLtoThunk<Stack<0x4>, Stack<0x8>, Stack<0xc>, Stack<0x10>, EAX>(AsciiManager::spawnAnm, 0x10));
         installHook(0x4014e0, createLtoThunk<ESI, ECX, EBX>(AsciiManager::loadAsciiStrings, 0));
@@ -138,7 +138,17 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID lpvReserved)
         installHook(0x458a10, createLtoThunk<Stack<0x4>>(logThunk, 0));
         installHook(0x458af0, createLtoThunk<Stack<0x4>>(logThunk, 0));
         
+        installHook(0x40a280, createLtoThunk<EDX>(Bullet::step_ex_00_speedup, 0));
+        installHook(0x40a300, createLtoThunk<EAX>(Bullet::step_ex_02_accel, 0));
+
+        installHook(0x45b220, createLtoThunk<Returns<RegCode::EAX>, ESI, EBX, EDI, EAX>(CWaveFile::open, 0));
+        installHook(0x45b480, createLtoThunk<Returns<RegCode::EAX>, ESI, Stack<0x4>, Stack<0x8>, EAX>(CWaveFile::read, 0x8));
+        installHook(0x45b3a0, createLtoThunk<Returns<RegCode::EAX>, ESI, BL, EDI>(CWaveFile::resetFile, 0));
+        installHook(0x45b2d0, createLtoThunk<Returns<RegCode::EAX>, ECX, EAX, Stack<0x4>>(CWaveFile::reopen, 0x4));
+
         installHook(0x449660, createLtoThunk<Returns<RegCode::EAX>, ECX, Stack<0x4>, EAX, EDI>(SoundManager::findRiffChunk, 0x4));
+        installHook(0x44a1e0, createLtoThunk<ESI>(SoundManager::playSoundCentered, 0));
+        installHook(0x44a260, createLtoThunk<Stack<0x4>, EDI>(SoundManager::playSoundWithPan, 0x4));
         
         installHook(0x44fd10, createLtoThunk<ESI>(AnmManager::flushSprites, 0));
         installHook(0x44f710, createLtoThunk<EAX, EDI>(AnmManager::setupRenderStateForVm, 0));
@@ -152,15 +162,20 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID lpvReserved)
         installHook(0x4513a0, createLtoThunk<Returns<RegCode::EAX>, Stack<0x4>, EBX>(AnmManager::drawVmWithTextureTransform, 0x4));
         installHook(0x450b00, createLtoThunk<Returns<RegCode::EAX>, EDI, ESI>(AnmManager::drawVmWithFog, 0));
         installHook(0x451ef0, createLtoThunk<ECX, EAX>(AnmManager::drawVm, 0));
+        installHook(0x453220, AnmManager::setupRenderSquare);
+
+        installHook(0x4569c0, AnmManager::allocateVm);
 
         installHook(0x457080, createLtoThunk<EDX, ECX>(Chain::cut, 0));
         installHook(0x456cb0, createLtoThunk<Returns<RegCode::EAX>, EBX>(Chain::runCalcChain, 0));
         installHook(0x456e10, createLtoThunk<Returns<RegCode::EAX>>(Chain::runDrawChain, 0));
         installHook(0x456c10, createLtoThunk<Returns<RegCode::EAX>, ESI, EBX>(Chain::registerDrawChain, 0));
 
-        installHook(0x4503d0, createLtoThunk<EAX, Stack<0x4>, EBX, EDI, ESI>(AnmVm::applyZRotationToQuadCorners, 0x4));
-        installHook(0x4500f0, createLtoThunk<Stack<0x4>, EBX, EDI, EDX, ESI>(AnmVm::writeSpriteCharacters, 0x4));
-        installHook(0x450700, createLtoThunk<Returns<RegCode::EAX>, EAX>(AnmVm::projectQuadCornersThroughCameraViewport, 0));
+        // Already hooked through internal calls
+        //installHook(0x4503d0, createLtoThunk<EAX, Stack<0x4>, EBX, EDI, ESI>(AnmVm::applyZRotationToQuadCorners, 0x4));
+        //installHook(0x4500f0, createLtoThunk<Stack<0x4>, EBX, EDI, EDX, ESI>(AnmVm::writeSpriteCharacters, 0x4));
+        //installHook(0x450700, createLtoThunk<Returns<RegCode::EAX>, EAX>(AnmVm::projectQuadCornersThroughCameraViewport, 0));
+
         installHook(0x452420, createLtoThunk<Returns<RegCode::EAX>, ECX>(AnmVm::onTick, 0));
 
         installHook(0x4540f0, createLtoThunk<ESI>(AnmLoadedD3D::createTextureFromAtR, 0));
@@ -174,8 +189,13 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID lpvReserved)
 
         installHook(0x446d30, createLtoThunk<Returns<RegCode::EAX>, EDI>(Supervisor::initD3d9Devices, 0));
 
+        installHook(0x459270, createLtoThunk<Returns<RegCode::EAX>, ESI>(Timer::increment, 0));
+
         installHook(0x446ae0, createLtoThunk<Returns<RegCode::EAX>, EBX>(Window::initialize, 0));
         installHook(0x4461f0, createLtoThunk<ESI>(Window::update, 0));
+
+        // Globals
+        installHook(0x40b9d0, createLtoThunk<ECX, Stack<0x4>, Stack<0x8>>(projectMagnitudeToVectorComponents, 0x8));
         //waitForDebugger();
     }
     return TRUE;
