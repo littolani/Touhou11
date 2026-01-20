@@ -25,7 +25,6 @@ void AnmVm::initialize(AnmVm* This)
 {
     D3DXVECTOR3 entityPos = This->m_entityPos;
     int layer = This->m_layer;
-    memset(This,0,0x434);
     This->m_scale.x = 1.0;
     This->m_scale.y = 1.0;
     This->m_entityPos = entityPos;
