@@ -255,3 +255,11 @@ void loadTh11Dat()
         g_supervisor.th11DatBytes = nullptr;
     }
 }
+
+void projectMagnitudeToVectorComponents(D3DXVECTOR3* vec, float theta, float scale)
+{
+    float c = std::cos(theta);
+    float s = std::sin(theta);
+    vec->x = (float)(c * scale);
+    vec->y = (float)(s * scale);
+}

@@ -85,6 +85,9 @@ int fileExists(LPCSTR filePath);
 int createDirectory(LPCSTR pathName);
 int writeToFile(LPCSTR fileName, DWORD numBytes, LPVOID bytes);
 
+// 0x40b9d0
+void projectMagnitudeToVectorComponents(D3DXVECTOR3* vec, float theta, float scale);
+
 /**
  * 0x458400
  * @brief  Returns a memory-mapped file
