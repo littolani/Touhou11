@@ -127,11 +127,12 @@ ASSERT_SIZE(BulletExState27_VelAdditional, 0x34);
 
 class Bullet
 {
+public:
     uint32_t flags;
     uint32_t remainingInvulnerabilityFrames;
     AnmVm vm;
     D3DXVECTOR3 pos;
-    D3DXVECTOR3 velovity;
+    D3DXVECTOR3 velocity;
     float speed;
     float angle;
     D3DXVECTOR2 hitbox;
@@ -154,7 +155,7 @@ class Bullet
     uint32_t field_c8_from_bullet_type_table;
     BulletEx ex[18];
     BulletExState00_Speedup exSpeedup;
-    BulletExState02_Accel ExAccel;
+    BulletExState02_Accel exAccel;
     BulletExState03_AngleAccel exAngleAccel;
     BulletExState04_Turn exTurn;
     BulletExState08_Bounce exBounce;
@@ -168,5 +169,19 @@ class Bullet
     Interp<D3DXVECTOR3> exMove_i;
     short type;
     short color;
+
+    /**
+     * 0x40a280
+     * @brief
+     * @param This EDX:4
+     */
+    static void step_ex_00_speedup(Bullet* This);
+
+    /**
+     * 0x40a300
+     * @brief
+     * @param This EAX:4
+     */
+    static void step_ex_02_accel(Bullet* This);
 };
 ASSERT_SIZE(Bullet, 0x910);
