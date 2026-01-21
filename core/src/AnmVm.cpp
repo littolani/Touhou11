@@ -3,6 +3,7 @@
 #include "AnmManager.h"
 #include "AnmLoaded.h"
 #include "Globals.h"
+#include <bit>
 #include <iomanip>
 
 // 0x402270
@@ -115,7 +116,7 @@ int AnmVm::getIntVar(AnmVm* This, int id)
     case 10009:
         return This->m_intVar9;
     case 10022:
-        RngContext * ctx = &g_anmRngContext;
+        RngContext* ctx = &g_anmRngContext;
         if ((This->m_flagsLow & 0x40000000) == 0)
             ctx = &g_replayRngContext; // One of these is ANM RNG, while the other is replay RNG
         return rng(ctx);
@@ -245,6 +246,39 @@ float randScale(float f, RngContext* ctx)
     return static_cast<float>(u) * invTwo32 * f;
 }
 
+// 0x458e30
+float AnmVm::wrapAngleSum(float f1, float f2)
+{
+    float sum = f1 + f2;
+    int count = 0;
+
+    // Handle positive overflow (sum > PI)
+    if (sum > D3DX_PI)
+    {
+        do {
+            sum -= 2 * D3DX_PI;
+            count++;
+            if (count > 32)
+                break;
+        } while (sum > D3DX_PI);
+    }
+
+    // If we are already above -PI, we are done.
+    // The previous loop ensures we are <= PI (unless we hit the iteration limit).
+    if (sum >= -D3DX_PI)
+        return sum;
+
+    // Handle negative overflow (sum < -PI)
+    do {
+        sum += 2 * D3DX_PI;
+
+        if (count > 32)
+            return sum;
+        count++;
+    } while (sum < -D3DX_PI);
+
+    return sum;
+}
 
 // 0x44b080
 float AnmVm::getFloatVar(AnmVm* This, float id)
@@ -817,14 +851,13 @@ void AnmVm::printD3DMatrix(const D3DMATRIX& m)
     std::cout << "\n\n";
 }
 
-
 void AnmVm::loadIntoAnmVm(AnmVm* This, AnmLoaded* anmLoaded, int scriptNumber)
 {
     int anmIndex;
     AnmRawInstruction* instr;
-    uint32_t isInitialized;
 
-    if ((anmLoaded->m_spriteData[scriptNumber] != 0) && (anmLoaded->m_anmsLoading == 0)) {
+    if ((anmLoaded->m_spriteData[scriptNumber]) && !anmLoaded->m_anmsLoading)
+    {
         initialize(This);
         This->m_scriptNumber = (uint16_t)scriptNumber;
         anmIndex = anmLoaded->m_anmSlotIndex;
@@ -849,7 +882,7 @@ void AnmVm::loadIntoAnmVm(AnmVm* This, AnmLoaded* anmLoaded, int scriptNumber)
 // 0x44b4b0
 void AnmVm::run(AnmVm* This)
 {
-#if 0
+#if 1
     while (This->m_currentInstruction != nullptr)
     {
         if (This->m_flagsLow & 0x20000)
@@ -872,12 +905,14 @@ void AnmVm::run(AnmVm* This)
         float posX;
         float posY;
         float posZ;
-        float prevPosX;
-        float prevPosY;
-        float prevPosZ;
-        float prevOffsetPosX;
-        float prevOffsetPosY;
-        float prevOffsetPosZ;
+
+        // Appearr to be decompiler artifacts
+        //float prevPosX;
+        //float prevPosY;
+        //float prevPosZ;
+        //float prevOffsetPosX;
+        //float prevOffsetPosY;
+        //float prevOffsetPosZ;
 
         if (This->m_pendingInterrupt != 0)
             goto Interrupt;
@@ -939,7 +974,7 @@ void AnmVm::run(AnmVm* This)
         {
             int dest = This->m_currentInstruction->args[0];
             int t = This->m_currentInstruction->args[1];
-            This->m_timeInScript.setCurrent(t);
+            This->m_timeInScript.set(&This->m_timeInScript, t);
             This->jumpToInstruction(dest);
             break;
         }
@@ -962,7 +997,7 @@ void AnmVm::run(AnmVm* This)
 
             if (originalCount > 0)
             {
-                This->m_timeInScript.setCurrent(t);
+                This->m_timeInScript.set(&This->m_timeInScript, t);
                 This->jumpToInstruction(dest);
             }
             break;
@@ -986,7 +1021,7 @@ void AnmVm::run(AnmVm* This)
         // Does a = b.
         case 7: // fset(float& dest, float val)
         {
-            float src = bit_cast<float>(This->m_currentInstruction->args[1]);
+            float src = std::bit_cast<float>(This->m_currentInstruction->args[1]);
             if ((This->m_currentInstruction->varMask & 2) != 0)
                 src = getFloatVar(This, src);
 
@@ -1016,7 +1051,7 @@ void AnmVm::run(AnmVm* This)
         // Does a += b.
         case 9: // fadd(float& a, float b)
         {
-            float b = bit_cast<float>(This->m_currentInstruction->args[1]);
+            float b = std::bit_cast<float>(This->m_currentInstruction->args[1]);
             if ((This->m_currentInstruction->varMask & 2) != 0)
                 b = getFloatVar(This, b);
 
@@ -1049,7 +1084,7 @@ void AnmVm::run(AnmVm* This)
         // Does a -= b.
         case 11: // fsub(float& a, float b)
         {
-            float b = bit_cast<float>(This->m_currentInstruction->args[1]);
+            float b = std::bit_cast<float>(This->m_currentInstruction->args[1]);
             if ((This->m_currentInstruction->varMask & 2) != 0)
                 b = getFloatVar(This, b);
 
@@ -1111,7 +1146,7 @@ void AnmVm::run(AnmVm* This)
         // Does a /= b.
         case 15: // fdiv(float& a, float b)
         {
-            float b = bit_cast<float>(This->m_currentInstruction->args[1]);
+            float b = std::bit_cast<float>(This->m_currentInstruction->args[1]);
             if ((This->m_currentInstruction->varMask & 2) != 0)
                 b = getFloatVar(This, b);
 
@@ -1142,12 +1177,12 @@ void AnmVm::run(AnmVm* This)
         // Does a %= b.
         case 17: // fmod(float& a, float b)
         {
-            float b = bit_cast<float>(This->m_currentInstruction->args[1]);
+            float b = std::bit_cast<float>(This->m_currentInstruction->args[1]);
             if ((This->m_currentInstruction->varMask & 2) != 0)
                 b = getFloatVar(This, b);
 
             float* dest = reinterpret_cast<float*>(&This->m_currentInstruction->args[0]);
-            float a = bit_cast<float>(This->m_currentInstruction->args[0]);
+            float a = std::bit_cast<float>(This->m_currentInstruction->args[0]);
             if ((This->m_currentInstruction->varMask & 1) != 0)
             {
                 a = getFloatVar(This, a);
@@ -1186,11 +1221,11 @@ void AnmVm::run(AnmVm* This)
             if ((This->m_currentInstruction->varMask & 1) != 0)
                 a = getFloatVarPtr(This, a);
 
-            float b = bit_cast<float>(This->m_currentInstruction->args[1]);
+            float b = std::bit_cast<float>(This->m_currentInstruction->args[1]);
             if ((This->m_currentInstruction->varMask & 2) != 0)
                 b = getFloatVar(This, b);
         
-            float c = bit_cast<float>(This->m_currentInstruction->args[2]);
+            float c = std::bit_cast<float>(This->m_currentInstruction->args[2]);
             if ((This->m_currentInstruction->varMask & 4) != 0)
                 c = getFloatVar(This, c);
             
@@ -1225,11 +1260,11 @@ void AnmVm::run(AnmVm* This)
             if ((This->m_currentInstruction->varMask & 1) != 0)
                 a = getFloatVarPtr(This, a);
 
-            float b = bit_cast<float>(This->m_currentInstruction->args[1]);
+            float b = std::bit_cast<float>(This->m_currentInstruction->args[1]);
             if ((This->m_currentInstruction->varMask & 2) != 0)
                 b = getFloatVar(This, b);
         
-            float c = bit_cast<float>(This->m_currentInstruction->args[2]);
+            float c = std::bit_cast<float>(This->m_currentInstruction->args[2]);
             if ((This->m_currentInstruction->varMask & 4) != 0)
                 c = getFloatVar(This, c);
             
@@ -1265,11 +1300,11 @@ void AnmVm::run(AnmVm* This)
             if ((This->m_currentInstruction->varMask & 1) != 0)
                 a = getFloatVarPtr(This, a);
 
-            float b = bit_cast<float>(This->m_currentInstruction->args[1]);
+            float b = std::bit_cast<float>(This->m_currentInstruction->args[1]);
             if ((This->m_currentInstruction->varMask & 2) != 0)
                 b = getFloatVar(This, b);
         
-            float c = bit_cast<float>(This->m_currentInstruction->args[2]);
+            float c = std::bit_cast<float>(This->m_currentInstruction->args[2]);
             if ((This->m_currentInstruction->varMask & 4) != 0)
                 c = getFloatVar(This, c);
             
@@ -1303,11 +1338,11 @@ void AnmVm::run(AnmVm* This)
             if ((This->m_currentInstruction->varMask & 1) != 0)
                 a = getFloatVarPtr(This, a);
 
-            float b = bit_cast<float>(This->m_currentInstruction->args[1]);
+            float b = std::bit_cast<float>(This->m_currentInstruction->args[1]);
             if ((This->m_currentInstruction->varMask & 2) != 0)
                 b = getFloatVar(This, b);
         
-            float c = bit_cast<float>(This->m_currentInstruction->args[2]);
+            float c = std::bit_cast<float>(This->m_currentInstruction->args[2]);
             if ((This->m_currentInstruction->varMask & 4) != 0)
                 c = getFloatVar(This, c);
             
@@ -1339,11 +1374,11 @@ void AnmVm::run(AnmVm* This)
         // Does a = b % c.
         case 27: // fsetMod(float& a, float b, float c)
         {
-            float c = bit_cast<float>(This->m_currentInstruction->args[2]);
+            float c = std::bit_cast<float>(This->m_currentInstruction->args[2]);
             if ((This->m_currentInstruction->varMask & 4) != 0)
                 c = getFloatVar(This, c);
 
-            float b = bit_cast<float>(This->m_currentInstruction->args[1]);
+            float b = std::bit_cast<float>(This->m_currentInstruction->args[1]);
             if ((This->m_currentInstruction->varMask & 2) != 0)
                 b = getFloatVar(This, b);
  
@@ -1458,7 +1493,7 @@ void AnmVm::run(AnmVm* This)
         case 41: // fsetRand(float& x, float r)
         {
             RngContext* rngCtx;
-            float r = bit_cast<float>(This->m_currentInstruction->args[1]);
+            float r = std::bit_cast<float>(This->m_currentInstruction->args[1]);
             if ((This->m_flagsLow & 0x40000000) == 0)
             {
                 if ((This->m_currentInstruction->varMask & 2) != 0)
@@ -1484,7 +1519,7 @@ void AnmVm::run(AnmVm* This)
         case 42: // fsin(float& dest, float theta)
         {
             float* dest = reinterpret_cast<float*>(&This->m_currentInstruction->args[0]);
-            float theta = bit_cast<float>(This->m_currentInstruction->args[1]);
+            float theta = std::bit_cast<float>(This->m_currentInstruction->args[1]);
             if ((This->m_currentInstruction->varMask & 2) != 0)
                 theta = getFloatVar(This, posX);
 
@@ -1500,7 +1535,7 @@ void AnmVm::run(AnmVm* This)
         case 43: // fcos(float& dest, float theta)
         {
             float* dest = reinterpret_cast<float*>(&This->m_currentInstruction->args[0]);
-            float theta = bit_cast<float>(This->m_currentInstruction->args[1]);
+            float theta = std::bit_cast<float>(This->m_currentInstruction->args[1]);
             if ((This->m_currentInstruction->varMask & 2) != 0)
                 theta = getFloatVar(This, theta);
 
@@ -1516,7 +1551,7 @@ void AnmVm::run(AnmVm* This)
         case 44: // ftan(float& dest, float theta)
         {
             float* dest = reinterpret_cast<float*>(&This->m_currentInstruction->args[0]);
-            float theta = bit_cast<float>(This->m_currentInstruction->args[1]);
+            float theta = std::bit_cast<float>(This->m_currentInstruction->args[1]);
             if ((This->m_currentInstruction->varMask & 2) != 0)
                 theta = getFloatVar(This, theta);
 
@@ -1531,7 +1566,7 @@ void AnmVm::run(AnmVm* This)
         case 45: // facos(float& dest, float x)
         {
             float* dest = reinterpret_cast<float*>(&This->m_currentInstruction->args[0]);
-            float theta = bit_cast<float>(This->m_currentInstruction->args[1]);
+            float theta = std::bit_cast<float>(This->m_currentInstruction->args[1]);
             if ((This->m_currentInstruction->varMask & 2) != 0)
                 theta = getFloatVar(This, theta);
 
@@ -1547,7 +1582,7 @@ void AnmVm::run(AnmVm* This)
         case 46: // fatan(float& dest, float f)
         {
             float* dest = reinterpret_cast<float*>(&This->m_currentInstruction->args[0]);
-            float theta = bit_cast<float>(This->m_currentInstruction->args[1]);
+            float theta = std::bit_cast<float>(This->m_currentInstruction->args[1]);
             if ((This->m_currentInstruction->varMask & 2) != 0)
                 theta = getFloatVar(This, theta);
 
@@ -1561,16 +1596,30 @@ void AnmVm::run(AnmVm* This)
 
         // Reduce an angle modulo 2*PI into the range [-PI, +PI].
         case 47: // validRad(float& theta)
-            break;
+        {
+            float theta = std::bit_cast<float>(This->m_currentInstruction->args[0]);
+            float* dest = reinterpret_cast<float*>(&This->m_currentInstruction->args[0]);
 
-            // Sets the position of the graphic.
-            // If you look in the code, you'll see that if a certain bitflag is set, this will write to a different variable.
-            // This is part of the implementation of th09:posMode in earlier games, and is, to my knowledge,
-            // entirely dead code in every game since StB.
+            if ((This->m_currentInstruction->varMask & 1) != 0)
+                theta = getFloatVar(This, theta);
+
+            if ((This->m_currentInstruction->varMask & 1) != 0)
+                dest = getFloatVarPtr(This, dest);
+
+            theta = wrapAngleSum(theta, 0.0);
+            *dest = theta;
+            This->loadNextInstruction();
+            break;
+        }
+
+        // Sets the position of the graphic.
+        // If you look in the code, you'll see that if a certain bitflag is set, this will write to a different variable.
+        // This is part of the implementation of th09:posMode in earlier games, and is, to my knowledge,
+        // entirely dead code in every game since StB.
         case 48: // pos(float x, float y, float z)
-            posX = bit_cast<float>(This->m_currentInstruction->args[0]);
-            posY = bit_cast<float>(This->m_currentInstruction->args[1]);
-            posZ = bit_cast<float>(This->m_currentInstruction->args[2]);
+            posX = std::bit_cast<float>(This->m_currentInstruction->args[0]);
+            posY = std::bit_cast<float>(This->m_currentInstruction->args[1]);
+            posZ = std::bit_cast<float>(This->m_currentInstruction->args[2]);
 
             if ((This, This->m_flagsLow & 0x100) == 0)
             {
@@ -1586,9 +1635,9 @@ void AnmVm::run(AnmVm* This)
                 This->m_pos.x = posX;
                 This->m_pos.y = posY;
                 This->m_pos.z = posZ;
-                prevPosX = posX;
-                prevPosY = posY;
-                prevPosZ = posZ;
+                //prevPosX = posX;
+                //prevPosY = posY;
+                //prevPosZ = posZ;
             }
             else
             {
@@ -1604,9 +1653,9 @@ void AnmVm::run(AnmVm* This)
                 This->m_offsetPos.x = posX;
                 This->m_offsetPos.y = posY;
                 This->m_offsetPos.z = posZ;
-                prevOffsetPosX = posX;
-                prevOffsetPosY = posY;
-                prevOffsetPosZ = posZ;
+                //prevOffsetPosX = posX;
+                //prevOffsetPosY = posY;
+                //prevOffsetPosZ = posZ;
             }
             This->loadNextInstruction();
             break;
@@ -1622,9 +1671,9 @@ void AnmVm::run(AnmVm* This)
             // If nothing seems to be happening when you call this, check your type setting!
         case 49: // rotate(float rx, float ry, float rz)
         {
-            rX = bit_cast<float>(This->m_currentInstruction->args[0]);
-            rY = bit_cast<float>(This->m_currentInstruction->args[1]);
-            rZ = bit_cast<float>(This->m_currentInstruction->args[2]);
+            rX = std::bit_cast<float>(This->m_currentInstruction->args[0]);
+            rY = std::bit_cast<float>(This->m_currentInstruction->args[1]);
+            rZ = std::bit_cast<float>(This->m_currentInstruction->args[2]);
 
             if ((This->m_currentInstruction->varMask & 1) != 0)
                 rX = getFloatVar(This, rX);
@@ -1642,6 +1691,7 @@ void AnmVm::run(AnmVm* This)
             This->loadNextInstruction();
             break;
         }
+
         // Scales the ANM independently along the x and y axis. Graphics grow around their anchor point (see anchor). Some special drawing instructions give the x and y scales special meaning.
         case 50: // scale(float sx, float sy)
 
@@ -1789,7 +1839,7 @@ void AnmVm::run(AnmVm* This)
                     This->m_interruptReturnTime.m_gameSpeed     = This->m_timeInScript.m_gameSpeed;
                     This->m_interruptReturnTime.m_isInitialized = This->m_timeInScript.m_isInitialized;
                     This->m_interruptReturnInstr                = This->m_currentInstruction;
-                    This->m_timeInScript.setCurrent(This->m_currentInstruction->time);
+                    This->m_timeInScript.set(&This->m_timeInScript, This->m_currentInstruction->time);
 
                     This->m_pendingInterrupt = This->m_currentInstruction->offsetToNextInstr; //TODO: verify???
 
@@ -1798,7 +1848,7 @@ void AnmVm::run(AnmVm* This)
                     break;
                 }
             }
-            This->m_timeInScript.addf(-1.0);
+            This->m_timeInScript.addf(&This->m_timeInScript, -1.0f);
 
             //goto Idk_Why_I_Must_Jump_0044c2ae;
 

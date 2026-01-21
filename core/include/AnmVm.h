@@ -158,6 +158,8 @@ public:
      */
     static int projectQuadCornersThroughCameraViewport(AnmVm* This);
 
+    static float wrapAngleSum(float f1, float f2);
+
     static void inlineAsmFsincos(RenderVertex144* This, float theta, float scale);
     static int onTick(AnmVm* This);
     static int getIntVar(AnmVm* This, int id);
