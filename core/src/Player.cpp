@@ -229,3 +229,8 @@ int Player::move(Player* This)
     return 0;
 }
 #endif
+
+void Player::setIframes(int currentTime)
+{
+    g_player->timerIFrames.set(&g_player->timerIFrames, currentTime);
+}

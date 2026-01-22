@@ -100,6 +100,7 @@ ASSERT_SIZE(PlayerDamageSource, 0x74);
 
 class Player
 {
+public:
     uint32_t idk;
     ChainElem* onTick;
     ChainElem* onDraw;
@@ -124,7 +125,7 @@ class Player
     D3DXVECTOR3 itemAttractBoxUnfocusedHalfSize;
     D3DXVECTOR3 itemAttractBoxFocusedHalfSize;
     int idk5[3];
-    D3DXVECTOR2 attemptedVelocityInternal;
+    Int2 attemptedVelocityInternal;
     int attemptedDirection;
     int reimuAGappingState;
     int reimuAFramesInGappingState;
@@ -155,5 +156,7 @@ class Player
     float reimuCOptionAngle;
     Int2 unused[33];
     int isFocused;
+
+    static void setIframes(int currentTime);
 };
 ASSERT_SIZE(Player, 0x8d24);
