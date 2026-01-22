@@ -1032,14 +1032,14 @@ void AnmVm::run(AnmVm* This)
             This->loadNextInstruction();
             break;
         }
-        
+
         // Does a += b.
         case 8: // iadd(int& a, int b)
         {
             int b = getIntVar(This, This->m_currentInstruction->args[1]);
             if ((This->m_currentInstruction->varMask & 2) != 0)
                 b = This->m_currentInstruction->args[1];
-            
+
             int* a = &This->m_currentInstruction->args[0];
             if ((This->m_currentInstruction->varMask & 1) != 0)
                 a = getIntVarPtr(This, a);
@@ -1047,7 +1047,7 @@ void AnmVm::run(AnmVm* This)
             This->loadNextInstruction();
             break;
         }
-        
+
         // Does a += b.
         case 9: // fadd(float& a, float b)
         {
@@ -1063,12 +1063,12 @@ void AnmVm::run(AnmVm* This)
             This->loadNextInstruction();
             break;
         }
-        
+
         // Does a -= b.
         case 10: // isub(int& a, int b)
         {
             int b = This->m_currentInstruction->args[1];
-    
+
             if ((This->m_currentInstruction->varMask & 2) != 0)
                 b = getIntVar(This, This->m_currentInstruction->args[1]);
 
@@ -1080,7 +1080,7 @@ void AnmVm::run(AnmVm* This)
             This->loadNextInstruction();
             break;
         }
-        
+
         // Does a -= b.
         case 11: // fsub(float& a, float b)
         {
@@ -1224,11 +1224,11 @@ void AnmVm::run(AnmVm* This)
             float b = std::bit_cast<float>(This->m_currentInstruction->args[1]);
             if ((This->m_currentInstruction->varMask & 2) != 0)
                 b = getFloatVar(This, b);
-        
+
             float c = std::bit_cast<float>(This->m_currentInstruction->args[2]);
             if ((This->m_currentInstruction->varMask & 4) != 0)
                 c = getFloatVar(This, c);
-            
+
             *a = b + c;
             This->loadNextInstruction();
             break;
@@ -1244,11 +1244,11 @@ void AnmVm::run(AnmVm* This)
             int b = This->m_currentInstruction->args[1];
             if ((This->m_currentInstruction->varMask & 2) != 0)
                 b = getIntVar(This, b);
-        
+
             int c = This->m_currentInstruction->args[2];
             if ((This->m_currentInstruction->varMask & 4) != 0)
                 c = getIntVar(This, c);
-            
+
             *a = b - c;
             This->loadNextInstruction();
             break;
@@ -1263,11 +1263,11 @@ void AnmVm::run(AnmVm* This)
             float b = std::bit_cast<float>(This->m_currentInstruction->args[1]);
             if ((This->m_currentInstruction->varMask & 2) != 0)
                 b = getFloatVar(This, b);
-        
+
             float c = std::bit_cast<float>(This->m_currentInstruction->args[2]);
             if ((This->m_currentInstruction->varMask & 4) != 0)
                 c = getFloatVar(This, c);
-            
+
             *a = b - c;
             This->loadNextInstruction();
             break;
@@ -1283,11 +1283,11 @@ void AnmVm::run(AnmVm* This)
             int b = This->m_currentInstruction->args[1];
             if ((This->m_currentInstruction->varMask & 2) != 0)
                 b = getIntVar(This, b);
-        
+
             int c = This->m_currentInstruction->args[2];
             if ((This->m_currentInstruction->varMask & 4) != 0)
                 c = getIntVar(This, c);
-            
+
             *a = b * c;
             This->loadNextInstruction();
             break;
@@ -1303,11 +1303,11 @@ void AnmVm::run(AnmVm* This)
             float b = std::bit_cast<float>(This->m_currentInstruction->args[1]);
             if ((This->m_currentInstruction->varMask & 2) != 0)
                 b = getFloatVar(This, b);
-        
+
             float c = std::bit_cast<float>(This->m_currentInstruction->args[2]);
             if ((This->m_currentInstruction->varMask & 4) != 0)
                 c = getFloatVar(This, c);
-            
+
             *a = b * c;
             This->loadNextInstruction();
             break;
@@ -1322,11 +1322,11 @@ void AnmVm::run(AnmVm* This)
             int b = This->m_currentInstruction->args[1];
             if ((This->m_currentInstruction->varMask & 2) != 0)
                 b = getIntVar(This, b);
-        
+
             int c = This->m_currentInstruction->args[2];
             if ((This->m_currentInstruction->varMask & 4) != 0)
                 c = getIntVar(This, c);
-            
+
             *a = b / c;
             This->loadNextInstruction();
             break;
@@ -1341,11 +1341,11 @@ void AnmVm::run(AnmVm* This)
             float b = std::bit_cast<float>(This->m_currentInstruction->args[1]);
             if ((This->m_currentInstruction->varMask & 2) != 0)
                 b = getFloatVar(This, b);
-        
+
             float c = std::bit_cast<float>(This->m_currentInstruction->args[2]);
             if ((This->m_currentInstruction->varMask & 4) != 0)
                 c = getFloatVar(This, c);
-            
+
             *a = b / c;
             This->loadNextInstruction();
             break;
@@ -1365,12 +1365,12 @@ void AnmVm::run(AnmVm* This)
             int c = This->m_currentInstruction->args[2];
             if ((This->m_currentInstruction->varMask & 4) != 0)
                 c = getIntVar(This, c);
-            
+
             *a = b % c;
             This->loadNextInstruction();
             break;
         }
- 
+
         // Does a = b % c.
         case 27: // fsetMod(float& a, float b, float c)
         {
@@ -1381,13 +1381,14 @@ void AnmVm::run(AnmVm* This)
             float b = std::bit_cast<float>(This->m_currentInstruction->args[1]);
             if ((This->m_currentInstruction->varMask & 2) != 0)
                 b = getFloatVar(This, b);
- 
+
             float* a = reinterpret_cast<float*>(&This->m_currentInstruction->args[0]);
             if ((This->m_currentInstruction->varMask & 1) != 0)
                 a = getFloatVarPtr(This, a);
-            
-            *a = fmod(b,c);
+
+            *a = fmod(b, c);
             This->loadNextInstruction();
+            break;
         }
 
         // Jumps if a == b.
@@ -1395,60 +1396,60 @@ void AnmVm::run(AnmVm* This)
 
             break;
 
-        // Jumps if a == b.
+            // Jumps if a == b.
         case 29: // fje(float a, float b, int dest, int t)
 
             break;
 
-        // Jumps if a != b.
+            // Jumps if a != b.
         case 30: // ijne(int a, int b, int dest, int t)
 
             break;
 
-        // Jumps if a != b.
+            // Jumps if a != b.
         case 31: // fjne(float a, float b, int dest, int t)
 
             break;
 
-        // Jumps if a < b.
+            // Jumps if a < b.
         case 32: // ijl(int a, int b, int dest, int t)
 
             break;
 
-        // Jumps if a < b.
+            // Jumps if a < b.
         case 33: // fjl(float a, float b, int dest, int t)
 
             break;
 
-        // Jumps if a <= b.
+            // Jumps if a <= b.
         case 34: // ijle(int a, int b, int dest, int t)
 
             break;
 
-        // Jumps if a <= b.
+            // Jumps if a <= b.
         case 35: // fjle(float a, float b, int dest, int t)
 
             break;
 
-        // Jumps if a > b.
+            // Jumps if a > b.
         case 36: // ijg(int a, int b, int dest, int t)
 
             break;
 
-        // Jumps if a > b.
+            // Jumps if a > b.
         case 37: // fjg(float a, float b, int dest, int t)
 
             break;
 
-        // Jumps if a >= b.
+            // Jumps if a >= b.
         case 38: // ijge(int a, int b, int dest, int t)
             break;
 
-        // Jumps if a >= b.
+            // Jumps if a >= b.
         case 39: // fjge(float a, float b, int dest, int t)
             break;
 
-        // Draw a random integer 0 <= x < n using the animation RNG.
+            // Draw a random integer 0 <= x < n using the animation RNG.
         case 40: // isetRand(int& x, int n)
         {
             //         int n = m_currentInstruction->args[1];
@@ -1677,10 +1678,8 @@ void AnmVm::run(AnmVm* This)
 
             if ((This->m_currentInstruction->varMask & 1) != 0)
                 rX = getFloatVar(This, rX);
-
             if ((This->m_currentInstruction->varMask & 2) != 0)
                 rY = getFloatVar(This, rY);
-
             if ((This->m_currentInstruction->varMask & 4) != 0)
                 rZ = getFloatVar(This, rZ);
 
@@ -1692,33 +1691,91 @@ void AnmVm::run(AnmVm* This)
             break;
         }
 
-        // Scales the ANM independently along the x and y axis. Graphics grow around their anchor point (see anchor). Some special drawing instructions give the x and y scales special meaning.
+        // Scales the ANM independently along the x and y axis. Graphics grow around their anchor point (see anchor).
+        // Some special drawing instructions give the x and y scales special meaning.
         case 50: // scale(float sx, float sy)
+        {
+            float scaleX = std::bit_cast<float>(This->m_currentInstruction->args[0]);
+            float scaleY = std::bit_cast<float>(This->m_currentInstruction->args[1]);
 
+            if ((This->m_currentInstruction->varMask & 1))
+                scaleX = getFloatVar(This, scaleX);
+
+            if ((This->m_currentInstruction->varMask & 2))
+                scaleY = getFloatVar(This, scaleY);
+
+            This->m_flagsLow |= 8;
+            This->m_scale.x = scaleX;
+            This->m_scale.y = scaleY;
+
+            This->loadNextInstruction();
             break;
+        }
 
-            // Set alpha (opacity) to a value 0-255.
+        // Set alpha (opacity) to a value 0-255.
         case 51: // alpha(int alpha)
+        {
+            int alpha = This->m_currentInstruction->args[0];
+            if ((This->m_currentInstruction->varMask & 1) != 0)
+                alpha = getIntVar(This, alpha);
 
+            This->m_color0 = (This->m_color0 & 0x00FFFFFF) | (alpha << 24);
+            This->loadNextInstruction();
             break;
+        }
 
-            // Set a color which gets blended with this sprite. Blend operation is multiply, so setting white (255, 255, 255) eliminates the effect.
+        // Set a color which gets blended with this sprite.
+        // Blend operation is multiply, so setting white (255, 255, 255) eliminates the effect.
         case 52: // color(int r, int g, int b)
+        {
+            int r = This->m_currentInstruction->args[0];
+            int g = This->m_currentInstruction->args[1];
+            int b = This->m_currentInstruction->args[2];
 
+            if ((This->m_currentInstruction->varMask & 1) != 0)
+                r = getIntVar(This, r);
+            if ((This->m_currentInstruction->varMask & 2) != 0)
+                g = getIntVar(This, g);
+            if ((This->m_currentInstruction->varMask & 4) != 0)
+                b = getIntVar(This, b);
+
+            This->m_color0 = This->m_color0 & 0xFF000000 | (r << 16) | (g << 8) | b;
+            This->loadNextInstruction();
             break;
+        }
 
-            // Set a constant angular velocity, in radians per frame.
+        // Set a constant angular velocity, in radians per frame.
         case 53: // angleVel(float x, float y, float z)
+        {
+            float x = std::bit_cast<float>(This->m_currentInstruction->args[0]);
+            float y = std::bit_cast<float>(This->m_currentInstruction->args[1]);
+            float z = std::bit_cast<float>(This->m_currentInstruction->args[2]);
 
+            if ((This->m_currentInstruction->varMask & 1) != 0)
+                x = getFloatVar(This, x);
+            if ((This->m_currentInstruction->varMask & 2) != 0)
+                y = getFloatVar(This, y);
+            if ((This->m_currentInstruction->varMask & 4) != 0)
+                z = getFloatVar(This, z);
+
+            This->m_angularVelocity.x = x;
+            This->m_angularVelocity.y = y;
+            This->m_angularVelocity.z = z;
+            This->m_flagsLow |= 4;
+            This->loadNextInstruction();
             break;
+        }
 
-            // Every frame, it increases the values of scale as sx -> sx + gx and sy -> sy + gy. Basically, scaleGrowth is to scale as angleVel is to rotate. (they even share implemenation details...)
+        // Every frame, it increases the values of scale as sx -> sx + gx and sy -> sy + gy.
+        // Basically, scaleGrowth is to scale as angleVel is to rotate.
         case 54: // scaleGrowth(float gx, float gy)
+        {
 
             break;
+        }
 
-            // Obsolete. Use alphaTime instead.
-            // UNTESTED: Linearly changes alpha to alpha over the next t frames. Identical to calling alphaTime(t, 0, alpha).
+        // Obsolete. Use alphaTime instead.
+        // UNTESTED: Linearly changes alpha to alpha over the next t frames. Identical to calling alphaTime(t, 0, alpha).
         case 55: // alphaTimeLinear(int alpha, int t)
 
             break;
