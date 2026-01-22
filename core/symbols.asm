@@ -20,6 +20,8 @@ PUBLIC _g_globals
 PUBLIC _g_player
 PUBLIC _g_soundManager
 PUBLIC _g_soundConfigTable
+PUBLIC _g_anmRngContext
+PUBLIC _g_replayRngContext
 
 ; Functions
 PUBLIC _game_free
@@ -44,6 +46,8 @@ _g_globals             EQU 04a56e0h
 _g_player              EQU 04a8eb4h
 _g_soundManager        EQU 04c3e80h
 _g_soundConfigTable    EQU 04a34f0h
+_g_anmRngContext       EQU 04c2ef8h
+_g_replayRngContext    EQU 04c2f00h
 
 .code
 _game_free PROC

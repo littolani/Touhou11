@@ -7,8 +7,6 @@
 
 D3DFORMAT g_d3dFormats[] = { D3DFMT_UNKNOWN, D3DFMT_A8R8G8B8, D3DFMT_A1R5G5B5, D3DFMT_R5G6B5, D3DFMT_R8G8B8, D3DFMT_A4R4G4B4 };
 uint32_t g_bytesPerPixelLookupTable[] = { 4, 4, 2, 2, 3, 2, 0, 1, 2 };
-RngContext g_anmRngContext;
-RngContext g_replayRngContext;
 
 byte* openFile(const char* filename, size_t* outSize, BOOL isExternalResource)
 {

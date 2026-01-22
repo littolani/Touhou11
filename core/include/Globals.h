@@ -16,8 +16,6 @@ class Window;
 struct PbgArchive;
 class Spellcard;
 struct FpsCounter;
-extern RngContext g_anmRngContext;
-extern RngContext g_replayRngContext;
 class Player;
 
 struct Globals
@@ -72,6 +70,8 @@ extern "C"
     extern Player* g_player;
     extern SoundManager g_soundManager;
     extern SoundConfig g_soundConfigTable[56];
+    extern RngContext g_anmRngContext;
+    extern RngContext g_replayRngContext;
 
     void __cdecl game_free(void* memory);
     void* __cdecl game_malloc(size_t size);
