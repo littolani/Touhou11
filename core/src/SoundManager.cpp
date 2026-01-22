@@ -101,7 +101,7 @@ void SoundManager::playSoundCentered(int soundId)
 
 void SoundManager::playSoundWithPan(float xOffsetFromCenter, int soundId)
 {
-    printf("Playing sound %d at offset %f\n", soundId, xOffsetFromCenter);
+    //printf("Playing sound %d at offset %f\n", soundId, xOffsetFromCenter);
 
     SoundManager* This = &g_soundManager;
 
@@ -156,50 +156,36 @@ void SoundManager::playSoundWithPan(float xOffsetFromCenter, int soundId)
 }
 
 #if 0
-HRESULT initCStreamingSound(CStreamingSound** destPtr, IDirectSound8** lplpdsound8, GUID guid3D,
-    int dwDsBufferSize, HANDLE bgmUpdateCallback, ThBgmFormat* thBgmFormat)
+HRESULT initCStreamingSound(CStreamingSound** destPtr, IDirectSound8** lplpdsound8, GUID guid3D, int dwDsBufferSize, HANDLE bgmUpdateCallback, ThBgmFormat* thBgmFormat)
 {
-    // 0x459ec1: Check for valid DSound interface
-    if (*lplpdsound8 == nullptr) {
-        return 0x800401F0; // DSERR_UNINITIALIZED
-    }
+    if (*lplpdsound8 == nullptr)
+        return DSERR_UNINITIALIZED;
 
-    // 0x459f28: Allocate CWaveFile
     CWaveFile* pWaveFile = (CWaveFile*)game_new(sizeof(CWaveFile));
-    if (pWaveFile == nullptr) {
-        // Assembly implies a crash or bad state if null, but standard behavior is OOM
+    if (!pWaveFile)
         return E_OUTOFMEMORY;
-    }
 
-    // 0x459f41: Manual initialization of CWaveFile members
     memset(pWaveFile, 0, sizeof(CWaveFile));
     pWaveFile->dataSize = 1;
 
-    // 0x459f66: Open "thbgm.dat"
-    HRESULT hr = pWaveFile->openWavFile(thBgmFormat, "thbgm.dat");
-    if (FAILED(hr)) {
-        // 0x459f6f: Cleanup logic on failure
-        if (pWaveFile->dataSize == 1 && pWaveFile->fileHandle != INVALID_HANDLE_VALUE) {
+    HRESULT hr = pWaveFile->open(pWaveFile, thBgmFormat, "thbgm.dat");
+    if (FAILED(hr))
+    {
+        if (pWaveFile->dataSize == 1 && pWaveFile->fileHandle != INVALID_HANDLE_VALUE)
+        {
             CloseHandle(pWaveFile->fileHandle);
             pWaveFile->fileHandle = INVALID_HANDLE_VALUE;
         }
         game_free(pWaveFile);
-        return 0x80004005; // E_FAIL (Assembly returns -0x7FFF'BFFB)
+        return E_FAIL;
     }
 
-    // 0x459f9f: Setup DSBUFFERDESC
     DSBUFFERDESC dsbd;
     memset(&dsbd, 0, sizeof(dsbd));
     dsbd.dwSize = sizeof(DSBUFFERDESC);
 
-    // Flags 0x18188: 
-    // DSBCAPS_LOCSOFTWARE (0x10000) | DSBCAPS_GLOBALFOCUS (0x8000) | 
-    // DSBCAPS_CTRLPOSITIONNOTIFY (0x100) | DSBCAPS_CTRLVOLUME (0x80) | 
-    // DSBCAPS_GETCURRENTPOSITION2 (0x10000 - wait, flag overlap? 
-    // 0x18188 usually implies GETCURRENTPOSITION2 (0x10000) | GLOBALFOCUS (0x8000) | ...
-    // Note: LOCSOFTWARE is 0x8. 0x18188 = 0x10000 + 0x8000 + 0x100 + 0x80 + 0x8.
-    dsbd.dwFlags = DSBCAPS_GETCURRENTPOSITION2 | DSBCAPS_GLOBALFOCUS |
-        DSBCAPS_CTRLPOSITIONNOTIFY | DSBCAPS_CTRLVOLUME | DSBCAPS_LOCSOFTWARE;
+    // Flags 0x18188:
+    dsbd.dwFlags = DSBCAPS_GETCURRENTPOSITION2 | DSBCAPS_GLOBALFOCUS | DSBCAPS_CTRLPOSITIONNOTIFY | DSBCAPS_CTRLVOLUME | DSBCAPS_LOCSOFTWARE;
 
     dsbd.dwBufferBytes = dwDsBufferSize * 16;
     dsbd.lpwfxFormat = (WAVEFORMATEX*)&pWaveFile->thBgmFormat->format;
@@ -212,7 +198,7 @@ HRESULT initCStreamingSound(CStreamingSound** destPtr, IDirectSound8** lplpdsoun
     hr = (*lplpdsound8)->CreateSoundBuffer(&dsbd, &pDSBuffer, nullptr);
     if (FAILED(hr)) {
         game_free(pWaveFile);
-        return 0x80004005;
+        return E_FAIL;
     }
 
     // 0x459f8d: QueryInterface for IDirectSoundNotify
@@ -221,7 +207,7 @@ HRESULT initCStreamingSound(CStreamingSound** destPtr, IDirectSound8** lplpdsoun
     if (FAILED(hr)) {
         pDSBuffer->Release();
         game_free(pWaveFile);
-        return 0x80004005;
+        return E_FAIL;
     }
 
     // 0x459fb0: Allocate notification positions (16 entries)
@@ -231,7 +217,7 @@ HRESULT initCStreamingSound(CStreamingSound** destPtr, IDirectSound8** lplpdsoun
         pDSNotify->Release();
         pDSBuffer->Release();
         game_free(pWaveFile);
-        return 0x80004005;
+        return E_FAIL;
     }
 
     // 0x45a090: Fill notification positions
@@ -251,7 +237,7 @@ HRESULT initCStreamingSound(CStreamingSound** destPtr, IDirectSound8** lplpdsoun
     if (FAILED(hr)) {
         pDSBuffer->Release();
         game_free(pWaveFile);
-        return 0x8007000E; // E_OUTOFMEMORY (Specific code from assembly 45a075)
+        return E_OUTOFMEMORY;
     }
 
     // 0x45a0fc: Create CStreamingSound
@@ -259,7 +245,7 @@ HRESULT initCStreamingSound(CStreamingSound** destPtr, IDirectSound8** lplpdsoun
     if (pStreamSound == nullptr) {
         pDSBuffer->Release();
         game_free(pWaveFile);
-        return 0x80004005;
+        return E_FAIL;
     }
 
     // 0x45a11f: Call Constructor
@@ -267,7 +253,7 @@ HRESULT initCStreamingSound(CStreamingSound** destPtr, IDirectSound8** lplpdsoun
     new (pStreamSound) CStreamingSound(pDSBuffer, dwDsBufferSize * 16, pWaveFile, dwDsBufferSize);
 
     // 0x45a12d: Copy DSBUFFERDESC into the new object
-    pStreamSound->csound.dsBufferDesc = dsbd;
+    pStreamSound->csound.m_dsBufferDesc = dsbd;
 
     // 0x45a13e: Set remaining members
     pStreamSound->dsoundIface = lplpdsound8;
