@@ -5,7 +5,8 @@
 
 class CStreamingSound// : public CSound
 {
-    CSound csound; // explicit inheritance
+public:
+    CSound csound; // explicit inheritance for easier size verification
     int idk0;
     IDirectSound8** dsoundIface;
     DWORD m_lastPlayPos;
