@@ -4,9 +4,9 @@
 #include "Macros.h"
 #include "LaserData.h"
 
-struct LaserLine : public LaserData
+struct LaserLine// : public LaserData
 {
-    // inherited LaserData laserData;
+    LaserData laserData;
     uint8_t someData[484]; // <0x440>
     AnmVm vm1; // <0x624>
     AnmVm vm2; // <0xa58>

@@ -17,4 +17,4 @@ public:
     int someLimit;
     uint32_t unk1[8];
 };
-//ASSERT_SIZE(LaserManager, 0x47c);
+ASSERT_SIZE(LaserManager, 0x47c);
