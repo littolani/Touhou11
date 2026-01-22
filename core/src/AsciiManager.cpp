@@ -36,7 +36,7 @@ void AsciiManager::spawnAnm(AnmLoaded* anmLoaded, AnmId* outAnmId, int scriptNum
 {
     AnmVm* vm;
     g_supervisor.enterCriticalSection(9);
-    vm = g_anmManager->allocateVm(g_anmManager);
+    vm = g_anmManager->allocateVm();
     vm->m_flagsLow |= 0x40000000;
     vm->m_layer = vmLayer;
     vm->m_entityPos.x = spawnPosition->x;
