@@ -6,6 +6,7 @@
 #include "Window.h"
 #include "GameConfig.h"
 #include "DebugGui.h"
+#include <bit>
 
 void Supervisor::releaseDinputIface()
 {
@@ -158,9 +159,9 @@ void Supervisor::resetRenderState()
     g_supervisor.d3dDevice->SetRenderState(D3DRS_FOGTABLEMODE, D3DFOG_NONE);
     g_supervisor.d3dDevice->SetRenderState(D3DRS_FOGVERTEXMODE, D3DFOG_LINEAR);
     g_supervisor.d3dDevice->SetRenderState(D3DRS_FOGCOLOR, 0xFFA0A0A0); // A:255, R:160, G:160, B:160
-    g_supervisor.d3dDevice->SetRenderState(D3DRS_FOGDENSITY, bit_cast<DWORD>(1.0f));
-    g_supervisor.d3dDevice->SetRenderState(D3DRS_FOGSTART, bit_cast<DWORD>(1000.0f));
-    g_supervisor.d3dDevice->SetRenderState(D3DRS_FOGEND, bit_cast<DWORD>(5000.0f));
+    g_supervisor.d3dDevice->SetRenderState(D3DRS_FOGDENSITY, std::bit_cast<DWORD>(1.0f));
+    g_supervisor.d3dDevice->SetRenderState(D3DRS_FOGSTART, std::bit_cast<DWORD>(1000.0f));
+    g_supervisor.d3dDevice->SetRenderState(D3DRS_FOGEND, std::bit_cast<DWORD>(5000.0f));
 
     // Antialiasing
     g_supervisor.d3dDevice->SetRenderState(D3DRS_MULTISAMPLEANTIALIAS, FALSE);
