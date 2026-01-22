@@ -340,9 +340,9 @@ void Window::update(Window* This)
     if (waitDuration >= LAG_THRESHOLD_SEC)
     {
         // Lag detected immediately, skip VSync wait and reduce sleep time for next frame
-        FrameTimingData* pFVar1 = &This->frameTimingData[This->frameTimingDataIndex];
-        if (pFVar1->sleepTimeMs > 0)
-            pFVar1->sleepTimeMs--;
+        FrameTimingData* frameTimingData = &This->frameTimingData[This->frameTimingDataIndex];
+        if (frameTimingData->sleepTimeMs > 0)
+            frameTimingData->sleepTimeMs--;
     }
     else
     {
