@@ -202,37 +202,37 @@ int Chain::runCalcChain(Chain* This)
 
                     switch (result)
                     {
-                    case CHAIN_CALLBACK_RESULT_CONTINUE_AND_REMOVE_JOB:
+                    case ContinueAndRemoveJob:
                         cut(This, startingElem);
                         processedCount++;
                         forceContinueOuter = true;
                         break;
 
-                    case CHAIN_CALLBACK_RESULT_EXECUTE_AGAIN:
+                    case ExecuteAgain:
                         if ((reinterpret_cast<uintptr_t>(startingElem->nextNode) & 2) != 0)
                             reExecute = true;
                         break;
 
-                    case CHAIN_CALLBACK_RESULT_BREAK:
+                    case Break:
                         g_supervisor.leaveCriticalSection(0);
                         return 1;
 
-                    case CHAIN_CALLBACK_RESULT_QUIT_GAME:
-                    case CHAIN_CALLBACK_RESULT_EXIT_GAME_SUCCESS:
+                    case QuitGame:
+                    case ExitGameSuccess:
                         g_supervisor.leaveCriticalSection(0);
                         return 0;
 
-                    case CHAIN_CALLBACK_RESULT_EXIT_GAME_ERROR:
+                    case ExitGameError:
                         g_supervisor.leaveCriticalSection(0);
                         return -1;
 
-                    case CHAIN_CALLBACK_RESULT_RESTART_FROM_FIRST_JOB:
+                    case RestartFromFirstJob:
                         trackerChain = This->calcChain.embeddedTracker.trackerNextNode;
                         processedCount = 0;
                         forceContinueOuter = true;
                         break;
 
-                    case CHAIN_CALLBACK_RESULT_CLEANUP_AND_CONTINUE:
+                    case CleanupAndContinue:
                         if (startingElem->runCalcChainCallback) {
                             startingElem->runCalcChainCallback(startingElem->args);
                         }
@@ -286,24 +286,24 @@ int Chain::runDrawChain(void)
 
                 switch (result)
                 {
-                case CHAIN_CALLBACK_RESULT_CONTINUE_AND_REMOVE_JOB:
+                case ContinueAndRemoveJob:
                     cut(pChain, startingElem);
                     break;
 
-                case CHAIN_CALLBACK_RESULT_EXECUTE_AGAIN:
+                case ExecuteAgain:
                     if (reinterpret_cast<uintptr_t>(startingElem->nextNode) & 2)
                         executeAgain = true;
                     break;
 
-                case CHAIN_CALLBACK_RESULT_BREAK:
+                case Break:
                     g_supervisor.leaveCriticalSection(0);
                     return 1;
 
-                case CHAIN_CALLBACK_RESULT_EXIT_GAME_SUCCESS:
+                case ExitGameSuccess:
                     g_supervisor.leaveCriticalSection(0);
                     return 0;
 
-                case CHAIN_CALLBACK_RESULT_EXIT_GAME_ERROR:
+                case ExitGameError:
                     g_supervisor.leaveCriticalSection(0);
                     return -1;
 

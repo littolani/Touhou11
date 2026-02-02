@@ -4,15 +4,15 @@
 
 enum ChainCallbackResult
 {
-    CHAIN_CALLBACK_RESULT_CONTINUE_AND_REMOVE_JOB = 0, // Cut node and continue
-    CHAIN_CALLBACK_RESULT_CONTINUE = 1,                // Normal step
-    CHAIN_CALLBACK_RESULT_EXECUTE_AGAIN = 2,           // Immediate re-run (for logic that needs 2+ passes)
-    CHAIN_CALLBACK_RESULT_BREAK = 3,                   // Stop processing this chain for this frame
-    CHAIN_CALLBACK_RESULT_EXIT_GAME_SUCCESS = 4,       // Soft exit (e.g. Back to Menu)
-    CHAIN_CALLBACK_RESULT_EXIT_GAME_ERROR = 5,         // Hard error exit (returns -1)
-    CHAIN_CALLBACK_RESULT_RESTART_FROM_FIRST_JOB = 6,  // Reset 'tracker' to head
-    CHAIN_CALLBACK_RESULT_CLEANUP_AND_CONTINUE = 7,    // Run cleanup callback at +0x10 and continue
-    CHAIN_CALLBACK_RESULT_QUIT_GAME = 8                // Hard exit (Quit to OS)
+    ContinueAndRemoveJob = 0, // Cut node and continue
+    Continue = 1,             // Normal step
+    ExecuteAgain = 2,         // Immediate re-run (for logic that needs 2+ passes)
+    Break = 3,                // Stop processing this chain for this frame
+    ExitGameSuccess = 4,      // Soft exit (e.g. Back to Menu)
+    ExitGameError = 5,        // Hard error exit (returns -1)
+    RestartFromFirstJob = 6,  // Reset 'tracker' to head
+    CleanupAndContinue = 7,   // Run cleanup callback at +0x10 and continue
+    QuitGame = 8              // Hard exit (Quit to OS)
 };
 
 // Fastcall calling convention must be used when calling functions in the game
