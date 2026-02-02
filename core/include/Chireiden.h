@@ -18,6 +18,7 @@
 #include <timeapi.h>
 #include <winnls32.h>
 #include <dsound.h>
+#include <dwmapi.h>
 
 // C RunTime Header Files
 #include <stdlib.h>
