@@ -1,4 +1,165 @@
 #include "Player.h"
+#include "AnmManager.h"
+
+int Player::shootOneBullet(Player* This, D3DXVECTOR3* position, int currentTime, Shooter* shooter)
+{
+    if (shooter->kind == 4 && This->shooterOptions[shooter->option] != 0)
+        return 0;
+
+    PlayerBullet* bullet = nullptr;
+    int bulletIndex = 0;
+
+    for (int i = 0; i < 256; ++i)
+    {
+        if (This->playerBullets[i].isActive == 0)
+        {
+            bullet = &This->playerBullets[i];
+            bulletIndex = i + 1;
+            break;
+        }
+    }
+
+    if (!bullet)
+        return 0; // No free bullets
+
+    bullet->timer0.set(&bullet->timer0, 0);
+    bullet->isActive = bulletIndex;
+    bullet->shooter = shooter;
+    bullet->damage = shooter->damage;
+
+    if (shooter->option == 0) {
+        bullet->position = *position;
+    }
+    else
+    {
+        auto& opt = This->playerOptions[shooter->option];
+        bullet->position.x = opt.someOtherFloat.x * 0.0078125f;
+        bullet->position.y = opt.someOtherFloat.y * 0.0078125f;
+        bullet->position.z = 0.0f;
+    }
+
+    if (shooter->kind == 4)
+        This->shooterOptions[shooter->option] = bulletIndex;
+
+    bullet->speed = shooter->speed;
+
+    // 0x43409a: Angle Calculation
+    float finalAngle;
+    if (shooter->angle < 1000.0f)
+    {
+        if (shooter->angle < 995.0f || shooter->option == 0)
+            finalAngle = shooter->angle;
+        else
+            finalAngle = normalizeAngle(This->playerOptions[shooter->option].angle);
+    }
+    else {
+        if (shooter->option == 0) {
+            finalAngle = shooter->angle;
+        }
+        else {
+            // 0x4340eb: Randomize angle
+            uint32_t rngVal = AnmVm::rng(&g_replayRngContext);
+            float rngFloat = (float)(int)rngVal;
+            if ((int)rngVal < 0) rngFloat += 4294967296.0f;
+
+            // 4.656613e-10 is approx 2^-31. rng * 2^-31 - 1.0 gives range [-1, 1].
+            // Multiplied by PI/12 (15 degrees).
+            float randomOffset = ((rngFloat * 4.6566129e-10f - 1.0f) * 3.1415927f) / 12.0f;
+            finalAngle = randomOffset + This->playerOptions[shooter->option].angle;
+
+            // Normalize
+            finalAngle = normalizeAngle(finalAngle);
+            bullet->angle = finalAngle; // Temporary storage?
+
+            // 0x43412a: Randomize speed
+            rngVal = AnmVm::rng(&g_replayRngContext);
+            rngFloat = (float)(int)rngVal;
+            if ((int)rngVal < 0) rngFloat += 4294967296.0f;
+
+            float speedMod = rngFloat * 4.6566129e-10f - 1.0f;
+            bullet->speed = speedMod + speedMod + shooter->speed; // speed + 2 * random?
+        }
+    }
+
+    // Normalize and store final angle
+    bullet->angle = normalizeAngle(finalAngle);
+
+    // 0x43415a: Velocity Calculation
+    if ((bullet->flags & 1) == 0)
+    {
+        decomposeSpeedMagnitudeIntoVelocityComponents(&bullet->velocity, bullet->angle, bullet->speed);
+        bullet->velocity.z = 0.0f;
+    }
+    else {
+        // Custom movement logic (smoothing)
+        bullet->smth += bullet->d_smth_dt;
+        float combined = bullet->speed + bullet->angle;
+        bullet->angle = normalizeAngle(combined);
+        // Note: Assembly path for flags & 1 seems to skip standard velocity decomposition
+    }
+
+    // 0x4341da: Apply Offset
+    // Position = Position + Offset - Velocity
+    bullet->position.x += shooter->offset.x - bullet->velocity.x;
+    bullet->position.y += shooter->offset.y - bullet->velocity.y;
+
+    // 0x4341fb: Create ANM Script
+    // Script index is shooter->anmScript + 5
+    int scriptIndex = shooter->anmScript + 5;
+    AnmId vmId;
+
+    AnmManager::makeVmWithAnmLoaded(This->playerAnm, scriptIndex, 0x16, &vmId);
+
+    bullet->anmId4c = vmId;
+
+    AnmVm* vm = nullptr;
+    if (vmId.id != 0)
+    {
+        for (AnmVmList* node = g_anmManager->m_primaryGlobalNext; node; node = node->next)
+        {
+            if (node->entry->m_id.id == vmId.id) {
+                vm = node->entry;
+                goto VmFound;
+            }
+        }
+
+        for (AnmVmList* node = g_anmManager->m_secondaryGlobalNext; node; node = node->next)
+        {
+            if (node->entry->m_id.id == vmId.id) {
+                vm = node->entry;
+                goto VmFound;
+            }
+        }
+    }
+
+    // If not found, clear IDs
+    bullet->anmId4c.id = 0;
+    goto PostVmLogic;
+
+VmFound:
+    if (vm->m_flagsLow & 0x8000000)
+    {
+        vm->m_rotation.z = shooter->angle;
+        vm->m_flagsLow |= 4;
+    }
+    bullet->anmId50.id = 0;
+
+    vm->m_entityPos.x = bullet->position.x + 224.0f;
+    vm->m_entityPos.y = bullet->position.y + 16.0f;
+    vm->m_entityPos.z = bullet->position.z;
+
+PostVmLogic:
+    // 0x434280: Run OnInit callback
+    if (shooter->onInit) {
+        typedef void (*ShooterCallback)(int);
+        ((ShooterCallback)shooter->onInit)(currentTime);
+    }
+
+    if (shooter->sfx >= 0)
+        SoundManager::playSoundWithPan(bullet->position.x, shooter->sfx);
+
+    return 0;
+}
 
 #if 0
 int Player::move(Player* This)
