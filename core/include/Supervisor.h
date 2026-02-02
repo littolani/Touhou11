@@ -102,6 +102,7 @@ public:
     static void releaseSurfaces();
     static void releaseChains();
     static HRESULT disableD3dFog(Supervisor* This);
+    static void cleanup(Supervisor* This);
 };
 #pragma pack(pop)
 ASSERT_SIZE(Supervisor, 0x9c4);

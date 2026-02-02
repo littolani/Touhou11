@@ -778,3 +778,7 @@ HRESULT Supervisor::disableD3dFog(Supervisor* This)
     return 0;
 }
 
+void Supervisor::cleanup(Supervisor* This)
+{
+   
+}
