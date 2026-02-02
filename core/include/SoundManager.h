@@ -17,18 +17,18 @@ class SoundManager
 public:
     IDirectSound8* dsound;                  // <0x0>
     IDirectSoundBuffer** soundBuffer;       // <0x4>
-    LPDIRECTSOUNDBUFFER soundBuffersArray;  // <0x8>
+    IDirectSoundBuffer*  soundBuffersArray; // <0x8>
     CWaveFile* cwaveFile;                   // <0xc>
     int idk0[22];                           // <0x10>
     DWORD writeCursor;                      // <0x68>
     int idk3;                               // <0x6c>
     DWORD writeCursorOffset;                // <0x70>
     int idk4[101];                          // <0x74>
-    LPDIRECTSOUNDBUFFER dsoundBuffers[128]; // <0x208>
+    IDirectSoundBuffer* dsoundBuffers[128]; // <0x208>
     uint32_t m_soundBufferIndices[128];     // <0x408>
     IDirectSoundBuffer* dSoundBuffer;       // <0x608>
     HWND hwnd;                              // <0x60c>
-    LPDIRECTSOUND8* dsoundIface;            // <0x610>
+    IDirectSound8** dsoundIface;            // <0x610>
     DWORD threadId;                         // <0x614>
     HANDLE threadHandle;                    // <0x618>
     int idk5;                               // <0x61c>
@@ -48,7 +48,12 @@ public:
     int idk11;
     int idk12;
     int someWaveFileOffset;
-    int idk10[52];
+    HANDLE soundThread;
+    int idk13;
+    DWORD soundThreadId;
+    int someState;
+    HWND hwnd2;
+    int idk10[47];
     int bgmVolume;
     int sfxVolume;
     int adjustedSfxVolumeMaybe;
@@ -84,4 +89,4 @@ public:
      */
     static void playSoundWithPan(float xOffsetFromCenter, int soundId);
 };
-ASSERT_SIZE(SoundManager, 0x52f4);
+ASSERT_SIZE(SoundManager, 0x52f4); // Verified
