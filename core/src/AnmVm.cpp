@@ -867,16 +867,63 @@ void AnmVm::loadIntoAnmVm(AnmVm* This, AnmLoaded* anmLoaded, int scriptNumber)
         instr = (AnmRawInstruction*)anmLoaded->m_spriteData[scriptNumber];
         This->m_beginningOfScript = instr;
         This->m_currentInstruction = instr;
-
-        // inlined Timer constructor?
-        //m_timeInScript = Timer();
+        This->m_timeInScript.set(&This->m_timeInScript, 0);
         This->m_flagsLow &= 0xfffffffe;
-        run(This);
+
+        //run(This);
+        typedef void(__stdcall* VmRunCallback)(AnmVm*);
+        VmRunCallback vmRun = reinterpret_cast<VmRunCallback>(0x44b4b0);
+        vmRun(This);
+
         ++g_anmManager->m_allocatedVmCountMaybe;
         return;
     }
     memset(This, 0, 0x434);
     return;
+}
+
+void AnmVm::loadSingleAnmScript(AnmVm* This, AnmLoaded* anmLoaded, uint32_t scriptNumber)
+{
+    if (!anmLoaded->m_spriteData[scriptNumber] || anmLoaded->m_anmsLoading)
+    {
+        memset(This, 0, 0x434);
+        return;
+    }
+
+    This->m_scriptNumber = scriptNumber;
+    This->m_flagsLow &= 0xfffff9ff;
+    This->m_anmFileIndex = anmLoaded->m_anmSlotIndex;
+    This->m_anmLoaded = anmLoaded;
+    AnmRawInstruction* startingInstruction = (AnmRawInstruction*)anmLoaded->m_spriteData[scriptNumber];
+    This->m_beginningOfScript = startingInstruction;
+    This->m_currentInstruction = startingInstruction;
+    This->m_timeInScript.set(&This->m_timeInScript, 0);
+    This->m_flagsLow &= ~1;
+        
+    //run(This);
+    typedef void(__stdcall* VmRunCallback)(AnmVm*);
+    VmRunCallback vmRun = reinterpret_cast<VmRunCallback>(0x44b4b0);
+    vmRun(This);
+
+    ++g_anmManager->m_allocatedVmCountMaybe;
+}
+
+void AnmVm::loadAnmScript(AnmVm* This, AnmLoaded* anmLoaded, uint32_t scriptNumber)
+{
+    This->m_flagsLow |= 0x40000000;
+    This->m_scriptNumber = scriptNumber;
+    This->m_entityPos.x = 0.0f;
+    This->m_entityPos.y = 0.0f;
+    This->m_entityPos.z = 0.0f;
+    This->m_pos.x = 0.0f;
+    This->m_pos.y = 0.0f;
+    This->m_pos.z = 0.0f;
+    This->m_offsetPos.x = 0.0f;
+    This->m_offsetPos.y = 0.0f;
+    This->m_offsetPos.z = 0.0f;
+    This->m_fontDimensions[1] = 16;
+    This->m_fontDimensions[0] = 16;
+    loadSingleAnmScript(This, anmLoaded, scriptNumber);
 }
 
 // 0x44b4b0

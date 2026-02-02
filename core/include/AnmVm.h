@@ -173,6 +173,8 @@ public:
     static float normalizeUnsigned(RngContext* rngContext);
     static float normalizeToAngle(float angle, RngContext* rngContext);
     static void loadIntoAnmVm(AnmVm* This, AnmLoaded* anmLoaded, int scriptNumber);
+    static void loadAnmScript(AnmVm* This, AnmLoaded* anmLoaded, uint32_t scriptNumber);
+    static void loadSingleAnmScript(AnmVm* This, AnmLoaded* anmLoaded, uint32_t scriptNumber);
     static void printD3DMatrix(const D3DMATRIX& m);
 private:
     inline void loadNextInstruction()
