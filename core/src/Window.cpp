@@ -68,25 +68,20 @@ LRESULT Window::wndProcCallback(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lpPa
 
 int Window::initialize(HINSTANCE hInstance)
 {
-    WNDCLASSA windowClass;
-    windowClass.style = 0;
-    windowClass.lpfnWndProc = NULL;
-    windowClass.cbClsExtra = 0;
-    windowClass.cbWndExtra = 0;
-    windowClass.hInstance = NULL;
-    windowClass.hIcon = NULL;
-    windowClass.hCursor = NULL;
-    windowClass.hbrBackground = NULL;
-    windowClass.lpszMenuName = NULL;
-    windowClass.lpszClassName = NULL;
-    windowClass.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
-    windowClass.hCursor = LoadCursorA(NULL, MAKEINTRESOURCEA(IDC_ARROW));
-    windowClass.lpfnWndProc = /*(WNDPROC)0x445e00;*/  wndProcCallback;
-    windowClass.lpszClassName = TOUHOU_WINDOW_CLASS_NAME;
-    windowClass.hInstance = hInstance;
-    RegisterClassA(&windowClass);
+    WNDCLASSA wc;
+    wc.style = 0;
+    wc.lpfnWndProc = Window::wndProcCallback; // Using the static wrapper directly
+    wc.cbClsExtra = 0;
+    wc.cbWndExtra = 0;
+    wc.hInstance = hInstance;
+    wc.hIcon = NULL;
+    wc.hCursor = LoadCursorA(NULL, MAKEINTRESOURCEA(IDC_ARROW));
+    wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
+    wc.lpszMenuName = NULL;
+    wc.lpszClassName = TOUHOU_WINDOW_CLASS_NAME;
+    RegisterClassA(&wc);
 
-    // Yes, it does seem like 4 options are used to represent two states
+    // Yes, it does seem like 4 options are used to represent two states 
     g_window.isAppFocused = 1;
     g_window.isAppUnfocused = 0;
 
@@ -118,38 +113,47 @@ int Window::initialize(HINSTANCE hInstance)
     if (isWindowedMode)
     {
         uint32_t windowScaleMode = (g_window.someFlag2 >> 2) & 3;
-        int borderW = GetSystemMetrics(SM_CXFIXEDFRAME);
-        int borderH = GetSystemMetrics(SM_CYFIXEDFRAME);
-        int windowHeight;
-        int windowWidth;
+        int targetClientWidth;
+        int targetClientHeight;
 
+        // Determine the target CLIENT area size
         if (windowScaleMode == 3)
         {
-            windowWidth = borderW * 2 + 1280;
-            windowHeight = borderH * 2 + 960;
+            targetClientWidth = 1280;
+            targetClientHeight = 960;
         }
         else if (windowScaleMode == 2)
         {
-            windowWidth = borderW * 2 + 960;
-            windowHeight = borderH * 2 + 720;
+            targetClientWidth = 960;
+            targetClientHeight = 720;
         }
         else
         {
-            windowWidth = borderW * 2 + 640;
-            windowHeight = borderH * 2 + 480;
+            targetClientWidth = 640;
+            targetClientHeight = 480;
         }
 
-        int titleBarHeight = GetSystemMetrics(SM_CYCAPTION);
+        // Use AdjustWindowRect to calculate the correct window dimensions
+        // This ensures the client area is exactly the resolution we want, 
+        // letting Windows handle the border and title bar calculations.
+        RECT rc = { 0, 0, targetClientWidth, targetClientHeight };
+        AdjustWindowRect(&rc, WINDOW_STYLE_WINDOWED, FALSE);
+
+        int windowWidth = rc.right - rc.left;
+        int windowHeight = rc.bottom - rc.top;
+
+        // We want to create it hidden first, apply Dark Mode, and THEN show it.
+        DWORD style = WINDOW_STYLE_WINDOWED & ~WS_VISIBLE;
 
         g_window.hwnd = CreateWindowExA(
             0,
             TOUHOU_WINDOW_CLASS_NAME,
             TOUHOU_WINDOW_TITLE,
-            WINDOW_STYLE_WINDOWED,
+            style,
             g_supervisor.m_gameConfig.windowPosX,
             g_supervisor.m_gameConfig.windowPosY,
             windowWidth,
-            titleBarHeight + windowHeight,
+            windowHeight,
             NULL,
             NULL,
             hInstance,
@@ -158,7 +162,7 @@ int Window::initialize(HINSTANCE hInstance)
     }
     else
     {
-        // Fullscreen Mode (Always 640x480 resolution for the window rect)
+        // Fullscreen Mode
         g_window.hwnd = CreateWindowExA(
             0,
             TOUHOU_WINDOW_CLASS_NAME,
@@ -175,16 +179,31 @@ int Window::initialize(HINSTANCE hInstance)
         );
     }
 
-    GetWindowRect(g_window.hwnd, &g_supervisor.windowDimensions);
-    g_supervisor.appWindow = g_window.hwnd;
-
     if (g_window.hwnd == NULL)
         return 1;
 
+    GetWindowRect(g_window.hwnd, &g_supervisor.windowDimensions);
+    g_supervisor.appWindow = g_window.hwnd;
+
+    // Apply Dark Mode Preference BEFORE showing the window
+    BOOL enable = TRUE;
+    if (FAILED(DwmSetWindowAttribute(g_window.hwnd, 20, &enable, sizeof(enable)))) // DWMWA_USE_IMMERSIVE_DARK_MODE
+    {
+        DwmSetWindowAttribute(g_window.hwnd, 19, &enable, sizeof(enable)); // Fallback
+    }
+
+    // Now show the window. 
+    // The original game code uses a Minimize -> Sleep -> Restore cycle.
+    // SC_RESTORE will make the window visible if it was created hidden.
     SendMessageA(g_window.hwnd, WM_SYSCOMMAND, SC_MINIMIZE, 0);
     Sleep(16);
     SendMessageA(g_window.hwnd, WM_SYSCOMMAND, SC_RESTORE, 0);
-    //setDarkTitleBar(g_window.hwnd);
+
+    // Safety check: ensure window is actually visible in case SC_RESTORE behavior varies
+    if (!IsWindowVisible(g_window.hwnd)) {
+        ShowWindow(g_window.hwnd, SW_SHOW);
+    }
+
     return 0;
 }
 
@@ -439,22 +458,20 @@ void Window::update(Window* This)
     This->timeSinceLastFrame = currentTime;
 }
 
+
+void Window::retrieveSystemStats()
+{
+    SystemParametersInfoA(0x10, 0, &g_window.primaryScreenWorkingArea, 0);
+    SystemParametersInfoA(0x53, 0, &g_window.mouseSpeed, 0);
+    SystemParametersInfoA(0x54, 0, &g_window.idk1, 0);
+    SystemParametersInfoA(0x11, 0, NULL, 2);
+    SystemParametersInfoA(0x55, 0, NULL, 2);
+    SystemParametersInfoA(0x56, 0, NULL, 2);
+    QueryPerformanceFrequency(&g_window.performanceCounterFreq);
+    QueryPerformanceCounter(&g_window.performanceCounterValue);
+}
+
 void Window::setDarkTitleBar(HWND hwnd)
 {
-    //BOOL enable = TRUE;
 
-    //// Try the newer attribute first
-    //if (FAILED(DwmSetWindowAttribute(
-    //    hwnd,
-    //    20, // DWMWA_USE_IMMERSIVE_DARK_MODE
-    //    &enable,
-    //    sizeof(enable))))
-    //{
-    //    // Fallback for older Windows 10
-    //    DwmSetWindowAttribute(
-    //        hwnd,
-    //        19, // DWMWA_USE_IMMERSIVE_DARK_MODE_OLD
-    //        &enable,
-    //        sizeof(enable));
-    //}
 }

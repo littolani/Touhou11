@@ -53,12 +53,13 @@ public:
     static void frame(Window* This);
     static void update(Window* This);
     static double getDeltaTime();
+    static void retrieveSystemStats();
 private:
     static void setDarkTitleBar(HWND hwnd);
 
     static constexpr LPCSTR TOUHOU_WINDOW_CLASS_NAME = "BASE";
     static constexpr LPCSTR TOUHOU_WINDOW_TITLE = "Subterranean Animism";
-    static constexpr DWORD WINDOW_STYLE_WINDOWED = (WS_VISIBLE | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX);
+    static constexpr DWORD WINDOW_STYLE_WINDOWED = (WS_OVERLAPPEDWINDOW | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX);
     static constexpr DWORD WINDOW_STYLE_FULLSCREEN = (WS_POPUP | WS_VISIBLE);
     static constexpr double TARGET_FRAME_TIME_SEC = 1.0 / 60.0;
     static constexpr double LAG_THRESHOLD_SEC = 1.0 / 57.0;
