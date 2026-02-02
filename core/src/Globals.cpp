@@ -261,3 +261,14 @@ void projectMagnitudeToVectorComponents(D3DXVECTOR3* vec, float theta, float sca
     vec->x = (float)(c * scale);
     vec->y = (float)(s * scale);
 }
+
+float normalizeAngle(float inputAngleRadians)
+{
+    return std::remainder(inputAngleRadians, 2.0f * D3DX_PI);
+}
+
+void decomposeSpeedMagnitudeIntoVelocityComponents(D3DXVECTOR3* velocity, float angle, float speed)
+{
+    velocity->x = std::cos(angle) * speed;
+    velocity->y = std::sin(angle) * speed;
+}

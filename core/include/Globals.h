@@ -72,6 +72,11 @@ extern "C"
     extern SoundConfig g_soundConfigTable[56];
     extern RngContext g_anmRngContext;
     extern RngContext g_replayRngContext;
+    extern HANDLE g_app;
+    extern HGDIOBJ g_gdiObject_0;
+    extern HGDIOBJ g_gdiObject_1;
+    extern HGDIOBJ g_gdiObject_2;
+    extern HGDIOBJ g_gdiObject_3;
 
     void __cdecl game_free(void* memory);
     void* __cdecl game_malloc(size_t size);
@@ -97,3 +102,15 @@ void projectMagnitudeToVectorComponents(D3DXVECTOR3* vec, float theta, float sca
  * @return byte*              EAX:4
  */
 byte* openFile(const char* filename, size_t* outSize, BOOL isExternalResource);
+
+/**
+ * 0x458400
+ * @brief  Returns an angle in the range [-PI, PI]
+ * @param  inputAngleRadians
+ * @param  isExternalResource Stack[0x8]:4
+ * @return float
+ */
+float normalizeAngle(float inputAngleRadians);
+
+// 0x459aa0
+void decomposeSpeedMagnitudeIntoVelocityComponents(D3DXVECTOR3* velocity, float angle, float speed);
