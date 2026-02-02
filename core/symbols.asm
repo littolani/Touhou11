@@ -22,6 +22,7 @@ PUBLIC _g_soundManager
 PUBLIC _g_soundConfigTable
 PUBLIC _g_anmRngContext
 PUBLIC _g_replayRngContext
+PUBLIC _g_app
 
 ; Functions
 PUBLIC _game_free
@@ -48,6 +49,11 @@ _g_soundManager        EQU 04c3e80h
 _g_soundConfigTable    EQU 04a34f0h
 _g_anmRngContext       EQU 04c2ef8h
 _g_replayRngContext    EQU 04c2f00h
+_g_app                 EQU 04c9898h
+_g_gdiObject_0         EQU 04c2eech;
+_g_gdiObject_1         EQU 04c0ee4h;
+_g_gdiObject_2         EQU 04c2ee8h;
+_g_gdiObject_3         EQU 04a8ed4h;
 
 .code
 _game_free PROC
