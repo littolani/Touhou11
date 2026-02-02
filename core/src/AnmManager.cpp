@@ -3,6 +3,160 @@
 #include "Globals.h"
 #include "ThunkGenerator.h"
 
+AnmManager::AnmManager()
+{
+    memset(this, 0, sizeof(AnmManager));
+
+    this->m_primaryVm = AnmVm();
+    for (int i = 0; i < 4096; ++i)
+        m_fastVms[i].initialize(&m_fastVms[i]);
+
+    g_renderQuad144[0].uv.x = 0.0f; g_renderQuad144[0].uv.y = 0.0f; g_renderQuad144[0].rhw = 1.0f;
+    g_renderQuad144[1].uv.x = 1.0f; g_renderQuad144[1].uv.y = 0.0f; g_renderQuad144[1].rhw = 1.0f;
+    g_renderQuad144[2].uv.x = 0.0f; g_renderQuad144[2].uv.y = 1.0f; g_renderQuad144[2].rhw = 1.0f;
+    g_renderQuad144[3].uv.x = 1.0f; g_renderQuad144[3].uv.y = 1.0f; g_renderQuad144[3].rhw = 1.0f;
+
+    this->m_squareVertexBuffer = nullptr;
+    this->m_anmLoadedD3D = nullptr;
+    this->m_renderStateMode = 0;
+    this->m_unk_4355c1 = 0;
+    this->m_unk_4355c3 = 0;
+    this->m_unk_4355c4 = -1;
+    this->m_color = 1;
+    this->m_haveFlushedSprites = 0;
+
+    for (int i = 0; i < 4; i++)
+        this->m_blitParamsArray[i].anmLoadedIndex = -1;
+
+    auto addChain = [&](int priority, ChainCallback callback, bool isCalcChain) -> void {
+        ChainElem* elem = (ChainElem*)game_new(sizeof(ChainElem));
+        elem->nextNode = (ChainElem*)((uintptr_t)elem->nextNode | 3);
+        elem->jobRunDrawChainCallback = callback;
+        elem->args = this;
+        elem->registerChainCallback = nullptr;
+        elem->runCalcChainCallback = nullptr;
+
+        if (isCalcChain)
+            g_chain->registerCalcChain(g_chain, elem, priority);
+        else
+            g_chain->registerDrawChain(elem, priority);
+    };
+
+    addChain(0x1a, onTick1a, true);
+    addChain(0x08, onTick08, true);
+    addChain(0x04, on_draw_04_just_renders_layer_00, false);
+    addChain(0x06, on_draw_06_just_renders_layer_01, false);
+    addChain(0x08, on_draw_08_just_renders_layer_02, false);
+    addChain(0x0a, on_draw_0a_also_renders_layer_03, false);
+    addChain(0x0c, on_draw_0c_just_renders_layer_04, false);
+    addChain(0x0f, on_draw_0f_just_renders_layer_05, false);
+    addChain(0x10, on_draw_10_just_renders_layer_06, false);
+    addChain(0x11, on_draw_11_just_renders_layer_07, false);
+    addChain(0x12, on_draw_12_just_renders_layer_08, false);
+    addChain(0x13, on_draw_13_just_renders_layer_09, false);
+    addChain(0x14, on_draw_15_just_renders_layer_10, false);
+    addChain(0x17, on_draw_17_just_renders_layer_11, false);
+    addChain(0x18, on_draw_18_just_renders_layer_12, false);
+    addChain(0x1a, on_draw_1a_just_renders_layer_13, false);
+    addChain(0x1c, on_draw_1c_just_renders_layer_14, false);
+    addChain(0x20, on_draw_20_just_renders_layer_15, false);
+    addChain(0x22, on_draw_22_just_renders_layer_16, false);
+    addChain(0x24, on_draw_24_just_renders_layer_17, false);
+    addChain(0x27, on_draw_27_just_renders_layer_18, false);
+    addChain(0x28, on_draw_28_also_renders_layer_19, false);
+    addChain(0x32, on_draw_32_just_renders_layer_22, false);
+    addChain(0x3c, on_draw_3c_just_renders_layer_23, false);
+    addChain(0x3d, on_draw_3d_just_renders_layer_24, false);
+    addChain(0x31, on_draw_31_just_renders_layer_21, false);
+    addChain(0x30, on_draw_30_also_renders_layer_20, false);
+    addChain(0x3f, on_draw_3f_also_renders_layer_29, false);
+    addChain(0x3e, on_draw_3e_also_renders_layer_30, false);
+}
+
+AnmManager::~AnmManager()
+{
+    AnmVmList* primaryHead = m_primaryGlobalNext;
+    while (primaryHead)
+    {
+        AnmVmList* primaryNext = primaryHead->next;
+        removeVm(this, primaryHead->entry);
+        primaryHead = primaryNext;
+    }
+
+    AnmVmList* secondaryHead = m_secondaryGlobalNext;
+    while (secondaryHead)
+    {
+        AnmVmList* secondaryNext = secondaryHead->next;
+        removeVm(this, secondaryHead->entry);
+        secondaryHead = secondaryNext;
+    }
+
+    if (m_primaryVm.m_specialRenderData)
+          game_free(m_primaryVm.m_specialRenderData);
+    m_primaryVm.m_specialRenderData = nullptr;
+}
+
+void AnmManager::removeVm(AnmManager* This, AnmVm* vm)
+{
+    AnmVmList* node = &vm->m_nodeInGlobalList;
+    if (This->m_primaryGlobalPrev == node)
+        This->m_primaryGlobalPrev = node->prev;
+
+    if (This->m_primaryGlobalNext == node)
+        This->m_primaryGlobalNext = node->next;
+
+    if (This->m_secondaryGlobalPrev == node)
+        This->m_secondaryGlobalPrev = node->prev;
+
+    if (This->m_secondaryGlobalNext == node)
+        This->m_secondaryGlobalNext = node->next;
+
+    if (node->next)
+        node->next->prev = node->prev;
+
+    if (node->prev)
+        node->prev->next = node->next;
+
+    node->next = nullptr;
+    node->prev = nullptr;
+
+    AnmVmList* familyNode = &vm->m_nodeAsFamilyMember;
+
+    if (familyNode->next)
+        familyNode->next->prev = familyNode->prev;
+
+    if (familyNode->prev)
+        familyNode->prev->next = familyNode->next;
+
+    familyNode->next = nullptr;
+    familyNode->prev = nullptr;
+
+    if (vm >= This->m_fastVms && vm < (This->m_fastVms + 4096))
+    {
+        int index = vm - This->m_fastVms;
+        This->m_fastVmsIsAlive[index] = 0; // Mark this slot as free (dead) in the allocation map
+
+        if (vm->m_specialRenderData)
+            game_free(vm->m_specialRenderData);
+
+        vm->m_specialRenderData = nullptr;
+
+        // Re-initialize the VM structure for reuse instead of deleting it
+        vm->initialize(vm);
+        return;
+    }
+
+    // Heap VM Cleanup (Slow path)
+    if (vm)
+    {
+        if (vm->m_specialRenderData)
+            game_free(vm->m_specialRenderData);
+
+        vm->m_specialRenderData = nullptr;
+        game_free(vm);
+    }
+}
+
 AnmLoaded* AnmManager::preloadAnm(int anmSlotIndex, const char* anmFileName)
 {
     AnmManager* This = g_anmManager;
@@ -262,6 +416,17 @@ AnmVm* AnmManager::allocateVm()
     return vm;
 }
 
+void AnmManager::makeVmWithAnmLoaded(AnmLoaded* anmLoaded, int scriptNumber, int anmVmLayer, AnmId* anmId)
+{
+    AnmManager* This = g_anmManager;
+    g_supervisor.enterCriticalSection(9);
+    AnmVm* vm = allocateVm();
+    vm->m_flagsLow |= 0x40000000;
+    vm->m_layer = anmVmLayer;
+    vm->loadAnmScript(vm, anmLoaded, scriptNumber);
+    putInVmList(This, vm, anmId);
+    g_supervisor.leaveCriticalSection(9);
+}
 
 // 0x445320
 void AnmManager::releaseTextures()
@@ -1348,19 +1513,14 @@ void AnmManager::drawVm(AnmManager* This, AnmVm* vm)
     if ((vm->m_flagsLow & 0x3) != 0x3 || alpha == 0)
         return;
     uint32_t mode = vm->m_flagsLow >> 0x16 & 0xf;
-    //printf("drawing vm with mode %d\n", mode);
+    if (mode == 4)
+        printf("drawing vm with mode %d\n", mode);
 
     switch (mode)
     {
     case 0:
     {
-        vm->writeSpriteCharactersWithoutRot(
-            vm,
-            &g_renderQuad144[0],
-            &g_renderQuad144[1],
-            &g_renderQuad144[2],
-            &g_renderQuad144[3]
-        );
+        vm->writeSpriteCharactersWithoutRot(vm, &g_renderQuad144[0], &g_renderQuad144[1], &g_renderQuad144[2], &g_renderQuad144[3]);
         drawVmSprite2D(This, 1, vm);
         break;
     }
@@ -1439,8 +1599,22 @@ void AnmManager::drawVm(AnmManager* This, AnmVm* vm)
     case 9:
     case 0xc:
     case 0xd:
+    {
         drawVmTriangleStrip(This, vm, vm->m_specialRenderData, vm->m_intVars[0] * 2);
+
+        //using ltoFunc = Signature<int, AnmManager*, AnmVm*, void*, uint32_t>;
+        //using ltoSig = Storage<
+        //    Returns<RegCode::EAX>,
+        //    ECX,
+        //    EAX,
+        //    Stack<0x4>,
+        //    Stack<0x8>
+        //>;
+        //static auto game_drawVmTriangleStrip = createCustomCallingConvention<ltoSig, ltoFunc>(0x451a00);
+        //game_drawVmTriangleStrip(This, vm, vm->m_specialRenderData, vm->m_intVars[0] * 2);
+
         break;
+    }
     case 0xb:
         drawVmTriangleFan(This, vm, vm->m_specialRenderData, vm->m_intVars[0] * 2);
         break;
@@ -1461,4 +1635,310 @@ void AnmManager::blitTextures(AnmManager* This)
             blitParams->anmLoadedIndex = -1;
         }
     }
+}
+
+ChainCallbackResult AnmManager::renderLayer(AnmManager* This, int layer)
+{
+    g_supervisor.enterCriticalSection(9);
+    AnmVm* vm = &This->m_vmLayers[layer];
+    while (vm->m_nextInLayerList)
+    {
+        if ((vm->m_flagsLow & 0x4000000) == 0)
+        {
+            if (vm->m_onDraw)
+                vm->m_onDraw(vm);
+            drawVm(This, vm);
+        }
+        vm = vm->m_nextInLayerList;
+    }
+    g_supervisor.leaveCriticalSection(9);
+    return ChainCallbackResult::Continue;
+}
+
+ChainCallbackResult AnmManager::onTick1a(void* args)
+{
+    AnmManager* This = reinterpret_cast<AnmManager*>(args);
+    int vmLayer;
+    AnmVm* vmLayers[33]{};
+    AnmVmList* list;
+    AnmVm* vm;
+
+    g_supervisor.enterCriticalSection(9);
+
+    vmLayer = 0;
+    vm = This->m_vmLayers;
+    do {
+        vmLayers[vmLayer] = vm;
+        vm->m_nextInLayerList = (AnmVm*)0x0;
+        vmLayer = vmLayer + 1;
+        vm = vm + 1;
+    } while (vmLayer < 0x1d);
+
+    list = This->m_primaryGlobalNext;
+    while (list)
+    {
+        vm = list->entry;
+        list = list->next;
+        if ((vm->m_flagsLow & 0x4000000) == 0)
+        {
+            ChainCallbackResult result;
+            if (vm->m_onTick)
+                result = vm->m_onTick(vm);
+
+            AnmVm::run(vm);
+
+            if (vm->m_onTick && result == ChainCallbackResult::ContinueAndRemoveJob)
+            {
+                vmLayers[vm->m_layer]->m_nextInLayerList = vm;
+                vmLayers[vm->m_layer] = vm;
+                vm->m_nextInLayerList = nullptr;
+            }
+            else
+                removeVm(This, vm);
+        }
+        else
+            removeVm(This, vm);
+        ++This->m_someTickCounter;
+    }
+    g_supervisor.leaveCriticalSection(9);
+    return ChainCallbackResult::Continue;
+}
+
+ChainCallbackResult AnmManager::onTick08(void* args)
+{
+    AnmManager* This = reinterpret_cast<AnmManager*>(args);
+    void* onTickFunction;
+    AnmVm* vmLayers;
+    AnmVmList* list;
+    AnmVm* vm;
+
+    g_supervisor.enterCriticalSection(9);
+
+    This->m_vmLayers[0x1d].m_nextInLayerList = nullptr;
+    This->m_vmLayers[0x1e].m_nextInLayerList = nullptr;
+    list = This->m_secondaryGlobalNext;
+    This->m_someTickCounter = 0;
+    while (list)
+    {
+        //vm = list->entry;
+        //list = list->next;
+        //if ((vm->m_flagsLow & 0x4000000) == 0)
+        //{
+        //    onTickFunction = vm->onTick;
+        //    if ((code*)onTickFunction != (code*)0x0) {
+        //        /* reusing variable */
+        //        onTickFunction = (void*)(*(code*)onTickFunction)();
+        //    }
+        //    AnmVm::run(vm);
+        //    if ((code*)onTickFunction == (code*)0x0)
+        //    {
+        //        if ((vm->m_layer != 0x1d) && (vm->m_layer != 0x1e)) {
+        //            vm->m_layer = 0x1d;
+        //        }
+        //        /* ? */
+        //        (&vmLayers)[vm->m_layer]->m_nextInLayerList = vm;
+        //        (&vmLayers)[vm->m_layer] = vm;
+        //        vm->m_nextInLayerList = nullptr;
+        //    }
+        //    else {
+        //        removeVm(This, vm);
+        //    }
+        //}
+        //else {
+        //    removeVm(This, vm);
+        //}
+        //++This->m_someTickCounter;
+    }
+    g_supervisor.leaveCriticalSection(9);
+    return ChainCallbackResult::Continue;
+}
+
+ChainCallbackResult AnmManager::on_draw_04_just_renders_layer_00(void* args)
+{
+    AnmManager* This = reinterpret_cast<AnmManager*>(args);
+    return renderLayer(This, 0);
+}
+
+ChainCallbackResult AnmManager::on_draw_06_just_renders_layer_01(void* args)
+{
+    AnmManager* This = reinterpret_cast<AnmManager*>(args);
+    return renderLayer(This, 1);
+}
+
+ChainCallbackResult AnmManager::on_draw_08_just_renders_layer_02(void* args)
+{
+    AnmManager* This = reinterpret_cast<AnmManager*>(args);
+    return renderLayer(This, 2);
+}
+
+ChainCallbackResult AnmManager::on_draw_0a_also_renders_layer_03(void* args)
+{
+    AnmManager* This = reinterpret_cast<AnmManager*>(args);
+    g_supervisor.currentCam = &g_supervisor.stageCam;
+    g_supervisor.swapCameraTransformMatrices(&g_supervisor.stageCam);
+    g_supervisor.d3dDevice->SetViewport(&g_supervisor.currentCam->viewport);
+    g_supervisor.camIndex = 2;
+    if (g_supervisor.d3dDisableFogFlag != 0)
+    {
+        flushSprites(g_anmManager);
+        g_supervisor.d3dDisableFogFlag = 0;
+        g_supervisor.d3dDevice->SetRenderState(D3DRS_FOGENABLE, 0);
+    }
+    return renderLayer(This, 3);
+}
+
+ChainCallbackResult AnmManager::on_draw_0c_just_renders_layer_04(void* args)
+{
+    AnmManager* This = reinterpret_cast<AnmManager*>(args);
+    return renderLayer(This, 4);
+}
+
+ChainCallbackResult AnmManager::on_draw_0f_just_renders_layer_05(void* args)
+{
+    AnmManager* This = reinterpret_cast<AnmManager*>(args);
+    return renderLayer(This, 5);
+}
+
+ChainCallbackResult AnmManager::on_draw_10_just_renders_layer_06(void* args)
+{
+    AnmManager* This = reinterpret_cast<AnmManager*>(args);
+    return renderLayer(This, 6);
+}
+
+ChainCallbackResult AnmManager::on_draw_11_just_renders_layer_07(void* args)
+{
+    AnmManager* This = reinterpret_cast<AnmManager*>(args);
+    return renderLayer(This, 7);
+}
+
+ChainCallbackResult AnmManager::on_draw_12_just_renders_layer_08(void* args)
+{
+    AnmManager* This = reinterpret_cast<AnmManager*>(args);
+    return renderLayer(This, 8);
+}
+
+ChainCallbackResult AnmManager::on_draw_13_just_renders_layer_09(void* args)
+{
+    AnmManager* This = reinterpret_cast<AnmManager*>(args);
+    return renderLayer(This, 9);
+}
+
+ChainCallbackResult AnmManager::on_draw_15_just_renders_layer_10(void* args)
+{
+    AnmManager* This = reinterpret_cast<AnmManager*>(args);
+    return renderLayer(This, 10);
+}
+
+ChainCallbackResult AnmManager::on_draw_17_just_renders_layer_11(void* args)
+{
+    AnmManager* This = reinterpret_cast<AnmManager*>(args);
+    return renderLayer(This, 11);
+}
+
+ChainCallbackResult AnmManager::on_draw_18_just_renders_layer_12(void* args)
+{
+    AnmManager* This = reinterpret_cast<AnmManager*>(args);
+    return renderLayer(This, 12);
+}
+
+ChainCallbackResult AnmManager::on_draw_1a_just_renders_layer_13(void* args)
+{
+    AnmManager* This = reinterpret_cast<AnmManager*>(args);
+    return renderLayer(This, 13);
+}
+
+ChainCallbackResult AnmManager::on_draw_1c_just_renders_layer_14(void* args)
+{
+    AnmManager* This = reinterpret_cast<AnmManager*>(args);
+    return renderLayer(This, 14);
+}
+
+ChainCallbackResult AnmManager::on_draw_20_just_renders_layer_15(void* args)
+{
+    AnmManager* This = reinterpret_cast<AnmManager*>(args);
+    return renderLayer(This, 15);
+}
+
+ChainCallbackResult AnmManager::on_draw_22_just_renders_layer_16(void* args)
+{
+    AnmManager* This = reinterpret_cast<AnmManager*>(args);
+    return renderLayer(This, 16);
+}
+
+ChainCallbackResult AnmManager::on_draw_24_just_renders_layer_17(void* args)
+{
+    AnmManager* This = reinterpret_cast<AnmManager*>(args);
+    return renderLayer(This, 17);
+}
+
+ChainCallbackResult AnmManager::on_draw_27_just_renders_layer_18(void* args)
+{
+    AnmManager* This = reinterpret_cast<AnmManager*>(args);
+    return renderLayer(This, 18);
+}
+
+ChainCallbackResult AnmManager::on_draw_28_also_renders_layer_19(void* args)
+{
+    AnmManager* This = reinterpret_cast<AnmManager*>(args);
+    g_supervisor.stageCam.m_globalRenderQuadOffsetX = 0.0;
+    g_supervisor.stageCam.m_globalRenderQuadOffsetY = 0.0;
+    This->m_globalRenderQuadOffsetX = 0.0;
+    This->m_globalRenderQuadOffsetY = 0.0;
+    return renderLayer(This, 19);
+}
+
+ChainCallbackResult AnmManager::on_draw_30_also_renders_layer_20(void* args)
+{
+    AnmManager* This = reinterpret_cast<AnmManager*>(args);
+    g_supervisor.currentCam = &g_supervisor.cam1;
+    g_supervisor.swapCameraTransformMatrices(&g_supervisor.cam1);
+    g_supervisor.d3dDevice->SetViewport(&g_supervisor.currentCam->viewport);
+    g_supervisor.camIndex = 1;
+    return renderLayer(This, 20);
+}
+
+
+ChainCallbackResult AnmManager::on_draw_31_just_renders_layer_21(void* args)
+{
+    AnmManager* This = reinterpret_cast<AnmManager*>(args);
+    return renderLayer(This, 21);
+}
+
+ChainCallbackResult AnmManager::on_draw_32_just_renders_layer_22(void* args)
+{
+    AnmManager* This = reinterpret_cast<AnmManager*>(args);
+    return renderLayer(This, 22);
+}
+
+ChainCallbackResult AnmManager::on_draw_3c_just_renders_layer_23(void* args)
+{
+    AnmManager* This = reinterpret_cast<AnmManager*>(args);
+    return renderLayer(This, 23);
+}
+
+ChainCallbackResult AnmManager::on_draw_3d_just_renders_layer_24(void* args)
+{
+    AnmManager* This = reinterpret_cast<AnmManager*>(args);
+    return renderLayer(This, 24);
+}
+
+ChainCallbackResult AnmManager::on_draw_3f_also_renders_layer_29(void* args)
+{
+    AnmManager* This = reinterpret_cast<AnmManager*>(args);
+    return renderLayer(This, 29);
+}
+
+ChainCallbackResult AnmManager::on_draw_3e_also_renders_layer_30(void* args)
+{
+    AnmManager* This = reinterpret_cast<AnmManager*>(args);
+    g_supervisor.currentCam = &g_supervisor.cam0;
+    g_supervisor.swapCameraTransformMatrices(&g_supervisor.cam0);
+    g_supervisor.d3dDevice->SetViewport(&g_supervisor.currentCam->viewport);
+    g_supervisor.camIndex = 0;
+    ChainCallbackResult result = renderLayer(This, 30);
+    g_supervisor.currentCam = &g_supervisor.cam1;
+    g_supervisor.swapCameraTransformMatrices(&g_supervisor.cam1);
+    g_supervisor.d3dDevice->SetViewport(&g_supervisor.currentCam->viewport);
+    g_supervisor.camIndex = 1;
+    return result;
 }

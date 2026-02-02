@@ -35,7 +35,7 @@ public:
     int m_refreshCounter;                          // <0xac>
     float m_globalRenderQuadOffsetX;               // <0xb0>
     float m_globalRenderQuadOffsetY;               // <0xb4>
-    int m_unk3;                                    // <0xb8>
+    int m_someTickCounter;                         // <0xb8>
     AnmVm m_fastVms[4096];                         // <0xbc>
     uint8_t m_fastVmsIsAlive[4096];                // <0x4340bc>
     int m_nextFastVmIndex;                         // <0x4350bc>
@@ -68,6 +68,9 @@ public:
     uint8_t m_scaleR;                              // <0x7bd88e>
     uint8_t m_scaleA;                              // <0x7bd88f>
     uint32_t m_rebuildColorFlag;                   // <0x7bd890>
+
+    AnmManager();
+    ~AnmManager();
 
     /**
      * 0x44fd10
@@ -179,6 +182,10 @@ public:
      */
     static void setupRenderSquare();
 
+    // 0x455a00
+    static void makeVmWithAnmLoaded(AnmLoaded* anmLoaded, int scriptNumber, int anmVmLayer, AnmId* anmId);
+    static void removeVm(AnmManager* This, AnmVm* vm);
+
     static void createD3DTextures(AnmManager* This);
     static void markAnmLoadedAsReleasedInVmList(AnmManager* This, AnmLoaded* anmLoaded);
     static void releaseTextures();
@@ -200,6 +207,39 @@ public:
 
     static AnmVm* getVmWithId(AnmManager* This, int anmId);
     static void blitTextures(AnmManager* This);
+
+    static ChainCallbackResult renderLayer(AnmManager* This, int layer);
+
+    static ChainCallbackResult __fastcall onTick1a(void* args);
+    static ChainCallbackResult __fastcall onTick08(void* args);
+    static ChainCallbackResult __fastcall on_draw_04_just_renders_layer_00(void* args);
+    static ChainCallbackResult __fastcall on_draw_06_just_renders_layer_01(void* args);
+    static ChainCallbackResult __fastcall on_draw_08_just_renders_layer_02(void* args);
+    static ChainCallbackResult __fastcall on_draw_0a_also_renders_layer_03(void* args);
+    static ChainCallbackResult __fastcall on_draw_0c_just_renders_layer_04(void* args);
+    static ChainCallbackResult __fastcall on_draw_0f_just_renders_layer_05(void* args);
+    static ChainCallbackResult __fastcall on_draw_10_just_renders_layer_06(void* args);
+    static ChainCallbackResult __fastcall on_draw_11_just_renders_layer_07(void* args);
+    static ChainCallbackResult __fastcall on_draw_12_just_renders_layer_08(void* args);
+    static ChainCallbackResult __fastcall on_draw_13_just_renders_layer_09(void* args);
+    static ChainCallbackResult __fastcall on_draw_15_just_renders_layer_10(void* args);
+    static ChainCallbackResult __fastcall on_draw_17_just_renders_layer_11(void* args);
+    static ChainCallbackResult __fastcall on_draw_18_just_renders_layer_12(void* args);
+    static ChainCallbackResult __fastcall on_draw_1a_just_renders_layer_13(void* args);
+    static ChainCallbackResult __fastcall on_draw_1c_just_renders_layer_14(void* args);
+    static ChainCallbackResult __fastcall on_draw_20_just_renders_layer_15(void* args);
+    static ChainCallbackResult __fastcall on_draw_22_just_renders_layer_16(void* args);
+    static ChainCallbackResult __fastcall on_draw_24_just_renders_layer_17(void* args);
+    static ChainCallbackResult __fastcall on_draw_27_just_renders_layer_18(void* args);
+    static ChainCallbackResult __fastcall on_draw_28_also_renders_layer_19(void* args);
+    static ChainCallbackResult __fastcall on_draw_32_just_renders_layer_22(void* args);
+    static ChainCallbackResult __fastcall on_draw_3c_just_renders_layer_23(void* args);
+    static ChainCallbackResult __fastcall on_draw_3d_just_renders_layer_24(void* args);
+    static ChainCallbackResult __fastcall on_draw_31_just_renders_layer_21(void* args);
+    static ChainCallbackResult __fastcall on_draw_30_also_renders_layer_20(void* args);
+    static ChainCallbackResult __fastcall on_draw_3f_also_renders_layer_29(void* args);
+    static ChainCallbackResult __fastcall on_draw_3e_also_renders_layer_30(void* args);
+
 private:
     static constexpr int NUM_FAST_VMS = 4096;
     static constexpr int NUM_ANM_LOADEDS = 32;
