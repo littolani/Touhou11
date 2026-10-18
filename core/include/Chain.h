@@ -20,42 +20,42 @@ enum ChainCallbackResult
 // Once callbacks are hooked inside the DLL, however, they will be cdecl.
 typedef ChainCallbackResult(__fastcall* ChainCallback)(void*);
 
+template <typename T>
+struct ZUNList
+{
+    T data;
+    ZUNList<T>* nextNode;
+    ZUNList<T>* prevNode;
+};
+
 struct ChainElem
 {
     ChainElem()
     {
-        nextNode = (ChainElem*) ((uintptr_t)nextNode & ~1);
-        embeddedTracker.trackerJobNode = this;
+        //listNode.nextNode = (ZUNList<ChainElem*>*) ((uintptr_t)listNode.nextNode & ~1);
+        listNode.data = this;
     }
 
     ChainElem(ChainCallback callback)
     {
-        nextNode = (ChainElem*) ((uintptr_t)nextNode & ~1);
-        jobRunDrawChainCallback = callback;
-        embeddedTracker.trackerJobNode = this;
+        //listNode.nextNode = (ZUNList<ChainElem*>*) ((uintptr_t)listNode.nextNode & ~1);
+        runCalcChainCallback = callback;
+        listNode.data = this;
     }
 
-    union {
-        ChainElem* trackerJobNode{};             // <0x0> Tracker: Points to job node
-        int jobPriority;                         // <0x0> Job: Priority value
-    };
-
-    // Bit 0 of indicates whether the node is heap-allocated
-    // Bit 1 indicates whether the node is a job node
-    ChainElem* nextNode{};                       // <0x4> Job/Tracker: Next node in list
-    union {
-        ChainCallback jobRunDrawChainCallback{}; // <0x8> Job: Callback
-        ChainElem* trackerPrevNode;              // <0x8> Tracker: Previous node
-    };
-    ChainCallback registerChainCallback{};       // <0xc> Job: Registration callback
-    ChainCallback runCalcChainCallback{};        // <0x10> Job: Calculation callback
-    struct {
-        ChainElem* trackerJobNode{};             // <0x14> Tracker: Points to this job node
-        ChainElem* trackerNextNode{};            // <0x18> Tracker: Next tracker node
-        ChainElem* trackerPrevNode{};            // <0x1c> Tracker: Previous tracker node
-    } embeddedTracker;
-    void* args{};                                // <0x20> Job: Callback arguments
+    int32_t priority;           // 0x0
+    uint32_t flags;
+    //{
+    //    uint32_t isHeapAllocated : 1;
+    //    uint32_t runOnUpdate : 1;
+    //};                              // 0x4
+    ChainCallback runCalcChainCallback;           // 0x8
+    ChainCallback registerChainCallback;           // 0xC
+    ChainCallback cutCallback;           // 0x10
+    ZUNList<ChainElem*> listNode;   // 0x14
+    void* args;                      // 0x20
 };
+
 ASSERT_SIZE(ChainElem, 0x24);
 
 struct TrackerNode
@@ -109,7 +109,7 @@ struct Chain
 
     static void cut(Chain* This, ChainElem* elementToRemove);
 
-    static void removeTracker(ChainElem* tracker, ChainElem* elementToRemove);
+    static void removeTracker(ZUNList<ChainElem*>* tracker, ChainElem* elementToRemove);
 
 };
 ASSERT_SIZE(Chain, 0x4c);

@@ -17,7 +17,7 @@ struct CWaveFile
 public:
     WAVEFORMATEX* waveFormat;
     MMCKINFO mmckinfo;
-    int idk0[5];
+    int runningFrameCount[5];
     DWORD dwSize;
     int idk1[18];
     ULONG dataSize;

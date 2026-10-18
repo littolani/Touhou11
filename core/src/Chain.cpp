@@ -4,34 +4,34 @@
 
 Chain::Chain()
 {
-    calcChain.trackerPrevNode = nullptr;
+    calcChain.listNode.prevNode = nullptr;
     calcChain.registerChainCallback = nullptr;
-    calcChain.jobPriority = 0;
-    calcChain.nextNode = (ChainElem*)((uintptr_t)&calcChain & ~1);
-    calcChain.embeddedTracker.trackerNextNode = nullptr;
-    calcChain.embeddedTracker.trackerPrevNode = nullptr;
-    calcChain.embeddedTracker.trackerJobNode = &calcChain;
-    drawChain.trackerPrevNode = nullptr;
+    calcChain.priority = 0;
+    calcChain.flags &= ~1;
+    calcChain.listNode.nextNode = nullptr;
+    calcChain.listNode.prevNode = nullptr;
+    calcChain.listNode.data = &calcChain;
+    drawChain.listNode.prevNode = nullptr;
     drawChain.registerChainCallback = nullptr;
-    drawChain.jobPriority = 0;
-    drawChain.nextNode = (ChainElem*)((uintptr_t)&drawChain & ~1);
-    drawChain.embeddedTracker.trackerNextNode = nullptr;
-    drawChain.embeddedTracker.trackerPrevNode = nullptr;
-    drawChain.embeddedTracker.trackerJobNode = &drawChain;
+    drawChain.priority = 0;
+    drawChain.flags &= ~1;
+    drawChain.listNode.nextNode = nullptr;
+    drawChain.listNode.prevNode = nullptr;
+    drawChain.listNode.data = &drawChain;
     timeToRemove = 0;
 }
 
 void Chain::releaseSingleChain(Chain* This, ChainElem* root)
 {
-    ChainElem* elem = (root->embeddedTracker).trackerNextNode;
-    while (elem != nullptr)
+    ZUNList<ChainElem*>* start = root->listNode.nextNode;
+    while (start != nullptr)
     {
-        ChainElem* branch = elem->trackerJobNode;
-        branch = branch->nextNode;
-        if (branch != nullptr)
+        ChainElem* elem = start->data;
+        start = start->nextNode;
+        if (elem != nullptr)
         {
             g_supervisor.enterCriticalSection(0);
-            cut(This, branch);
+            cut(This, elem);
             g_supervisor.leaveCriticalSection(0);
         }
     }
@@ -44,53 +44,53 @@ void Chain::cut(Chain* This, ChainElem* elementToRemove)
         return;
 
     // Search calcChain for the tracker node pointing to elementToRemove
-    ChainElem* tracker = reinterpret_cast<ChainElem*>(&This->calcChain.embeddedTracker);
-    while (tracker != nullptr)
+    ZUNList<ChainElem*>* listNode = &This->calcChain.listNode;
+    while (listNode != nullptr)
     {
-        if (tracker->trackerJobNode == elementToRemove)
+        if (listNode->data == elementToRemove)
         {
-            removeTracker(tracker, elementToRemove);
+            removeTracker(listNode, elementToRemove);
             return;
         }
-        tracker = tracker->nextNode;
+        listNode = listNode->nextNode;
     }
 
     // If not found, search drawChain
-    tracker = reinterpret_cast<ChainElem*>(&This->drawChain.embeddedTracker);
-    while (tracker != nullptr)
+    listNode = &This->drawChain.listNode;
+    while (listNode != nullptr)
     {
-        if (tracker->trackerJobNode == elementToRemove)
+        if (listNode->data == elementToRemove)
         {
-            removeTracker(tracker, elementToRemove);
+            removeTracker(listNode, elementToRemove);
             return;
         }
-        tracker = tracker->nextNode;
+        listNode = listNode->nextNode;
     }
 }
 
-void Chain::removeTracker(ChainElem* tracker, ChainElem* elementToRemove)
+void Chain::removeTracker(ZUNList<ChainElem*>* tracker, ChainElem* elementToRemove)
 {
     // Update doubly-linked list pointers to remove tracker node
-    if (tracker->trackerPrevNode != nullptr)
+    if (tracker->prevNode != nullptr)
     {
         if (tracker->nextNode != nullptr)
-            tracker->nextNode->trackerPrevNode = tracker->trackerPrevNode;
+            tracker->nextNode->prevNode = tracker->prevNode;
 
-        if (tracker->trackerPrevNode != nullptr)
-            tracker->trackerPrevNode->nextNode = tracker->nextNode;
+        if (tracker->prevNode != nullptr)
+            tracker->prevNode->nextNode = tracker->nextNode;
 
         tracker->nextNode = nullptr;
-        tracker->trackerPrevNode = nullptr;
+        tracker->prevNode = nullptr;
     }
 
     // Cleanup the job node (elementToRemove)
-    elementToRemove->jobRunDrawChainCallback = nullptr;
-    if ((reinterpret_cast<uintptr_t>(elementToRemove->nextNode) & 1) != 0)
+    elementToRemove->runCalcChainCallback = nullptr;
+    if (elementToRemove->flags & 1)
     {
         // Heap-allocated job node: clear additional fields and free
-        elementToRemove->jobRunDrawChainCallback = nullptr;
-        elementToRemove->registerChainCallback = nullptr;
         elementToRemove->runCalcChainCallback = nullptr;
+        elementToRemove->registerChainCallback = nullptr;
+        elementToRemove->cutCallback = nullptr;
         game_free(elementToRemove);
     }
 }
@@ -109,32 +109,32 @@ int Chain::registerCalcChain(ChainElem* chainElem, int priority)
 
     g_supervisor.enterCriticalSection(0);
 
-    chainElem->jobPriority = priority;
+    chainElem->priority = priority;
 
     // Grab the embedded tracker instead of the base ChainElem
-    TrackerNode* tracker = reinterpret_cast<TrackerNode*>(&This->calcChain.embeddedTracker);
-    TrackerNode* trackerNext = tracker->next;
+    ZUNList<ChainElem*>* tracker = &This->calcChain.listNode;
+    ZUNList<ChainElem*>* trackerNext = tracker->nextNode;
 
     // Traverse the tracker linked list
     while (trackerNext != nullptr)
     {
-        ChainElem* jobNode = trackerNext->ownerJob;
-        if (jobNode->jobPriority >= priority)
+        ChainElem* jobNode = trackerNext->data;
+        if (jobNode->priority >= priority)
             break;
 
         tracker = trackerNext;
-        trackerNext = trackerNext->next;
+        trackerNext = trackerNext->nextNode;
     }
 
     // Link the new tracker into the list
-    TrackerNode* newTracker = reinterpret_cast<TrackerNode*>(&chainElem->embeddedTracker);
-    newTracker->next = trackerNext;
+    ZUNList<ChainElem*>* newTracker = &chainElem->listNode;
+    newTracker->nextNode = trackerNext;
 
     if (trackerNext != nullptr)
-        trackerNext->prev = newTracker;
+        trackerNext->prevNode = newTracker;
 
-    tracker->next = newTracker;
-    newTracker->prev = tracker;
+    tracker->nextNode = newTracker;
+    newTracker->prevNode = tracker;
 
     g_supervisor.leaveCriticalSection(0);
     return registerCallbackResult;
@@ -152,29 +152,29 @@ int Chain::registerDrawChain(ChainElem* chainElem, int priority)
     }
 
     g_supervisor.enterCriticalSection(0);
-    chainElem->jobPriority = priority;
-    TrackerNode* head = reinterpret_cast<TrackerNode*>(&g_chain->drawChain.embeddedTracker);
-    TrackerNode* current = head;
-    TrackerNode* nextNode = current->next;
+    chainElem->priority = priority;
+    ZUNList<ChainElem*>* head = &g_chain->drawChain.listNode;
+    ZUNList<ChainElem*>* current = head;
+    ZUNList<ChainElem*>* nextNode = current->nextNode;
 
     while (nextNode != nullptr)
     {
-        ChainElem* job = nextNode->ownerJob;
-        if (job->jobPriority >= priority)
+        ChainElem* job = nextNode->data;
+        if (job->priority >= priority)
             break;
 
         current = nextNode;
-        nextNode = current->next;
+        nextNode = current->nextNode;
     }
 
-    TrackerNode* newTracker = reinterpret_cast<TrackerNode*>(&chainElem->embeddedTracker);
-    newTracker->next = nextNode;
+    ZUNList<ChainElem*>* newTracker = &chainElem->listNode;
+    newTracker->nextNode = nextNode;
 
     if (nextNode != nullptr)
-        nextNode->prev = newTracker; // Link next -> new (if next exists)
+        nextNode->prevNode = newTracker; // Link next -> new (if next exists)
 
-    current->next = newTracker; // Link current -> new   
-    newTracker->prev = current; // Link new -> current
+    current->nextNode = newTracker; // Link current -> new   
+    newTracker->prevNode = current; // Link new -> current
     g_supervisor.leaveCriticalSection(0);
     return registerResult;
 }
@@ -182,20 +182,20 @@ int Chain::registerDrawChain(ChainElem* chainElem, int priority)
 int Chain::runCalcChain(Chain* This)
 {
     g_supervisor.enterCriticalSection(0);
-    ChainElem* trackerChain = This->calcChain.embeddedTracker.trackerNextNode;
+    ZUNList<ChainElem*>* trackerChain = This->calcChain.listNode.nextNode;
     int processedCount = 0;
 
     while (trackerChain)
     {
-        ChainElem* startingElem = trackerChain->trackerJobNode;
-        ChainElem* nextTrackerChain = trackerChain->nextNode;
+        ChainElem* startingElem = trackerChain->data;
+        ZUNList<ChainElem*>* nextTrackerChain = trackerChain->nextNode;
         trackerChain = nextTrackerChain;
 
         if (!startingElem)
             continue;
 
-        // Check whether the node is a job node
-        if ((reinterpret_cast<uintptr_t>(startingElem->nextNode) & 2) != 0)
+        // Check whether the node is a running job
+        if (startingElem->flags & 2)
         {
             bool reExecute = false;
             bool forceContinueOuter = false;
@@ -206,7 +206,7 @@ int Chain::runCalcChain(Chain* This)
                 if (This->timeToRemove == 0)
                 {
                     g_supervisor.leaveCriticalSection(0);
-                    ChainCallbackResult result = startingElem->jobRunDrawChainCallback(startingElem->args);
+                    ChainCallbackResult result = startingElem->runCalcChainCallback(startingElem->args);
                     g_supervisor.enterCriticalSection(0);
 
                     switch (result)
@@ -218,7 +218,7 @@ int Chain::runCalcChain(Chain* This)
                         break;
 
                     case ExecuteAgain:
-                        if ((reinterpret_cast<uintptr_t>(startingElem->nextNode) & 2) != 0)
+                        if (startingElem->flags & 2)
                             reExecute = true;
                         break;
 
@@ -236,14 +236,14 @@ int Chain::runCalcChain(Chain* This)
                         return -1;
 
                     case RestartFromFirstJob:
-                        trackerChain = This->calcChain.embeddedTracker.trackerNextNode;
+                        trackerChain = This->calcChain.listNode.nextNode;
                         processedCount = 0;
                         forceContinueOuter = true;
                         break;
 
                     case CleanupAndContinue:
-                        if (startingElem->runCalcChainCallback) {
-                            startingElem->runCalcChainCallback(startingElem->args);
+                        if (startingElem->cutCallback) {
+                            startingElem->cutCallback(startingElem->args);
                         }
                         [[fallthrough]];
 
@@ -254,8 +254,8 @@ int Chain::runCalcChain(Chain* This)
                 else
                 {
                     // Destruction Path
-                    if (startingElem->runCalcChainCallback)
-                        startingElem->runCalcChainCallback(startingElem->args);
+                    if (startingElem->cutCallback)
+                        startingElem->cutCallback(startingElem->args);
                 }
 
             } while (reExecute);
@@ -269,28 +269,28 @@ int Chain::runCalcChain(Chain* This)
     return processedCount;
 }
 
-int Chain::runDrawChain(void)
+int Chain::runDrawChain()
 {
     int processedCount = 0;
     Chain* pChain = g_chain;
 
     g_supervisor.enterCriticalSection(0);
-    ChainElem* element = pChain->drawChain.embeddedTracker.trackerNextNode;
+    ZUNList<ChainElem*>* element = pChain->drawChain.listNode.nextNode;
 
     while (element != nullptr)
     {
         // Cache the current job and the next element in the list
-        ChainElem* startingElem = element->trackerJobNode;
-        ChainElem* nextElement = element->nextNode;
+        ChainElem* startingElem = element->data;
+        ZUNList<ChainElem*>* nextElement = element->nextNode;
 
-        if (startingElem->trackerPrevNode != nullptr && (reinterpret_cast<uintptr_t>(startingElem->nextNode) & 2))
+        if (startingElem->listNode.prevNode != nullptr && startingElem->flags & 2)
         {
             bool executeAgain;
             do {
                 executeAgain = false;
 
                 g_supervisor.leaveCriticalSection(0);
-                ChainCallbackResult result = startingElem->jobRunDrawChainCallback(startingElem->args);
+                ChainCallbackResult result = startingElem->runCalcChainCallback(startingElem->args);
                 g_supervisor.enterCriticalSection(0);
 
                 switch (result)
@@ -300,7 +300,7 @@ int Chain::runDrawChain(void)
                     break;
 
                 case ExecuteAgain:
-                    if (reinterpret_cast<uintptr_t>(startingElem->nextNode) & 2)
+                    if (startingElem->flags & 2)
                         executeAgain = true;
                     break;
 

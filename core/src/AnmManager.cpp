@@ -31,14 +31,14 @@ AnmManager* AnmManager::initialize(AnmManager* This)
     auto addChain = [&](int priority, ChainCallback callback, bool isCalcChain) -> void
     {
         ChainElem* elem = (ChainElem*)game_new(sizeof(ChainElem));
-        elem->nextNode = (ChainElem*)((uintptr_t)elem->nextNode & 0xfffffffe);
-        elem->trackerPrevNode = nullptr;
+        elem->flags &= -2;
+        elem->listNode.prevNode = nullptr;
         elem->registerChainCallback = nullptr;
-        elem->runCalcChainCallback = nullptr;
-        elem->jobPriority = 0;
-        elem->embeddedTracker.trackerJobNode = elem;
-        elem->nextNode = (ChainElem*)((uintptr_t)elem->nextNode | 3);
-        elem->jobRunDrawChainCallback = callback;
+        elem->cutCallback = nullptr;
+        elem->priority = 0;
+        elem->listNode.data = elem;
+        elem->flags |= 3;
+        elem->runCalcChainCallback = callback;
         elem->args = This;
 
         if (isCalcChain)
@@ -464,7 +464,7 @@ AnmVm* AnmManager::allocateVm()
     return vm;
 }
 
-void AnmManager::makeVmWithAnmLoaded(AnmLoaded* anmLoaded, int scriptNumber, int anmVmLayer, AnmId* anmId)
+AnmId* AnmManager::makeVmWithAnmLoaded(AnmLoaded* anmLoaded, int scriptNumber, int anmVmLayer, AnmId* outAnmId)
 {
     AnmManager* This = g_anmManager;
     g_supervisor.enterCriticalSection(9);
@@ -472,8 +472,9 @@ void AnmManager::makeVmWithAnmLoaded(AnmLoaded* anmLoaded, int scriptNumber, int
     vm->m_flagsLow |= 0x40000000;
     vm->m_layer = anmVmLayer;
     vm->loadAnmScript(vm, anmLoaded, scriptNumber);
-    putInVmList(vm, anmId);
+    putInVmList(vm, outAnmId);
     g_supervisor.leaveCriticalSection(9);
+    return outAnmId;
 }
 
 // 0x445320
@@ -1740,7 +1741,7 @@ void AnmManager::drawVm(AnmManager* This, AnmVm* vm)
     case 0xc:
     case 0xd:
     {
-        drawVmTriangleStrip(This, vm, vm->m_specialRenderData, vm->m_intVars[0] * 2);
+        drawVmTriangleStrip(This, vm, (SpecialRenderData*)vm->m_specialRenderData, vm->m_intVars[0] * 2);
 
         //using ltoFunc = Signature<int, AnmManager*, AnmVm*, void*, uint32_t>;
         //using ltoSig = Storage<
@@ -1756,7 +1757,7 @@ void AnmManager::drawVm(AnmManager* This, AnmVm* vm)
         break;
     }
     case 0xb:
-        drawVmTriangleFan(This, vm, vm->m_specialRenderData, vm->m_intVars[0] * 2);
+        drawVmTriangleFan(This, vm, (SpecialRenderData*)vm->m_specialRenderData, vm->m_intVars[0] * 2);
         break;
     default:
         break;

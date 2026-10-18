@@ -25,11 +25,11 @@ int Supervisor::initialize()
     auto addChain = [&](int priority, ChainCallback callback, ChainCallback onRegisterCb, bool isCalcChain) -> int
     {
         ChainElem* elem = (ChainElem*)game_new(sizeof(ChainElem));
-        elem->nextNode = (ChainElem*)((uintptr_t)elem->nextNode | 3);
-        elem->jobRunDrawChainCallback = callback;
+        elem->flags |= 3;
+        elem->runCalcChainCallback = callback;
         elem->args = &g_supervisor;
         elem->registerChainCallback = nullptr;
-        elem->runCalcChainCallback = nullptr;
+        elem->cutCallback = nullptr;
 
         int res = 0;
         if (isCalcChain)
@@ -167,7 +167,7 @@ int Supervisor::verifyGameConfig()
 
         if (m_gameConfig.colorDepth >= 2 ||
             m_gameConfig.sfxEnabled >= 3 ||
-            m_gameConfig.startingBombs >= 2 ||
+            m_gameConfig.soundRelated >= 2 ||
             m_gameConfig.displayMode >= 4 ||
             m_gameConfig.frameSkip >= 3 ||
             m_gameConfig.musicMode >= 3 ||
@@ -787,12 +787,12 @@ void Supervisor::releaseChains()
     g_chain->runCalcChain(g_chain);
     g_chain->releaseSingleChain(g_chain, &g_chain->calcChain);
     g_chain->releaseSingleChain(g_chain, &g_chain->drawChain);
-    g_chain->drawChain.jobRunDrawChainCallback = nullptr;
-    g_chain->drawChain.registerChainCallback = nullptr;
     g_chain->drawChain.runCalcChainCallback = nullptr;
-    g_chain->calcChain.jobRunDrawChainCallback = nullptr;
-    g_chain->calcChain.registerChainCallback = nullptr;
+    g_chain->drawChain.registerChainCallback = nullptr;
+    g_chain->drawChain.cutCallback = nullptr;
     g_chain->calcChain.runCalcChainCallback = nullptr;
+    g_chain->calcChain.registerChainCallback = nullptr;
+    g_chain->calcChain.cutCallback = nullptr;
 }
 
 HRESULT Supervisor::disableD3dFog(Supervisor* This)
