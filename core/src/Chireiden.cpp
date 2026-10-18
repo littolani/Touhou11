@@ -9,6 +9,7 @@
 #include "Globals.h"
 #include "ThunkGenerator.h"
 #include "FileAbstraction.h"
+#include "MainMenu.h"
 #include "Player.h"
 #include "ReplayManager.h"
 #include "ScoreManager.h"
@@ -127,8 +128,8 @@ void waitForDebugger()
 
 void snapshot()
 {
-    const char* a = reinterpret_cast<char*>(0x4c9928);
-    puts(a);
+    g_gameSpeed *= 2.0f;
+    printf("Updated g_gameSpeed to %.2f", g_gameSpeed);
 }
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID lpvReserved)
@@ -213,6 +214,9 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID lpvReserved)
         installHook(0x4104d0, createLtoThunk<EAX, ECX, Stack<0x4>>(EclManager::cacheAndParse, 0x4));
 
         // installHook(0x426df0, createLtoThunk<Returns<EAX, ECX, Stack<0x4>, Stack<0x8>>(LaserLine::createOrDestroyLaserSegments, 8));
+
+        installHook(0x4590f0, createLtoThunk<Void, EAX>(MainMenu::pushMenuStack, 0));
+        installHook(0x459130, createLtoThunk<Void, EAX>(MainMenu::popMenuStack, 0));
 
         installHook(0x441760, createLtoThunk<EAX, Stack<0x4>, Stack<0x8>, ECX>(PbgArchive::readDecompressEntry, 0x8));
         installHook(0x4418d0, createLtoThunk<EAX, EAX, EBX>(PbgArchive::findEntry, 0));
